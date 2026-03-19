@@ -1,0 +1,391 @@
+/* LivePreview.module.css */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* ── Phone Frame (CSS only) ── */
+.phoneFrame {
+  width: 390px;
+  height: 844px;
+  border-radius: 48px;
+  background: #0F0F12;
+  position: relative;
+  box-shadow:
+    0 0 0 8px #1A1A1F,
+    0 0 0 10px #111115,
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    0 8px 32px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  flex-shrink: 0;
+
+  /* Scale down so it fits in the right pane */
+  transform: scale(0.45);
+  transform-origin: top center;
+  margin-bottom: calc(-844px * 0.55 + var(--space-4));
+}
+
+/* Status bar strip */
+.statusBar {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  pointer-events: none;
+  background: transparent;
+}
+
+.statusTime {
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: -0.2px;
+}
+
+.statusIcons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusBattery {
+  width: 25px;
+  height: 12px;
+  border: 1.5px solid rgba(255,255,255,0.7);
+  border-radius: 3px;
+  position: relative;
+}
+
+.statusBattery::before {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 6px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 0 2px 2px 0;
+}
+
+.statusBattery::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  right: 4px;
+  background: rgba(255,255,255,0.75);
+  border-radius: 1px;
+}
+
+/* Home indicator */
+.homeIndicator {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.25);
+  z-index: 10;
+}
+
+/* ── Screen (scrollable inner) ── */
+.screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--preview-bg, var(--color-bg));
+  border-radius: 48px;
+  padding-top: 44px;
+  scroll-behavior: smooth;
+}
+
+.screen::-webkit-scrollbar { display: none; }
+
+/* ── Storefront preview content ── */
+.previewHero {
+  min-height: 200px;
+  background: linear-gradient(180deg, var(--preview-surface, var(--color-surface)) 0%, var(--preview-bg, var(--color-bg)) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px 24px;
+  position: relative;
+}
+
+.previewHeroInner {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.previewStoreName {
+  font-family: var(--preview-font-heading, var(--font-serif));
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-fg, rgba(240,237,232,0.95));
+  letter-spacing: -0.5px;
+}
+
+.previewStoreHandle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(240,237,232,0.45);
+}
+
+.previewHeroBtns {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.previewHeroBtn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 20px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(240,237,232,0.8);
+}
+
+.previewHeroBtnAccent {
+  background: var(--preview-accent, var(--color-accent));
+  color: #F0EDE8;
+}
+
+/* ── Sections ── */
+.previewSection {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.previewSectionLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(240,237,232,0.4);
+  margin-bottom: 12px;
+}
+
+/* Collections row */
+.previewCollectionRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.previewCollectionPill {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--preview-surface, rgba(255,255,255,0.07));
+  color: rgba(240,237,232,0.75);
+}
+
+/* Product grid */
+.previewGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.previewGridDense {
+  gap: 6px;
+}
+
+/* Default card */
+.previewCard {
+  border-radius: 8px;
+  background: var(--preview-surface, rgba(255,255,255,0.07));
+  overflow: hidden;
+}
+
+.previewCardImg {
+  width: 100%;
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+}
+
+.previewCardName {
+  font-family: var(--preview-font-body, var(--font-sans));
+  font-size: 10px;
+  color: rgba(240,237,232,0.85);
+  padding: 6px 8px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewCardPrice {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(240,237,232,0.45);
+  padding: 0 8px 8px;
+}
+
+/* Stamp card */
+.previewCardStamp {
+  background: #F9F6F0;
+  border-radius: 4px;
+  padding: 6px 6px 8px;
+  box-shadow: 4px 6px 14px rgba(0,0,0,0.2);
+}
+
+.previewCardStamp .previewCardImg {
+  border-radius: 2px;
+  background: linear-gradient(135deg, rgba(0,0,0,0.08), rgba(0,0,0,0.03));
+}
+
+.previewCardNameItalic {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 10px;
+  color: #2A1F1A;
+  text-align: center;
+  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewCardPriceSm {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: #6B5B4E;
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* Receipt card */
+.previewCardReceipt {
+  background: #0A0A0C;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.previewCardNameMono {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  color: rgba(240,237,232,0.75);
+  padding: 5px 6px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewCardPriceGold {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--color-gold, #C9A84C);
+  padding: 0 6px 6px;
+}
+
+/* Minimal card */
+.previewCardMinimal {
+  background: transparent;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  padding-bottom: 10px;
+}
+
+.previewCardImgSm {
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+/* List layout */
+.previewListGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.previewListRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.previewListThumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.previewListInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.previewListName {
+  font-family: var(--preview-font-body, var(--font-sans));
+  font-size: 11px;
+  color: rgba(240,237,232,0.85);
+}
+
+.previewListPrice {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(240,237,232,0.45);
+}
+
+/* About section */
+.previewAboutCard {
+  background: var(--preview-surface, rgba(255,255,255,0.05));
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.previewAboutText {
+  font-family: var(--preview-font-body, var(--font-sans));
+  font-size: 10px;
+  color: rgba(240,237,232,0.65);
+  line-height: 1.6;
+}
+
+/* Caption below phone */
+.previewCaption {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  text-align: center;
+  margin: 0;
+}
+
+/* Desktop: show at correct offset from transform */
+@media (min-width: 768px) {
+  .wrapper {
+    padding-top: var(--space-4);
+  }
+}

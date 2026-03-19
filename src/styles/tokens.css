@@ -1,0 +1,180 @@
+/* ============================================================
+   TROVE'A — DESIGN TOKENS v1.0
+   Grey Parchment + Velvet Maroon
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500;600&family=DM+Mono:wght@300;400;500&display=swap');
+
+:root {
+  /* ── PALETTE: Grey Parchment (Default) ── */
+  --color-bg: #9EA3AE;
+  --color-bg-warm: #A3A09B;
+  --color-bg-cool: #97A0AD;
+  --color-surface: #9EA3AE;
+  --color-surface-raised: #A8ADB8;
+  --color-surface-inset: #939AA5;
+
+  /* ── TYPOGRAPHY COLORS ── */
+  --color-fg: #0C0C0E;
+  --color-fg-secondary: #2E2E35;
+  --color-fg-muted: rgba(12, 12, 14, 0.52);
+  --color-fg-ghost: rgba(12, 12, 14, 0.28);
+
+  /* ── ACCENT ── */
+  --color-accent: #390007;
+  --color-accent-mid: #5C0010;
+  --color-accent-glow: rgba(57, 0, 7, 0.35);
+
+  /* ── GOLD ── */
+  --color-gold: #C9A84C;
+  --color-gold-light: #E2C97E;
+  --color-gold-dim: rgba(201, 168, 76, 0.4);
+
+  /* ── STATUS ── */
+  --color-success: #2ECB75;
+  --color-success-glow: rgba(46, 203, 117, 0.5);
+  --color-warning: #C9A84C;
+  --color-error: #390007;
+
+  /* ── NEUMORPHIC SHADOW PRIMITIVES ── */
+  --sh-light: rgba(255, 255, 255, 0.48);
+  --sh-dark: rgba(10, 10, 14, 0.22);
+
+  --shadow-raise:
+    8px 8px 18px var(--sh-dark),
+    -8px -8px 18px var(--sh-light);
+  --shadow-raise-lg:
+    14px 14px 30px var(--sh-dark),
+    -14px -14px 30px var(--sh-light);
+  --shadow-raise-sm:
+    4px 4px 9px var(--sh-dark),
+    -4px -4px 9px var(--sh-light);
+  --shadow-inset:
+    inset 5px 5px 12px var(--sh-dark),
+    inset -5px -5px 12px var(--sh-light);
+  --shadow-inset-sm:
+    inset 3px 3px 7px var(--sh-dark),
+    inset -3px -3px 7px var(--sh-light);
+  --shadow-inset-deep:
+    inset 8px 8px 20px var(--sh-dark),
+    inset -4px -4px 10px var(--sh-light);
+
+  /* ── TYPOGRAPHY ── */
+  --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --font-serif-alt: 'Cormorant Garamond', serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'DM Mono', 'Courier New', monospace;
+
+  /* ── BORDER RADIUS ── */
+  --r-xs: 6px;
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 24px;
+  --r-xl: 32px;
+  --r-pill: 50px;
+  --r-full: 9999px;
+
+  /* ── SPACING ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ── MOTION ── */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.34, 1, 0.64, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --duration-instant: 80ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --duration-ceremony: 700ms;
+
+  /* ── Z-INDEX SCALE ── */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-drawer: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+  --z-pagelock: 500;
+
+  /* ── NOISE TEXTURE ── */
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
+
+  /* ── LAYOUT ── */
+  --nav-height-mobile: 72px;
+  --nav-height-desktop: 64px;
+  --sidebar-width: 240px;
+  --max-content-width: 1360px;
+}
+
+/* ── PALETTE OVERRIDES ── */
+
+/* Velvet Maroon — used on storefront when palette = 'velvet' */
+[data-palette="velvet"] {
+  --color-bg: #350006;
+  --color-bg-warm: #420008;
+  --color-bg-cool: #2a0005;
+  --color-surface: #350006;
+  --color-surface-raised: #420008;
+  --color-surface-inset: #260004;
+  --color-fg: #F0EDE8;
+  --color-fg-secondary: rgba(240, 237, 232, 0.8);
+  --color-fg-muted: rgba(240, 237, 232, 0.52);
+  --color-fg-ghost: rgba(240, 237, 232, 0.28);
+  --sh-light: rgba(255, 255, 255, 0.06);
+  --sh-dark: rgba(0, 0, 0, 0.5);
+}
+
+/* Parchment — warm ivory */
+[data-palette="parchment"] {
+  --color-bg: #EDE8DC;
+  --color-bg-warm: #F0EBE0;
+  --color-bg-cool: #E8E3D8;
+  --color-surface: #EDE8DC;
+  --color-surface-raised: #F2EDE2;
+  --color-surface-inset: #E4DFD4;
+  --color-fg: #1A1410;
+  --color-fg-secondary: #3D3228;
+  --color-fg-muted: rgba(26, 20, 16, 0.52);
+  --color-fg-ghost: rgba(26, 20, 16, 0.28);
+  --sh-light: rgba(255, 255, 255, 0.65);
+  --sh-dark: rgba(80, 60, 40, 0.18);
+}
+
+/* Slate — cool blue-grey */
+[data-palette="slate"] {
+  --color-bg: #7A8390;
+  --color-bg-warm: #7E8690;
+  --color-bg-cool: #748090;
+  --color-surface: #7A8390;
+  --color-surface-raised: #848D9A;
+  --color-surface-inset: #717980;
+  --sh-light: rgba(255, 255, 255, 0.45);
+  --sh-dark: rgba(0, 10, 20, 0.25);
+}
+
+/* Onyx — near-black */
+[data-palette="onyx"] {
+  --color-bg: #1C1C22;
+  --color-bg-warm: #201E24;
+  --color-bg-cool: #181820;
+  --color-surface: #1C1C22;
+  --color-surface-raised: #242430;
+  --color-surface-inset: #141418;
+  --color-fg: #F0EDE8;
+  --color-fg-secondary: rgba(240, 237, 232, 0.82);
+  --color-fg-muted: rgba(240, 237, 232, 0.48);
+  --color-fg-ghost: rgba(240, 237, 232, 0.24);
+  --sh-light: rgba(255, 255, 255, 0.06);
+  --sh-dark: rgba(0, 0, 0, 0.55);
+}

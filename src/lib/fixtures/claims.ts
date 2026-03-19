@@ -1,0 +1,73 @@
+import type { ClaimRequest } from '../types';
+
+const daysAgo = (d: number, h = 0) =>
+  new Date(Date.now() - d * 24 * 60 * 60 * 1000 - h * 60 * 60 * 1000).toISOString();
+
+export const FIXTURE_CLAIMS: ClaimRequest[] = [
+  {
+    id: 'claim-001',
+    product_id: 'product-007',
+    merchant_id: 'merchant-001',
+    buyer_name: 'Adaeze Okonkwo',
+    buyer_phone: '+2348031122334',
+    buyer_note: 'Please keep one for me, I get paid Friday!',
+    status: 'pending',
+    created_at: daysAgo(0, 3),
+    updated_at: daysAgo(0, 3),
+  },
+  {
+    id: 'claim-002',
+    product_id: 'product-007',
+    merchant_id: 'merchant-001',
+    buyer_name: 'Tolu Animashaun',
+    buyer_phone: '+2348166778899',
+    buyer_note: null,
+    status: 'pending',
+    created_at: daysAgo(0, 6),
+    updated_at: daysAgo(0, 6),
+  },
+  {
+    id: 'claim-003',
+    product_id: 'product-017',
+    merchant_id: 'merchant-001',
+    buyer_name: 'Chibundo Okafor',
+    buyer_phone: '+2347011223344',
+    buyer_note: 'For my sister\'s introduction ceremony. Very important.',
+    status: 'pending',
+    created_at: daysAgo(1),
+    updated_at: daysAgo(1),
+  },
+  {
+    id: 'claim-004',
+    product_id: 'product-020',
+    merchant_id: 'merchant-001',
+    buyer_name: 'Emeka Nwosu',
+    buyer_phone: '+2349055443322',
+    buyer_note: null,
+    status: 'pending',
+    created_at: daysAgo(1, 2),
+    updated_at: daysAgo(1, 2),
+  },
+  {
+    id: 'claim-005',
+    product_id: 'product-007',
+    merchant_id: 'merchant-001',
+    buyer_name: 'Omotunde Adesanya',
+    buyer_phone: '+2348077889900',
+    buyer_note: 'I was told to message you for a slot.',
+    status: 'accepted',
+    created_at: daysAgo(3),
+    updated_at: daysAgo(2),
+  },
+  {
+    id: 'claim-006',
+    product_id: 'product-017',
+    merchant_id: 'merchant-001',
+    buyer_name: 'Ifunanya Okeke',
+    buyer_phone: '+2348012001200',
+    buyer_note: null,
+    status: 'declined',
+    created_at: daysAgo(4),
+    updated_at: daysAgo(3),
+  },
+];

@@ -1,0 +1,304 @@
+/* ============================================================
+   ROLE SELECTION — /onboarding/select-role
+   ============================================================ */
+
+.root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6);
+  position: relative;
+  overflow: hidden;
+  gap: var(--space-10);
+}
+
+.root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 15%, rgba(255, 250, 240, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 70% at 85% 85%, rgba(57, 0, 7, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* ── TOP HEADER ── */
+.header {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.step {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  margin-bottom: var(--space-3);
+  display: block;
+}
+
+.headline {
+  font-family: var(--font-serif);
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 400;
+  color: var(--color-fg);
+  line-height: 1.15;
+  margin-bottom: var(--space-3);
+}
+
+.subheadline {
+  font-family: var(--font-serif-alt);
+  font-size: 16px;
+  font-weight: 300;
+  font-style: italic;
+  color: var(--color-fg-muted);
+}
+
+/* ── PORTAL CARDS ── */
+.cardsRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 800px;
+  position: relative;
+  z-index: 1;
+}
+
+@media (min-width: 640px) {
+  .cardsRow {
+    flex-direction: row;
+    gap: var(--space-6);
+  }
+}
+
+.portalCard {
+  flex: 1;
+  position: relative;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(155deg, var(--color-surface-raised) 0%, var(--color-surface) 100%);
+  box-shadow: var(--shadow-raise);
+  /* min touch target */
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color var(--duration-normal) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+@media (min-width: 640px) {
+  .portalCard {
+    min-height: 380px;
+  }
+}
+
+.portalCard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise);
+  background-size: 200px 200px;
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Desaturate unselected when one is chosen */
+.portalCard[data-faded='true'] {
+  pointer-events: none;
+}
+
+/* Glow border on selected */
+.portalCard[data-selected='true'] {
+  border-color: rgba(57, 0, 7, 0.4);
+}
+
+.cardImageArea {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) var(--space-6) var(--space-6);
+  overflow: hidden;
+}
+
+/* Curator card — maroon glow */
+.cardImageArea.curator {
+  background: radial-gradient(circle at 40% 35%, rgba(92, 0, 16, 0.18) 0%, transparent 65%);
+}
+
+/* Buyer card — gold glow */
+.cardImageArea.buyer {
+  background: radial-gradient(circle at 40% 35%, rgba(201, 168, 76, 0.12) 0%, transparent 65%);
+}
+
+.cardIconRing {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--r-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .cardIconRing {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+.cardIconRing.curator {
+  background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
+  box-shadow: 8px 8px 20px rgba(57, 0, 7, 0.45), -4px -4px 10px rgba(255, 255, 255, 0.05);
+  color: #F0EDE8;
+}
+
+.cardIconRing.buyer {
+  background: linear-gradient(145deg, var(--color-gold-light), var(--color-gold));
+  box-shadow: 8px 8px 20px rgba(201, 168, 76, 0.4), -4px -4px 10px rgba(255, 255, 255, 0.08);
+  color: #1a1208;
+}
+
+.cardBody {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-5) var(--space-6) var(--space-7);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.cardTitle {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--color-fg);
+  margin-bottom: var(--space-2);
+  line-height: 1.2;
+}
+
+.cardDescription {
+  font-size: 13px;
+  color: var(--color-fg-muted);
+  line-height: 1.6;
+  margin-bottom: var(--space-5);
+}
+
+.cardCta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  transition: color var(--duration-fast);
+}
+
+.portalCard:hover .cardCta {
+  color: var(--color-fg-muted);
+}
+
+.cardCta.curator {
+  color: var(--color-accent);
+}
+
+.cardCta.buyer {
+  color: var(--color-gold);
+}
+
+/* Selection pulse ring */
+.selectedRing {
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--r-xl) + 2px);
+  border: 2px solid;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.selectedRing.curator {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px rgba(57, 0, 7, 0.15), 0 0 0 4px rgba(57, 0, 7, 0.1);
+}
+
+.selectedRing.buyer {
+  border-color: var(--color-gold);
+  box-shadow: inset 0 0 0 1px rgba(201, 168, 76, 0.15), 0 0 0 4px rgba(201, 168, 76, 0.1);
+}
+
+/* ── CONTINUE BUTTON ── */
+.continueWrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.continueBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-10);
+  background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
+  color: #F0EDE8;
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  min-height: 52px;
+  min-width: 240px;
+  box-shadow: 6px 6px 16px rgba(57, 0, 7, 0.4), -2px -2px 6px rgba(255, 255, 255, 0.05);
+  transition: all var(--duration-fast) var(--ease-spring);
+}
+
+.continueBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 8px 8px 22px rgba(57, 0, 7, 0.5);
+}
+
+.continueBtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.continueBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.continueBtnGold {
+  background: linear-gradient(145deg, var(--color-gold-light), var(--color-gold));
+  color: #1a1208;
+  box-shadow: 6px 6px 16px rgba(201, 168, 76, 0.4), -2px -2px 6px rgba(255, 255, 255, 0.08);
+}
+
+.continueBtnGold:hover:not(:disabled) {
+  box-shadow: 8px 8px 22px rgba(201, 168, 76, 0.5);
+}
+
+.selectPrompt {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+}

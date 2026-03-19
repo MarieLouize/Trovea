@@ -1,0 +1,91 @@
+.boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60dvh;
+  padding: var(--space-8);
+  text-align: center;
+  gap: var(--space-6);
+}
+
+.icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-xl);
+  background: linear-gradient(145deg, rgba(57, 0, 7, 0.15), rgba(57, 0, 7, 0.08));
+  box-shadow: var(--shadow-inset);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  margin: 0 auto;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--color-fg);
+  margin-top: var(--space-2);
+}
+
+.body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-fg-muted);
+  max-width: 340px;
+  line-height: 1.6;
+}
+
+.devBlock {
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface-inset));
+  box-shadow: var(--shadow-inset-sm);
+  border-radius: var(--r-md);
+  padding: var(--space-4);
+  text-align: left;
+  max-width: 560px;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.devBlock pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-accent-mid);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.retryBtn {
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-raise-sm);
+  color: var(--color-fg-muted);
+  transition: all var(--duration-fast) var(--ease-standard);
+}
+
+.retryBtn:hover {
+  box-shadow: var(--shadow-raise);
+  color: var(--color-fg);
+}
+
+.retryBtn:active {
+  box-shadow: var(--shadow-inset-sm);
+}

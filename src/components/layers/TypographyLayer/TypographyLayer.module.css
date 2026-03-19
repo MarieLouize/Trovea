@@ -1,0 +1,112 @@
+/* TypographyLayer.module.css */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sectionTitle { color: var(--color-fg); margin: 0; }
+.sectionDesc { color: var(--color-fg-muted); margin: 0; font-size: 13px; }
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--r-lg);
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-raise);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  transition: box-shadow 150ms, border-color 150ms;
+  min-height: 100px;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-raise-lg);
+}
+
+.cardActive {
+  box-shadow: var(--shadow-inset);
+  border-color: var(--color-gold);
+  background: linear-gradient(145deg, var(--color-surface), var(--color-surface-inset));
+}
+
+.noise {
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise);
+  background-size: 200px;
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: relative;
+  z-index: 1;
+}
+
+.previewHeading {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-fg);
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+
+.previewBody {
+  font-size: 13px;
+  color: var(--color-fg-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.previewMeta {
+  font-size: 10px;
+  color: var(--color-fg-ghost);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
+}
+
+.stackName {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--color-fg-muted);
+  text-transform: uppercase;
+}
+
+.activeBadge {
+  font-size: 8px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  color: var(--color-gold);
+}

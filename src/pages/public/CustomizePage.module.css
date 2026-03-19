@@ -1,0 +1,101 @@
+/* ─────────────────────────────────────────────────────────────
+   CustomizePage.module.css
+   Route: /store/:handle/customize  (The Architect)
+
+   This file styles the outermost page shell only.
+   ArchitectShell owns the full layout (split-pane, top bar,
+   mobile sheet, layer panels, live preview).
+   CustomizePage's job is solely to provide a stable, full-height
+   backdrop and handle edge cases the shell shouldn't need to know
+   about (overscroll, scroll anchoring, safe-area insets).
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Root page wrapper ─────────────────────────────────────── */
+.page {
+  min-height: 100dvh;
+  background: var(--color-bg);
+
+  /* Prevent rubber-band bounce from leaking through to the
+     page background behind the split pane on iOS */
+  overscroll-behavior: none;
+
+  /* Scroll anchoring — prevents layout jumps when the layer
+     panel content changes height (e.g. expanding sections) */
+  overflow-anchor: none;
+
+  /* Safe-area padding for devices with home indicator / notch.
+     ArchitectShell's nav + top-bar handle the main insets;
+     this catches any edge cases where the shell doesn't fill
+     the full viewport (e.g. mid-animation states). */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Establish a new stacking context so ArchitectShell's
+     fixed/sticky children (top bar, mobile dirty bar, FAB)
+     stay within the page and don't bleed into other routes */
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
+}
+
+/* ── Page-level loading state ──────────────────────────────── */
+/* Applied while fixtures / store config are resolving.
+   Phase 2: replace with skeleton shimmer when Supabase
+   fetch is in-flight. */
+.page[data-loading='true'] {
+  pointer-events: none;
+  cursor: wait;
+}
+
+/* ── Error boundary fallback ───────────────────────────────── */
+/* Rendered by CustomizePage's error boundary if ArchitectShell
+   throws (unlikely in Phase 1, but wired for Phase 2). */
+.errorFallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--color-fg-muted);
+}
+
+.errorFallback h2 {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  color: var(--color-fg);
+}
+
+.errorFallback p {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+.errorFallback button {
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--r-full);
+  background: var(--color-accent);
+  color: #F0EDE8;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none;
+  box-shadow: var(--shadow-raise);
+  transition: box-shadow var(--duration-fast) var(--ease-standard),
+              opacity var(--duration-fast) var(--ease-standard);
+}
+
+.errorFallback button:hover {
+  box-shadow: var(--shadow-raise-lg);
+}
+
+.errorFallback button:active {
+  box-shadow: var(--shadow-inset-sm);
+  opacity: 0.85;
+}

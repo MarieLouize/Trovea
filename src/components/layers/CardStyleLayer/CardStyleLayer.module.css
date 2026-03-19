@@ -1,0 +1,249 @@
+/* CardStyleLayer.module.css */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header { display: flex; flex-direction: column; gap: var(--space-1); }
+.sectionTitle { color: var(--color-fg); margin: 0; }
+.sectionDesc { color: var(--color-fg-muted); margin: 0; font-size: 13px; }
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-lg);
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-raise);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  transition: box-shadow 150ms, border-color 150ms;
+  min-height: 88px;
+}
+
+.card:hover { box-shadow: var(--shadow-raise-lg); }
+
+.cardActive {
+  box-shadow: var(--shadow-inset);
+  border-color: var(--color-accent);
+  background: linear-gradient(145deg, var(--color-surface), var(--color-surface-inset));
+}
+
+.noise {
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise);
+  background-size: 200px;
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+/* ── Mini card container ── */
+.miniCardContainer {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--color-surface-inset);
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Info ── */
+.info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: relative;
+  z-index: 1;
+}
+
+.infoTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.styleName { font-size: 14px; color: var(--color-fg); }
+
+.activeBadge {
+  font-size: 8px;
+  letter-spacing: 2px;
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+  text-transform: uppercase;
+}
+
+.styleDesc {
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Mini card renderings ── */
+.miniImg {
+  width: 100%;
+  height: 52%;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  flex-shrink: 0;
+}
+
+.miniImgTall { height: 62%; border-radius: 8px 8px 0 0; }
+.miniImgDark { background: rgba(10,10,12,0.6); }
+
+.miniBody {
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.miniBodyPad {
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.miniName {
+  font-size: 8px;
+  color: var(--color-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-sans);
+  line-height: 1.2;
+  display: block;
+}
+
+.miniNameItalic {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 9px;
+  color: #2A1F1A;
+  text-align: center;
+}
+
+.miniNameMono {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  color: rgba(240,237,232,0.85);
+}
+
+.miniNameSerif {
+  font-family: var(--font-serif);
+  font-size: 9px;
+  color: var(--color-fg);
+  display: block;
+}
+
+.miniPrice {
+  font-size: 7px;
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  display: block;
+}
+
+.miniPriceGold {
+  color: var(--color-gold);
+}
+
+/* Editorial */
+.miniEditorial {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Gallery */
+.miniGallery {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(145deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04));
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Stamp */
+.miniStamp {
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  margin: 6px;
+  background: #F9F6F0;
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 5px;
+}
+.miniStamp .miniImg { height: 55%; }
+.miniStamp .miniNameItalic { margin-top: 4px; }
+.miniStamp .miniPrice { text-align: center; color: #6B5B4E; margin-top: 2px; }
+
+/* Receipt */
+.miniReceipt {
+  width: 100%;
+  height: 100%;
+  background: #0A0A0C;
+  display: flex;
+  flex-direction: column;
+}
+.miniPerfs {
+  height: 4px;
+  background: repeating-linear-gradient(
+    90deg, transparent 0, transparent 3px, #0A0A0C 3px, #0A0A0C 5px
+  );
+  flex-shrink: 0;
+}
+.miniReceiptBody {
+  padding: 2px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Minimal */
+.miniMinimal {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+.miniMinimalThumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.12);
+  flex-shrink: 0;
+}
+.miniMinimalText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}

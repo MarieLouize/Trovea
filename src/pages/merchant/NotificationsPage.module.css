@@ -1,0 +1,290 @@
+/* ============================================================
+   NOTIFICATIONS — /notifications
+   ============================================================ */
+
+.root {
+  padding: var(--space-8) var(--space-6);
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: var(--space-8);
+  gap: var(--space-4);
+}
+
+.headerLeft {}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.headline {
+  font-family: var(--font-serif);
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 400;
+  color: var(--color-fg);
+  line-height: 1.1;
+}
+
+.markAllBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-raise-sm);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  min-height: 36px;
+  transition: all var(--duration-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.markAllBtn:hover {
+  color: var(--color-fg);
+  box-shadow: var(--shadow-raise);
+}
+
+/* ── FILTER TABS ── */
+.filterRow {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.filterChip {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface-inset));
+  box-shadow: var(--shadow-inset-sm);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-standard);
+  min-height: 36px;
+}
+
+.filterChip:hover {
+  color: var(--color-fg);
+}
+
+.filterChipActive {
+  background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
+  color: #F0EDE8;
+  border-color: transparent;
+  box-shadow: 4px 4px 10px rgba(57, 0, 7, 0.35);
+}
+
+/* ── NOTIFICATION CARD ── */
+.notifList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.notifCard {
+  position: relative;
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-raise-sm);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast);
+  margin: 1rem; 
+}
+
+.notifCard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise);
+  background-size: 200px 200px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.notifCard:hover {
+  box-shadow: var(--shadow-raise);
+  transform: translateY(-1px);
+}
+
+/* Unread indicator strip */
+.notifCard[data-unread='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 0 var(--r-full) var(--r-full) 0;
+  background: linear-gradient(180deg, var(--color-accent-mid), var(--color-accent));
+  box-shadow: 2px 0 8px rgba(57, 0, 7, 0.3);
+}
+
+.notifInner {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.notifIconWrap {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notifIconReceipt {
+  background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
+  box-shadow: 3px 3px 8px rgba(57, 0, 7, 0.35);
+  color: #F0EDE8;
+}
+
+.notifIconClaim {
+  background: linear-gradient(145deg, var(--color-gold-light), var(--color-gold));
+  box-shadow: 3px 3px 8px rgba(201, 168, 76, 0.35);
+  color: #1a1208;
+}
+
+.notifIconPayment {
+  background: linear-gradient(145deg, rgba(46, 203, 117, 0.3), rgba(46, 203, 117, 0.15));
+  box-shadow: 3px 3px 8px rgba(46, 203, 117, 0.2);
+  color: var(--color-success);
+}
+
+.notifIconShipping {
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-raise-sm);
+  color: var(--color-fg-muted);
+}
+
+.notifIconSystem {
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-inset-sm);
+  color: var(--color-fg-ghost);
+}
+
+.notifBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.notifTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-fg);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.notifSubtitle {
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  line-height: 1.5;
+  margin-bottom: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notifTime {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--color-fg-ghost);
+}
+
+.notifAmount {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  color: var(--color-fg);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.notifUnreadDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 6px rgba(57, 0, 7, 0.5);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ── DATE GROUP HEADER ── */
+.dateGroup {
+  margin-bottom: var(--space-6);
+}
+
+.dateLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  margin-bottom: var(--space-3);
+  display: block;
+}
+
+/* ── EMPTY STATE ── */
+.empty {
+  text-align: center;
+  padding: var(--space-20) var(--space-6);
+}
+
+.emptyIcon {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-raise-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-5);
+  color: var(--color-fg-ghost);
+}
+
+.emptyTitle {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--color-fg);
+  margin-bottom: var(--space-2);
+}
+
+.emptyBody {
+  font-size: 13px;
+  color: var(--color-fg-muted);
+  line-height: 1.6;
+}
