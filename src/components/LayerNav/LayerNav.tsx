@@ -1,8 +1,8 @@
-import { Palette, LayoutGrid, Type, Square, Layers } from 'lucide-react';
+import { Palette, LayoutGrid, Type, Square, Layers, SlidersHorizontal } from 'lucide-react';
 import { m } from '@/lib/motion';
 import type { LayerId } from '../../lib/types/architect.types';
 import styles from './LayerNav.module.css';
- 
+
 interface LayerNavProps {
   activeLayer: LayerId;
   onSelectLayer: (id: LayerId) => void;
@@ -14,6 +14,7 @@ const LAYERS: { id: LayerId; label: string; Icon: React.ElementType }[] = [
   { id: 'typography', label: 'Typography', Icon: Type },
   { id: 'card',       label: 'Card Style', Icon: Square },
   { id: 'signature',  label: 'Signature',  Icon: Layers },
+  { id: 'store',      label: 'Store',      Icon: SlidersHorizontal },
 ];
 
 export default function LayerNav({ activeLayer, onSelectLayer }: LayerNavProps) {

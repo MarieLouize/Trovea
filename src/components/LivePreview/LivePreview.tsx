@@ -1,9 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { m, useAnimation } from '@/lib/motion';
-import type { StoreConfig } from '@/lib/types/store-config.types';
+import type { StoreConfig, SignatureDefinition } from '@/lib/types/store-config.types';
 import { PALETTES } from '@/lib/constants/palettes';
 import { TYPOGRAPHY_STACKS } from '@/lib/constants/typography';
-import { FIXTURE_MERCHANT, FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS } from '@/lib/fixtures';
+import { SIGNATURES } from '@/lib/constants/signatures';
+import { useMerchantStore } from '@/lib/store/merchant.store';
+import { FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './LivePreview.module.css';
 
@@ -26,30 +28,35 @@ function getTypoFonts(typographyId: string) {
   return { heading: match.heading, body: match.body };
 }
 
-// ── Merchant constants ──────────────────────────────────────────────────────
-const merchantName   = FIXTURE_MERCHANT.store_name;
-const merchantHandle = FIXTURE_MERCHANT.handle;
-const merchantBio    = FIXTURE_MERCHANT.bio ?? FIXTURE_MERCHANT.store_config.about_text;
-
 // ── Products ────────────────────────────────────────────────────────────────
 const liveProducts = (FIXTURE_PRODUCTS as any[])
   .filter((p) => p.status === 'live')
   .slice(0, 6);
 
 // ── Section state helpers ───────────────────────────────────────────────────
-// Actual section_states keys: 'section-hero' | 'section-about' | 'section-slots' | 'section-featured'
 function sectionOn(ss: StoreConfig['section_states'], key: keyof StoreConfig['section_states']): boolean {
   return !!ss?.[key];
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function PreviewHero() {
+function PreviewMiniBrand({ storeName, tagline }: { storeName: string; tagline: string }) {
+  return (
+    <div className={styles.previewMiniBrand}>
+      <span className={styles.previewMiniBrandName}>{storeName}</span>
+      {tagline && (
+        <span className={styles.previewMiniBrandTagline}>{tagline}</span>
+      )}
+    </div>
+  );
+}
+
+function PreviewHero({ storeName, handle }: { storeName: string; handle: string }) {
   return (
     <div className={styles.previewHero}>
       <div className={styles.previewHeroInner}>
-        <div className={`${styles.previewStoreName} ${styles.previewHeading}`}>{merchantName}</div>
-        <div className={styles.previewStoreHandle}>@{merchantHandle}</div>
+        <div className={styles.previewStoreName}>{storeName}</div>
+        <div className={styles.previewStoreHandle}>@{handle}</div>
         <div className={styles.previewHeroBtns}>
           <div className={styles.previewHeroBtn}>Chat</div>
           <div className={`${styles.previewHeroBtn} ${styles.previewHeroBtnAccent}`}>Visit</div>
@@ -148,19 +155,18 @@ function PreviewProductGrid({ cardStyle, layout }: { cardStyle: string; layout: 
   );
 }
 
-function PreviewAbout() {
+function PreviewAbout({ bio }: { bio: string }) {
   return (
     <div className={styles.previewSection}>
       <div className={styles.previewSectionLabel}>About</div>
       <div className={styles.previewAboutCard}>
-        <div className={styles.previewAboutText}>{merchantBio}</div>
+        <div className={styles.previewAboutText}>{bio}</div>
       </div>
     </div>
   );
 }
 
-function PreviewFeatured({ cardStyle }: { cardStyle: string }) {
-  const featuredIds = FIXTURE_MERCHANT.store_config.featured_item_ids;
+function PreviewFeatured({ cardStyle, featuredIds }: { cardStyle: string; featuredIds: string[] }) {
   const featured = liveProducts
     .filter((p) => featuredIds.includes(p.id))
     .slice(0, 3);
@@ -183,18 +189,29 @@ function PreviewFeatured({ cardStyle }: { cardStyle: string }) {
 export default function LivePreview({ draftConfig }: LivePreviewProps) {
   const controls = useAnimation();
   const prevConfigRef = useRef(draftConfig);
+  const { merchant } = useMerchantStore();
 
-  if (prevConfigRef.current !== draftConfig) {
+  // Pulse animation on config change
+  useEffect(() => {
+    if (prevConfigRef.current !== draftConfig) {
+      controls.start({
+        scale: [1, 1.015, 1],
+        transition: { duration: 0.3, ease: 'easeInOut' },
+      });
+    }
     prevConfigRef.current = draftConfig;
-    controls.start({
-      scale: [1, 1.015, 1],
-      transition: { duration: 0.3, ease: 'easeInOut' },
-    });
-  }
+  }, [draftConfig, controls]);
 
   const colors = getPaletteColors(draftConfig.palette);
   const fonts  = getTypoFonts(draftConfig.typography);
   const ss     = draftConfig.section_states;
+
+  const storeName   = merchant.store_name;
+  const storeHandle = merchant.handle;
+  const bio         = merchant.bio ?? draftConfig.about_text;
+
+  const signature: SignatureDefinition | undefined = SIGNATURES.find((s) => s.id === draftConfig.signature);
+  const tagline = signature?.tagline ?? '';
 
   return (
     <div className={styles.wrapper}>
@@ -209,6 +226,7 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
         <m.div
           className={styles.screen}
           animate={controls}
+          data-palette={draftConfig.palette}
           style={{
             '--preview-bg':           colors.bg,
             '--preview-surface':      colors.surface,
@@ -216,13 +234,20 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
             '--preview-font-heading': fonts.heading,
             '--preview-font-body':    fonts.body,
           } as React.CSSProperties}
-          data-preview-palette={draftConfig.palette}
         >
-          {sectionOn(ss, 'section-hero')     && <PreviewHero />}
-          {sectionOn(ss, 'section-featured') && <PreviewFeatured cardStyle={draftConfig.card_style} />}
+          {/* Persistent mini brand bar — always visible */}
+          <PreviewMiniBrand storeName={storeName} tagline={tagline} />
+
+          {sectionOn(ss, 'section-hero')     && <PreviewHero storeName={storeName} handle={storeHandle} />}
+          {sectionOn(ss, 'section-featured') && (
+            <PreviewFeatured
+              cardStyle={draftConfig.card_style}
+              featuredIds={draftConfig.featured_item_ids}
+            />
+          )}
           {/* Always show product grid as main content */}
           <PreviewProductGrid cardStyle={draftConfig.card_style} layout={draftConfig.layout} />
-          {sectionOn(ss, 'section-about')    && <PreviewAbout />}
+          {sectionOn(ss, 'section-about')    && <PreviewAbout bio={bio} />}
 
           <div style={{ height: '60px' }} />
         </m.div>
@@ -231,7 +256,7 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
       </div>
 
       <p className={styles.previewCaption}>
-        {merchantHandle} · {draftConfig.palette} · {draftConfig.layout}
+        {storeHandle} · {draftConfig.palette} · {draftConfig.layout}
       </p>
     </div>
   );

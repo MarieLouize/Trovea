@@ -1,0 +1,309 @@
+/* ============================================================
+   ADMIN RECEIPTS PAGE — read-only by design (INVARIANTS.md)
+   ============================================================ */
+
+.page {
+  padding: var(--space-8) var(--space-6);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .page { padding: var(--space-10) var(--space-8); }
+}
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.pageTitle {
+  font-family: var(--font-serif);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 400;
+  color: var(--color-fg);
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.pageSubtitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  margin-top: var(--space-2);
+  text-shadow: -1px -1px 1px rgba(14, 14, 14, 0.25), 1px 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+/* ── Period tabs ── */
+.periodRow {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.periodTab {
+  padding: var(--space-2) var(--space-4);
+  min-height: 44px;
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-raise-sm);
+  border: none;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  display: flex;
+  align-items: center;
+}
+
+.periodTab:hover { color: var(--color-fg); }
+
+.periodTabActive {
+  box-shadow: var(--shadow-inset-sm);
+  color: var(--color-accent);
+  background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
+}
+
+/* ── Summary strip ── */
+.summaryStrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-raise-sm);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  margin-bottom: var(--space-5);
+  overflow-x: auto;
+  position: relative;
+}
+
+.summaryStrip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise);
+  background-size: 200px 200px;
+  opacity: 0.4;
+  pointer-events: none;
+  border-radius: var(--r-lg);
+}
+
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.summaryNum {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--color-fg);
+  line-height: 1;
+}
+
+.paidNum      { color: #2ECB75; }
+.pendingNum   { color: var(--color-gold); }
+.cancelledNum { color: var(--color-fg-muted); }
+
+.summaryLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  text-shadow: -1px -1px 1px rgba(14, 14, 14, 0.25), 1px 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.summaryDivider {
+  width: 1px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Search ── */
+.searchRow {
+  margin-bottom: var(--space-5);
+}
+
+.searchInput {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
+  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: var(--r-md);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-fg);
+  min-height: 44px;
+  outline: none;
+  transition: box-shadow var(--duration-fast);
+  box-sizing: border-box;
+}
+
+.searchInput:focus { box-shadow: var(--shadow-inset); }
+
+.searchInput::placeholder {
+  color: var(--color-fg-ghost);
+  font-style: italic;
+}
+
+/* ── Table ── */
+.table {
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-raise-sm);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  position: relative;
+}
+
+.table::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise);
+  background-size: 200px 200px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.tableHead {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1.2fr 1fr 0.9fr 0.9fr 0.9fr;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  position: relative;
+  z-index: 1;
+  text-shadow: -1px -1px 1px rgba(14, 14, 14, 0.25), 1px 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.tableBody {
+  position: relative;
+  z-index: 1;
+  overflow-x: auto;
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1.2fr 1fr 0.9fr 0.9fr 0.9fr;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  align-items: center;
+  transition: background var(--duration-fast);
+  min-width: 600px;
+}
+
+.tableRow:last-child { border-bottom: none; }
+
+.tableRow:hover { background: rgba(255, 255, 255, 0.03); }
+
+/* ── Seal ID link (only interactive element — opens receipt view) ── */
+.sealLink {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color var(--duration-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sealLink:hover { color: var(--color-fg); }
+
+.cellBuyer {
+  font-size: 13px;
+  color: var(--color-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cellStore {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: -1px -1px 1px rgba(14, 14, 14, 0.25), 1px 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.cellAmount {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--color-fg);
+  white-space: nowrap;
+}
+
+.typeBadge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 2px var(--space-2);
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+
+.type_sale     { background: rgba(0, 0, 0, 0.06);         color: var(--color-fg-muted); }
+.type_booking  { background: rgba(59, 130, 246, 0.1);     color: #3B82F6; }
+.type_order    { background: rgba(201, 168, 76, 0.12);    color: var(--color-gold); }
+.type_download { background: rgba(46, 203, 117, 0.1);     color: #2ECB75; }
+.type_project  { background: rgba(168, 85, 247, 0.1);     color: #A855F7; }
+
+.statusBadge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 2px var(--space-2);
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+
+.status_paid             { background: rgba(46, 203, 117, 0.1); color: #2ECB75; }
+.status_pending_payment  { background: rgba(201, 168, 76, 0.12); color: var(--color-gold); }
+.status_cancelled        { background: rgba(0, 0, 0, 0.06);      color: var(--color-fg-ghost); }
+
+.cellDate {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: var(--color-fg-ghost);
+  white-space: nowrap;
+  text-shadow: -1px -1px 1px rgba(14, 14, 14, 0.25), 1px 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.emptyNote {
+  padding: var(--space-10);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--color-fg-ghost);
+}

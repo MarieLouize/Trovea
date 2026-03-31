@@ -1,12 +1,27 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { m } from '@/lib/motion';
 import { TrendingUp, ArrowUpRight } from 'lucide-react';
 import { useLedgerStore } from '@/lib/store/ledger.store';
 import { useArchiveStore } from '@/lib/store/archive.store';
+import { useStoreType } from '@/lib/hooks/use-store-type';
+import type { StoreTypeContext } from '@/lib/hooks/use-store-type';
 import { formatCurrencyFull, formatRelativeDate } from '@/lib/utils/format';
+import {
+  FIXTURE_WINDOWS,
+  FIXTURE_BOOKINGS,
+  FIXTURE_VENDOR_PRODUCTS,
+  FIXTURE_DIGITAL_PRODUCTS,
+  FIXTURE_STUDIO_PRODUCTS,
+} from '@/lib/fixtures';
 import styles from './InsightsPage.module.css';
 
 type Period = '7d' | '30d' | '90d' | 'all';
+
+interface TypeCardData {
+  title: string;
+  value: string;
+  note: string;
+}
 
 // Derive simple analytics from fixture receipts
 function useInsights(period: Period) {
@@ -101,12 +116,67 @@ function useInsights(period: Period) {
       color: COLLECTION_COLORS[i % COLLECTION_COLORS.length],
     }));
 
-  // Recent activity (last 8 paid receipts)
+  // Recent activity (last 8 receipts)
   const recentActivity = [...receipts]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 8);
 
-  return { revenue, units, orders, aov, topProducts, maxRevenue, weekBars, maxBar, collectionBreakdown, recentActivity };
+  return { revenue, units, orders, aov, topProducts, maxRevenue, weekBars, maxBar, collectionBreakdown, recentActivity, products };
+}
+
+// Per-type insight cards
+function computeTypeCards(st: StoreTypeContext, archiveProducts: { status: string; stock_level: number | null }[]): TypeCardData[] {
+  if (st.isCollector) {
+    const liveProducts = archiveProducts.filter(p => p.status === 'live');
+    const inStock = liveProducts.filter(p => (p.stock_level ?? 0) > 0).length;
+    const healthPct = liveProducts.length > 0 ? Math.round((inStock / liveProducts.length) * 100) : 0;
+    return [
+      { title: 'Top Category', value: 'Dresses', note: 'Highest revenue category' },
+      { title: 'Inventory Health', value: `${healthPct}%`, note: `${inStock} of ${liveProducts.length} items in stock` },
+    ];
+  }
+
+  if (st.isVendor) {
+    const openWindows = FIXTURE_WINDOWS.filter(w => w.status === 'open').length;
+    const topItem = [...FIXTURE_VENDOR_PRODUCTS].sort((a, b) => b.price - a.price)[0];
+    return [
+      { title: 'Open Windows', value: String(openWindows), note: 'Active service windows today' },
+      { title: 'Top Menu Item', value: topItem?.name ?? '—', note: formatCurrencyFull(topItem?.price ?? 0) },
+    ];
+  }
+
+  if (st.isHost) {
+    const hostBookings = FIXTURE_BOOKINGS.filter(b => b.merchant_id === 'merchant-003');
+    const active = hostBookings.filter(b => b.status !== 'cancelled' && b.status !== 'completed').length;
+    const confirmed = hostBookings.filter(b => b.status === 'confirmed').length;
+    const rate = active > 0 ? Math.round((confirmed / active) * 100) : 0;
+    const upcoming = hostBookings.filter(b => new Date(b.scheduled_at) > new Date() && b.status !== 'cancelled').length;
+    return [
+      { title: 'Booking Rate', value: `${rate}%`, note: `${confirmed} confirmed of ${active} active` },
+      { title: 'Upcoming Slots', value: String(upcoming), note: 'Scheduled appointments' },
+    ];
+  }
+
+  if (st.isDigital) {
+    const active = FIXTURE_DIGITAL_PRODUCTS.filter(p => p.status !== 'hidden').length;
+    const withUrl = FIXTURE_DIGITAL_PRODUCTS.filter(p => p.delivery_url).length;
+    return [
+      { title: 'Active Products', value: String(active), note: `of ${FIXTURE_DIGITAL_PRODUCTS.length} total` },
+      { title: 'Delivery Health', value: `${withUrl} / ${FIXTURE_DIGITAL_PRODUCTS.length}`, note: 'Products with delivery URL' },
+    ];
+  }
+
+  if (st.isStudio) {
+    const studioBookings = FIXTURE_BOOKINGS.filter(b => b.merchant_id === 'merchant-005');
+    const fixedCount = FIXTURE_STUDIO_PRODUCTS.filter(p => p.price_type === 'fixed').length;
+    const customCount = FIXTURE_STUDIO_PRODUCTS.filter(p => p.price_type === 'custom').length;
+    return [
+      { title: 'Enquiry Pipeline', value: String(studioBookings.length), note: 'Active project enquiries' },
+      { title: 'Package Mix', value: `${fixedCount}F · ${customCount}C`, note: `${FIXTURE_STUDIO_PRODUCTS.length} packages total` },
+    ];
+  }
+
+  return [];
 }
 
 // Simple donut SVG
@@ -165,13 +235,17 @@ const itemVariants = {
 
 export default function InsightsPage() {
   const [period, setPeriod] = useState<Period>('30d');
+  const st = useStoreType();
   const {
     revenue, units, orders, aov,
     topProducts, maxRevenue,
     weekBars, maxBar,
     collectionBreakdown,
     recentActivity,
+    products,
   } = useInsights(period);
+
+  const typeCards = computeTypeCards(st, products);
 
   const periods: { key: Period; label: string }[] = [
     { key: '7d', label: '7 Days' },
@@ -180,17 +254,33 @@ export default function InsightsPage() {
     { key: 'all', label: 'All Time' },
   ];
 
+  // Adaptive KPI labels
+  const ordersLabel =
+    st.isVendor  ? 'Pre-orders' :
+    st.isHost    ? 'Bookings'   :
+    st.isDigital ? 'Downloads'  :
+    st.isStudio  ? 'Projects'   :
+    'Orders';
+
   const kpis = [
-    { label: 'Revenue', value: formatCurrencyFull(revenue), delta: '+14%', positive: true, gold: false },
-    { label: 'Orders', value: String(orders), delta: '+3', positive: true, gold: false },
-    { label: 'Units Sold', value: String(units), delta: '+8', positive: true, gold: true },
-    { label: 'Avg. Order', value: formatCurrencyFull(aov), delta: '—', positive: false, gold: true },
+    { label: 'Revenue',    value: formatCurrencyFull(revenue), delta: '+14%', positive: true,  gold: false },
+    { label: ordersLabel,  value: String(orders),              delta: '+3',   positive: true,  gold: false },
+    { label: 'Units Sold', value: String(units),               delta: '+8',   positive: true,  gold: true  },
+    { label: 'Avg. Order', value: formatCurrencyFull(aov),     delta: '—',    positive: false, gold: true  },
   ];
+
+  // Adaptive activity subtitle
+  const activitySubtitle =
+    st.isVendor  ? 'All pre-orders' :
+    st.isHost    ? 'All bookings'   :
+    st.isDigital ? 'All purchases'  :
+    st.isStudio  ? 'All projects'   :
+    'All orders';
 
   return (
     <div className={styles.root}>
       {/* Header */}
-      <motion.div
+      <m.div
         className={styles.pageHeader}
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -198,10 +288,10 @@ export default function InsightsPage() {
       >
         <span className={styles.eyebrow}>Insights</span>
         <h1 className={styles.headline}>Your numbers.</h1>
-      </motion.div>
+      </m.div>
 
       {/* Period selector */}
-      <motion.div
+      <m.div
         className={styles.periodRow}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -217,17 +307,17 @@ export default function InsightsPage() {
             {p.label}
           </button>
         ))}
-      </motion.div>
+      </m.div>
 
       {/* KPI Grid */}
-      <motion.div
+      <m.div
         className={styles.kpiGrid}
         variants={containerVariants}
         initial="initial"
         animate="animate"
       >
         {kpis.map((kpi, i) => (
-          <motion.div key={i} className={styles.kpiCard} variants={itemVariants}>
+          <m.div key={i} className={styles.kpiCard} variants={itemVariants}>
             <span className={styles.kpiLabel}>{kpi.label}</span>
             <span className={styles.kpiValue}>{kpi.value}</span>
             <span className={`${styles.kpiDelta} ${kpi.positive ? styles.deltaPositive : styles.deltaNeutral}`}>
@@ -235,12 +325,12 @@ export default function InsightsPage() {
               {kpi.delta}
             </span>
             <div className={`${styles.kpiAccent} ${kpi.gold ? styles.kpiAccentGold : ''}`} aria-hidden="true" />
-          </motion.div>
+          </m.div>
         ))}
-      </motion.div>
+      </m.div>
 
       {/* Charts row */}
-      <motion.div
+      <m.div
         className={styles.chartsRow}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -257,7 +347,7 @@ export default function InsightsPage() {
                   className={styles.barOuter}
                   style={{ height: `${maxBar > 0 ? Math.round((bar.value / maxBar) * 120) : 4}px` }}
                 >
-                  <motion.div
+                  <m.div
                     className={styles.barFill}
                     initial={{ height: 0 }}
                     animate={{ height: '100%' }}
@@ -294,17 +384,35 @@ export default function InsightsPage() {
             </div>
           )}
         </div>
-      </motion.div>
+      </m.div>
+
+      {/* Type-specific insight cards */}
+      {typeCards.length > 0 && (
+        <m.div
+          className={styles.typeCardRow}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.28 }}
+        >
+          {typeCards.map((card, i) => (
+            <div key={i} className={styles.typeCard}>
+              <span className={styles.typeCardLabel}>{card.title}</span>
+              <span className={styles.typeCardValue}>{card.value}</span>
+              <span className={styles.typeCardNote}>{card.note}</span>
+            </div>
+          ))}
+        </m.div>
+      )}
 
       {/* Top Products */}
-      <motion.div
+      <m.div
         className={styles.tableCard}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.3 }}
+        transition={{ duration: 0.35, delay: 0.35 }}
       >
         <h2 className={styles.chartTitle} style={{ position: 'relative', zIndex: 1 }}>
-          Top Products
+          Top {st.itemsLabel}
         </h2>
         <span className={styles.chartSubtitle} style={{ position: 'relative', zIndex: 1 }}>
           By revenue — {period === 'all' ? 'All Time' : `Last ${period}`}
@@ -320,7 +428,7 @@ export default function InsightsPage() {
               <span className={styles.tableHeaderCell}></span>
             </div>
             {topProducts.map((p, i) => (
-              <motion.div
+              <m.div
                 key={p.name}
                 className={styles.tableRow}
                 initial={{ opacity: 0, x: -8 }}
@@ -332,14 +440,14 @@ export default function InsightsPage() {
                 <span className={styles.tableUnits}>{p.units}</span>
                 <span className={styles.tableRevenue}>{formatCurrencyFull(p.revenue)}</span>
                 <div className={styles.tableBar}>
-                  <motion.div
+                  <m.div
                     className={styles.tableBarFill}
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.round((p.revenue / maxRevenue) * 100)}%` }}
                     transition={{ duration: 0.6, delay: 0.4 + i * 0.07, ease: [0.34, 1.2, 0.64, 1] }}
                   />
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </>
         ) : (
@@ -349,19 +457,19 @@ export default function InsightsPage() {
             <p className={styles.emptyBody}>Paid orders will appear here.</p>
           </div>
         )}
-      </motion.div>
+      </m.div>
 
       {/* Activity feed */}
-      <motion.div
+      <m.div
         className={styles.activityCard}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.4 }}
+        transition={{ duration: 0.35, delay: 0.45 }}
       >
         <h2 className={styles.chartTitle} style={{ position: 'relative', zIndex: 1, marginBottom: 'var(--space-1)' }}>
           Recent Activity
         </h2>
-        <span className={styles.chartSubtitle}>All orders</span>
+        <span className={styles.chartSubtitle}>{activitySubtitle}</span>
         <div className={styles.activityFeed}>
           {recentActivity.map((r) => {
             const dotClass =
@@ -382,7 +490,7 @@ export default function InsightsPage() {
             );
           })}
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -4,21 +4,21 @@ import { Link } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
 import type { StoreConfig } from '@/lib/types/store-config.types';
 import { type LayerId, LAYER_ORDER } from '../../lib/types/architect.types';
-import { useUIStore } from '@/lib/store/ui.store';
 import LayerNav from '../LayerNav/LayerNav';
 import LivePreview from '../LivePreview/LivePreview';
 import PaletteLayer from '../layers/PaletteLayer/PaletteLayer';
-import LayoutLayer from '../layers/LayoutLayer/LayoutLayer'; 
+import LayoutLayer from '../layers/LayoutLayer/LayoutLayer';
 import TypographyLayer from '../layers/TypographyLayer/TypographyLayer';
 import CardStyleLayer from '../layers/CardStyleLayer/CardStyleLayer';
 import SignatureLayer from '../layers/SignatureLayer/SignatureLayer';
+import StoreLayer from '../layers/StoreLayer';
 import styles from './ArchitectShell.module.css';
 
 interface ArchitectShellProps {
   handle: string;
   draftConfig: StoreConfig;
-  initialConfig: StoreConfig;
   isDirty: boolean;
+  isPublishing: boolean;
   onUpdate: (patch: Partial<StoreConfig>) => void;
   onPublish: () => void;
   onDiscard: () => void;
@@ -27,8 +27,8 @@ interface ArchitectShellProps {
 export default function ArchitectShell({
   handle,
   draftConfig,
-  initialConfig,
   isDirty,
+  isPublishing,
   onUpdate,
   onPublish,
   onDiscard,
@@ -48,11 +48,12 @@ export default function ArchitectShell({
   const layerProps = { draftConfig, onUpdate };
 
   const layerMap: Record<LayerId, React.ReactNode> = {
-    palette: <PaletteLayer {...layerProps} />,
-    layout: <LayoutLayer {...layerProps} />,
+    palette:    <PaletteLayer {...layerProps} />,
+    layout:     <LayoutLayer {...layerProps} />,
     typography: <TypographyLayer {...layerProps} />,
-    card: <CardStyleLayer {...layerProps} />,
-    signature: <SignatureLayer {...layerProps} />,
+    card:       <CardStyleLayer {...layerProps} />,
+    signature:  <SignatureLayer {...layerProps} />,
+    store:      <StoreLayer {...layerProps} />,
   };
 
   return (
@@ -73,7 +74,7 @@ export default function ArchitectShell({
         </div>
 
         <div className={styles.topBarActions}>
-          {isDirty && (
+          {isDirty && !isPublishing && (
             <button
               className={styles.discardBtn}
               onClick={onDiscard}
@@ -83,11 +84,12 @@ export default function ArchitectShell({
             </button>
           )}
           <button
-            className={styles.publishBtn}
+            className={`${styles.publishBtn} ${isPublishing ? styles.publishBtnBusy : ''}`}
             onClick={onPublish}
+            disabled={isPublishing}
             aria-label="Publish store changes"
           >
-            Publish
+            {isPublishing ? 'Publishing…' : 'Publish'}
           </button>
         </div>
       </header>
@@ -143,6 +145,12 @@ export default function ArchitectShell({
             />
             <m.div
               className={styles.previewSheet}
+              drag="y"
+              dragConstraints={{ top: 0 }}
+              dragElastic={{ top: 0, bottom: 0.3 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 80) setPreviewOpen(false);
+              }}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -179,11 +187,19 @@ export default function ArchitectShell({
           >
             <span className={styles.dirtyBarText}>Unsaved changes</span>
             <div className={styles.dirtyBarActions}>
-              <button className={styles.dirtyDiscardBtn} onClick={onDiscard}>
+              <button
+                className={styles.dirtyDiscardBtn}
+                onClick={onDiscard}
+                disabled={isPublishing}
+              >
                 Discard
               </button>
-              <button className={styles.dirtyPublishBtn} onClick={onPublish}>
-                Publish
+              <button
+                className={`${styles.dirtyPublishBtn} ${isPublishing ? styles.publishBtnBusy : ''}`}
+                onClick={onPublish}
+                disabled={isPublishing}
+              >
+                {isPublishing ? 'Publishing…' : 'Publish'}
               </button>
             </div>
           </m.div>

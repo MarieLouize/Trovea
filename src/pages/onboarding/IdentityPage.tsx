@@ -13,7 +13,7 @@ export default function IdentityPage() {
 
   const handleContinue = () => {
     if (!isValid) return;
-    navigate('/onboarding/setup-store');
+    navigate('/onboarding/store-type');
   };
 
   return (
@@ -28,14 +28,14 @@ export default function IdentityPage() {
           {/* Progress */}
           <div className={styles.progressBar}>
             <div className={styles.progressMeta}>
-              <span className={styles.progressStep}>Step 2 of 4</span>
+              <span className={styles.progressStep}>Step 2 of 5</span>
               <span className={styles.progressStep}>Identity</span>
             </div>
-            <div className={styles.progressTrack} role="progressbar" aria-valuenow={50} aria-valuemin={0} aria-valuemax={100}>
+            <div className={styles.progressTrack} role="progressbar" aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
               <motion.div
                 className={styles.progressFill}
-                initial={{ width: '25%' }}
-                animate={{ width: '50%' }}
+                initial={{ width: '20%' }}
+                animate={{ width: '40%' }}
                 transition={{ duration: 0.6, ease: [0.34, 1.2, 0.64, 1] }}
               />
             </div>

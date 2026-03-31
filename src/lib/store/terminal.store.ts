@@ -24,7 +24,10 @@ interface TerminalState {
   visorItems: VisorLineItem[];
   buyerName: string;
   buyerPhone: string;
+  buyerEmail: string;
   discount: DiscountState;
+  deliveryFee: number;
+  deliveryFeeExpanded: boolean;
   issuedReceipt: Receipt | null;
 
   // Stage navigation
@@ -41,11 +44,16 @@ interface TerminalState {
   // Attribution
   setBuyerName: (name: string) => void;
   setBuyerPhone: (phone: string) => void;
+  setBuyerEmail: (email: string) => void;
 
   // Discount
   setDiscountExpanded: (expanded: boolean) => void;
   setDiscountType: (type: 'flat' | 'percent') => void;
   setDiscountValue: (value: number) => void;
+
+  // Delivery fee
+  setDeliveryFee: (fee: number) => void;
+  setDeliveryFeeExpanded: (expanded: boolean) => void;
 
   // Computed
   subtotal: () => number;
@@ -64,7 +72,10 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   visorItems: [],
   buyerName: '',
   buyerPhone: '',
+  buyerEmail: '',
   discount: { expanded: false, type: 'flat', value: 0 },
+  deliveryFee: 0,
+  deliveryFeeExpanded: false,
   issuedReceipt: null,
 
   setStage: (stage) => set({ stage }),
@@ -145,6 +156,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   setBuyerName: (name) => set({ buyerName: name }),
   setBuyerPhone: (phone) => set({ buyerPhone: phone }),
+  setBuyerEmail: (email) => set({ buyerEmail: email }),
 
   setDiscountExpanded: (expanded) =>
     set((state) => ({ discount: { ...state.discount, expanded } })),
@@ -152,6 +164,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     set((state) => ({ discount: { ...state.discount, type } })),
   setDiscountValue: (value) =>
     set((state) => ({ discount: { ...state.discount, value } })),
+
+  setDeliveryFee: (fee) => set({ deliveryFee: fee }),
+  setDeliveryFeeExpanded: (expanded) => set({ deliveryFeeExpanded: expanded }),
 
   subtotal: () => get().visorItems.reduce((sum, item) => sum + item.totalPrice, 0),
 
@@ -163,7 +178,8 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     return Math.round((subtotal * discount.value) / 100);
   },
 
-  total: () => Math.max(0, get().subtotal() - get().discountAmount()),
+  total: () =>
+    Math.max(0, get().subtotal() - get().discountAmount() + get().deliveryFee),
 
   reset: () =>
     set({
@@ -171,7 +187,10 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       visorItems: [],
       buyerName: '',
       buyerPhone: '',
+      buyerEmail: '',
       discount: { expanded: false, type: 'flat', value: 0 },
+      deliveryFee: 0,
+      deliveryFeeExpanded: false,
       issuedReceipt: null,
     }),
 

@@ -1,7 +1,7 @@
 import { m } from '@/lib/motion';
 import type { StoreConfig, StoreTypography } from '@/lib/types/store-config.types';
 import { TYPOGRAPHY_STACKS } from '@/lib/constants/typography';
-import { FIXTURE_MERCHANT } from '@/lib/fixtures';
+import { useMerchantStore } from '@/lib/store/merchant.store';
 import styles from './TypographyLayer.module.css';
 
 interface TypographyLayerProps {
@@ -10,6 +10,8 @@ interface TypographyLayerProps {
 }
 
 export default function TypographyLayer({ draftConfig, onUpdate }: TypographyLayerProps) {
+  const storeName = useMerchantStore((s) => s.merchant.store_name);
+
   const handleSelect = (id: StoreTypography) => {
     onUpdate({ typography: id });
   };
@@ -43,7 +45,7 @@ export default function TypographyLayer({ draftConfig, onUpdate }: TypographyLay
 
               <div className={styles.preview}>
                 <p className={styles.previewHeading} style={{ fontFamily: stack.heading }}>
-                  {FIXTURE_MERCHANT.store_name}
+                  {storeName}
                 </p>
                 <p className={styles.previewBody} style={{ fontFamily: stack.body }}>
                   Ivory Silk Wrap Dress

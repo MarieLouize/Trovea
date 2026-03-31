@@ -117,6 +117,38 @@
 
 .screen::-webkit-scrollbar { display: none; }
 
+/* ── Mini brand bar — always visible at top of phone screen ── */
+.previewMiniBrand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 20px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.previewMiniBrandName {
+  font-family: var(--preview-font-heading, var(--font-serif));
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(240,237,232,0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.previewMiniBrandTagline {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(240,237,232,0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
 /* ── Storefront preview content ── */
 .previewHero {
   min-height: 200px;

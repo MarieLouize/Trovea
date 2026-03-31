@@ -15,28 +15,20 @@ import {
   Palette,
   ExternalLink,
   LogOut,
+  Calendar,
+  BookMarked,
 } from 'lucide-react';
 import ErrorBoundary from '@/components/primitives/ErrorBoundary/ErrorBoundary';
-import { FIXTURE_MERCHANT } from '@/lib/fixtures';
 import { useLedgerStore } from '@/lib/store/ledger.store';
+import { useStoreType } from '@/lib/hooks/use-store-type';
+import { useMerchantStore, DEV_MERCHANTS } from '@/lib/store/merchant.store';
 import styles from './MerchantShell.module.css';
 
-// ─── Nav config ────────────────────────────────────────────────────────────
-
-const CORE_NAV = [
-  { path: '/dashboard', label: 'Home',    icon: <LayoutDashboard size={16} /> },
-  { path: '/ledger',    label: 'Ledger',  icon: <BookOpen size={16} />, badge: true },
-  { path: '/archive',   label: 'Archive', icon: <Archive size={16} /> },
-];
+// ─── Static nav groups (not store-type-dependent) ──────────────────────────
 
 const MANAGE_NAV = [
   { path: '/dispatch',  label: 'Dispatch',  icon: <Package size={16} /> },
   { path: '/insights',  label: 'Insights',  icon: <BarChart2 size={16} /> },
-];
-
-const STORE_NAV = [
-  { path: '/store/tolasarchive', label: 'View Store', icon: <Store size={16} /> },
-  { path: '/store/tolasarchive/customize', label: 'Customize', icon: <Palette size={16} /> },
 ];
 
 const ACCOUNT_NAV = [
@@ -44,7 +36,7 @@ const ACCOUNT_NAV = [
   { path: '/settings',      label: 'Settings',       icon: <Settings size={16} /> },
 ];
 
-// Primary mobile nav — 4 items + FAB
+// Primary mobile nav — 4 items + FAB (unchanged in Phase 2A)
 const MOBILE_PRIMARY = [
   { path: '/dashboard', label: 'Home',    icon: <LayoutDashboard size={18} /> },
   { path: '/ledger',    label: 'Ledger',  icon: <BookOpen size={18} />, badge: true },
@@ -57,22 +49,32 @@ const MORE_MANAGE = [
   { path: '/dispatch', label: 'Dispatch', icon: <Package size={14} /> },
   { path: '/insights', label: 'Insights', icon: <BarChart2 size={14} /> },
 ];
-const MORE_STORE = [
-  { path: '/ledger', label: 'Receipts', icon: <Receipt size={14} /> },
-  { path: '/store/tolasarchive/customize', label: 'Customize', icon: <Palette size={14} /> },
-  { path: '/store/tolasarchive', label: 'View Store', icon: <ExternalLink size={14} /> },
-];
+// MORE_STORE is built dynamically inside the component (requires merchant handle)
 const MORE_ACCOUNT = [
   { path: '/settings', label: 'Settings', icon: <Settings size={14} /> },
 ];
+
+// Dev store type labels for the switcher panel
+const DEV_STORE_TYPES = [
+  { label: 'Collector', type: 'collector', merchant: 'Tola\'s Archive' },
+  { label: 'Vendor',    type: 'vendor',    merchant: 'Tobi Eats' },
+  { label: 'Host',      type: 'host',      merchant: 'Chisom Beauty' },
+  { label: 'Digital',   type: 'digital_creator', merchant: 'Femi Creates' },
+  { label: 'Studio',    type: 'studio',    merchant: 'Ngozi Studio' },
+] as const;
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function MerchantShell() {
   const { pathname } = useLocation();
   const { receipts } = useLedgerStore();
+  const st = useStoreType();
+  const merchant = useMerchantStore((s) => s.merchant);
+  const setMerchant = useMerchantStore((s) => s.setMerchant);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+
+  const isDev = import.meta.env.DEV;
 
   const pendingCount = receipts.filter((r) => r.payment_status === 'pending_payment').length;
 
@@ -91,14 +93,48 @@ export default function MerchantShell() {
     return () => document.removeEventListener('mousedown', handler);
   }, [moreOpen]);
 
+  const storeHandle = merchant.handle;
+
+  const moreStore = [
+    { path: '/ledger', label: 'Receipts', icon: <Receipt size={14} /> },
+    { path: `/store/${storeHandle}/customize`, label: 'Customize', icon: <Palette size={14} /> },
+    { path: `/store/${storeHandle}`, label: 'View Store', icon: <ExternalLink size={14} /> },
+  ];
+
   const isActive = (path: string) => {
-    if (path === '/store/tolasarchive') return pathname === '/store/tolasarchive';
-    if (path === '/store/tolasarchive/customize') return pathname.includes('/customize');
+    if (path === `/store/${storeHandle}`) return pathname === `/store/${storeHandle}`;
+    if (path === `/store/${storeHandle}/customize`) return pathname.includes('/customize');
     return pathname.startsWith(path);
   };
 
   const badge = (hasBadge?: boolean) =>
     hasBadge && pendingCount > 0 ? pendingCount : undefined;
+
+  // ── Core nav items — store-type-conditional ──
+  const coreNavItems = [
+    { path: '/dashboard', label: 'Home',   icon: <LayoutDashboard size={16} /> },
+    { path: '/ledger',    label: 'Ledger', icon: <BookOpen size={16} />, badge: true },
+    // Archive vs Catalogue — Digital Creator gets /catalogue, everyone else gets /archive
+    ...(!st.isDigital
+      ? [{ path: '/archive', label: st.archiveLabel, icon: <Archive size={16} /> }]
+      : [{ path: '/catalogue', label: 'Catalogue', icon: <BookOpen size={16} /> }]
+    ),
+    // Schedule — Vendor + Host only
+    ...(st.isVendor || st.isHost
+      ? [{ path: '/schedule', label: 'Schedule', icon: <Calendar size={16} /> }]
+      : []
+    ),
+    // Bookings — Host + Studio only
+    ...(st.isHost || st.isStudio
+      ? [{ path: '/bookings', label: 'Bookings', icon: <BookMarked size={16} /> }]
+      : []
+    ),
+  ];
+
+  const storeNavItems = [
+    { path: `/store/${storeHandle}`, label: 'View Store', icon: <Store size={16} /> },
+    { path: `/store/${storeHandle}/customize`, label: 'Customize', icon: <Palette size={16} /> },
+  ];
 
   return (
     <div className={styles.shell}>
@@ -110,7 +146,7 @@ export default function MerchantShell() {
           <div className={styles.logo}>
             Trove<span className={styles.logoApostrophe}>'</span>a
           </div>
-          <span className={styles.storeName}>{FIXTURE_MERCHANT.store_name}</span>
+          <span className={styles.storeName}>{merchant.store_name}</span>
         </div>
 
         {/* Terminal CTA */}
@@ -127,8 +163,8 @@ export default function MerchantShell() {
           <div className={styles.navGroup}>
             <span className={styles.navGroupLabel}>Core</span>
             <div className={styles.navGroupItems}>
-              {CORE_NAV.map((item) => {
-                const b = badge(item.badge);
+              {coreNavItems.map((item) => {
+                const b = badge((item as { badge?: boolean }).badge);
                 return (
                   <Link
                     key={item.path}
@@ -168,7 +204,7 @@ export default function MerchantShell() {
           <div className={styles.navGroup}>
             <span className={styles.navGroupLabel}>Store</span>
             <div className={styles.navGroupItems}>
-              {STORE_NAV.map((item) => (
+              {storeNavItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
@@ -204,6 +240,27 @@ export default function MerchantShell() {
             </div>
           </div>
         </div>
+
+        {/* Dev-only type switcher */}
+        {isDev && (
+          <div className={styles.devSwitcher}>
+            <p className={styles.devSwitcherLabel}>DEV — store_type: {st.type}</p>
+            <div className={styles.devSwitcherItems}>
+              {DEV_STORE_TYPES.map((entry) => (
+                <button
+                  key={entry.type}
+                  className={`${styles.devSwitcherBtn} ${st.type === entry.type ? styles.devSwitcherBtnActive : ''}`}
+                  onClick={() => {
+                    const m = DEV_MERCHANTS.find((d) => d.store_type === entry.type);
+                    if (m) setMerchant(m);
+                  }}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* ══ MOBILE TOP UTILITY BAR ══ */}
@@ -263,7 +320,7 @@ export default function MerchantShell() {
                   {/* Store group */}
                   <div className={styles.dropdownGroup}>
                     <p className={styles.dropdownGroupLabel}>Store</p>
-                    {MORE_STORE.map((item) => (
+                    {moreStore.map((item) => (
                       <Link
                         key={item.path}
                         to={item.path}
@@ -315,10 +372,10 @@ export default function MerchantShell() {
         </ErrorBoundary>
       </main>
 
-      {/* ══ MOBILE BOTTOM PILL NAV ══ */}
+      {/* ══ MOBILE BOTTOM PILL NAV — unchanged in Phase 2A ══ */}
       <nav className={styles.bottomNav} aria-label="Mobile navigation">
         {MOBILE_PRIMARY.slice(0, 2).map((item) => {
-          const b = badge(item.badge);
+          const b = badge((item as { badge?: boolean }).badge);
           return (
             <Link
               key={item.path}

@@ -536,3 +536,59 @@
   inset: 0;
   z-index: calc(var(--z-dropdown) - 1);
 }
+
+/* ══════════════════════════════════════════
+   DEV TYPE SWITCHER (desktop sidebar, DEV only)
+══════════════════════════════════════════ */
+
+.devSwitcher {
+  margin-top: auto;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .devSwitcher { display: block; }
+}
+
+.devSwitcherLabel {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  margin-bottom: var(--space-2);
+}
+
+.devSwitcherItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.devSwitcherBtn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--r-xs);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: transparent;
+  color: var(--color-fg-ghost);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  min-height: 24px;
+}
+
+.devSwitcherBtn:hover {
+  color: var(--color-fg-muted);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.devSwitcherBtnActive {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: rgba(0, 0, 0, 0.04);
+}

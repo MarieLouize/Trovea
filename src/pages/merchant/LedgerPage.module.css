@@ -593,3 +593,29 @@
   box-shadow: var(--shadow-raise);
   color: var(--color-fg);
 }
+
+/* ── STATUS CHIP (per-type label in receipt row) ── */
+.rowStatusChip {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+  white-space: nowrap;
+}
+
+.chipPending {
+  background: rgba(201, 168, 76, 0.14);
+  color: #7a5c00;
+}
+
+.chipPaid {
+  background: rgba(46, 203, 117, 0.12);
+  color: #1aab5e;
+}
+
+.chipCancelled {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-fg-ghost);
+}

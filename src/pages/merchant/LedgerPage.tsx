@@ -1,22 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import { Check, ExternalLink, Package } from 'lucide-react';
 import { useLedgerStore } from '@/lib/store/ledger.store';
 import { useUIStore } from '@/lib/store/ui.store';
+import { useStoreType } from '@/lib/hooks/use-store-type';
 import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import type { PaymentMethod, Receipt } from '@/lib/types';
 import styles from './LedgerPage.module.css';
 
-const TABS = [
-  { value: 'all', label: 'All' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'dispatch', label: 'Dispatch' },
-  { value: 'completed', label: 'Completed' },
-] as const;
-
-const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+const ALL_PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'cash', label: 'Cash' },
   { value: 'opay', label: 'Opay' },
@@ -26,6 +20,8 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 ];
 
 export default function LedgerPage() {
+  const st = useStoreType();
+
   const {
     activeTab, setActiveTab,
     filteredReceipts,
@@ -41,6 +37,61 @@ export default function LedgerPage() {
 
   const receipts = filteredReceipts();
   const pendingCount = useLedgerStore.getState().receipts.filter(r => r.payment_status === 'pending_payment').length;
+
+  // ── Adaptive tabs ──
+  const completedLabel =
+    st.isVendor  ? 'Fulfilled' :
+    st.isHost    ? 'Confirmed' :
+    st.isDigital ? 'Delivered' :
+    st.isStudio  ? 'Active'    :
+    'Completed';
+
+  const visibleTabs = [
+    { value: 'all'       as const, label: 'All' },
+    { value: 'pending'   as const, label: 'Pending' },
+    ...(st.isHost || st.isDigital || st.isStudio
+      ? []
+      : [{ value: 'dispatch' as const, label: 'Dispatch' }]),
+    { value: 'completed' as const, label: completedLabel },
+  ];
+
+  // ── Per-type status labels ──
+  const paidLabel =
+    st.isVendor  ? 'Fulfilled' :
+    st.isHost    ? 'Confirmed' :
+    st.isDigital ? 'Delivered' :
+    st.isStudio  ? 'Active'    :
+    'Paid';
+
+  const cancelledLabel =
+    st.isDigital ? 'Refunded' :
+    st.isStudio  ? 'Closed'   :
+    'Cancelled';
+
+  function getStatusLabel(status: string): string {
+    if (status === 'pending_payment') return 'Pending';
+    if (status === 'cancelled') return cancelledLabel;
+    return paidLabel;
+  }
+
+  function getStatusChipClass(status: string): string {
+    if (status === 'pending_payment') return styles.chipPending;
+    if (status === 'cancelled') return styles.chipCancelled;
+    return styles.chipPaid;
+  }
+
+  // ── Payment methods (hide Cash for Digital Creator) ──
+  const paymentMethods = st.isDigital
+    ? ALL_PAYMENT_METHODS.filter(pm => pm.value !== 'cash')
+    : ALL_PAYMENT_METHODS;
+
+  // ── Drawer items section label ──
+  const itemsSectionLabel =
+    st.isVendor  ? 'Items Ordered'   :
+    st.isHost    ? 'Service Booked'  :
+    st.isDigital ? 'Products'        :
+    st.isStudio  ? 'Package'         :
+    'Items';
 
   const openDrawer = (receipt: Receipt) => {
     if (isMultiSelectMode) {
@@ -94,7 +145,7 @@ export default function LedgerPage() {
 
       {/* Tabs */}
       <div className={styles.tabs} role="tablist" aria-label="Filter receipts">
-        {TABS.map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab.value}
             className={`${styles.tab} ${activeTab === tab.value ? styles.active : ''}`}
@@ -123,7 +174,7 @@ export default function LedgerPage() {
         <div className={styles.receiptList} role="list">
           <AnimatePresence initial={false}>
             {receipts.map((receipt, i) => (
-              <motion.div
+              <m.div
                 key={receipt.id}
                 role="listitem"
                 layout
@@ -144,7 +195,7 @@ export default function LedgerPage() {
                 {/* Multi-select checkbox */}
                 <AnimatePresence>
                   {isMultiSelectMode && receipt.payment_status === 'pending_payment' && (
-                    <motion.div
+                    <m.div
                       initial={{ width: 0, opacity: 0 }}
                       animate={{ width: 22, opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
@@ -153,7 +204,7 @@ export default function LedgerPage() {
                       aria-hidden="true"
                     >
                       {selectedIds.includes(receipt.id) && <Check size={12} />}
-                    </motion.div>
+                    </m.div>
                   )}
                 </AnimatePresence>
 
@@ -186,6 +237,9 @@ export default function LedgerPage() {
                 <div className={styles.rowRight}>
                   <span className={styles.rowAmount}>{formatCurrencyFull(receipt.total)}</span>
                   <span className={styles.rowSealId}>{receipt.seal_id}</span>
+                  <span className={`${styles.rowStatusChip} ${getStatusChipClass(receipt.payment_status)}`}>
+                    {getStatusLabel(receipt.payment_status)}
+                  </span>
                   {/* Dispatch action — no drawer needed */}
                   {activeTab === 'dispatch' && receipt.shipment_status === 'packed' && (
                     <button
@@ -197,7 +251,7 @@ export default function LedgerPage() {
                     </button>
                   )}
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </AnimatePresence>
         </div>
@@ -206,7 +260,7 @@ export default function LedgerPage() {
       {/* Bulk Select Bar */}
       <AnimatePresence>
         {isMultiSelectMode && (
-          <motion.div
+          <m.div
             className={styles.bulkBar}
             role="toolbar"
             aria-label="Bulk actions"
@@ -237,7 +291,7 @@ export default function LedgerPage() {
                 Cancel
               </button>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -245,7 +299,7 @@ export default function LedgerPage() {
       <BaseDrawer
         open={selectedReceipt !== null}
         onClose={() => setSelectedReceipt(null)}
-        title={selectedReceipt?.buyer_name ?? 'Receipt'}
+        title={selectedReceipt?.buyer_name ?? st.receiptLabel}
       >
         {selectedReceipt && (
           <div className={styles.drawerContent}>
@@ -253,6 +307,9 @@ export default function LedgerPage() {
 
             {/* Line items */}
             <div className={styles.lineItems}>
+              <span className={styles.logTitle} style={{ marginBottom: 'var(--space-2)', display: 'block' }}>
+                {itemsSectionLabel}
+              </span>
               {selectedReceipt.line_items.map((item, i) => (
                 <div key={i} className={styles.lineItem}>
                   <div>
@@ -266,7 +323,7 @@ export default function LedgerPage() {
                       <div className={styles.lineItemVariant}>{item.variant_label}</div>
                     )}
                   </div>
-                  <span className={styles.lineItemPrice}>{formatCurrencyFull(item.total)}</span>
+                  <span className={styles.lineItemPrice}>{formatCurrencyFull(item.total_price)}</span>
                 </div>
               ))}
             </div>
@@ -291,15 +348,15 @@ export default function LedgerPage() {
                     Payment Method
                   </span>
                   <div className={styles.paymentMethodGrid} role="group" aria-label="Select payment method">
-                    {PAYMENT_METHODS.map(m => (
+                    {paymentMethods.map(pm => (
                       <button
-                        key={m.value}
-                        className={`${styles.pmPill} ${markPaidMethod === m.value ? styles.selected : ''}`}
-                        onClick={() => setMarkPaidMethod(m.value === markPaidMethod ? null : m.value)}
-                        aria-pressed={markPaidMethod === m.value}
-                        aria-label={m.label}
+                        key={pm.value}
+                        className={`${styles.pmPill} ${markPaidMethod === pm.value ? styles.selected : ''}`}
+                        onClick={() => setMarkPaidMethod(pm.value === markPaidMethod ? null : pm.value)}
+                        aria-pressed={markPaidMethod === pm.value}
+                        aria-label={pm.label}
                       >
-                        {m.label}
+                        {pm.label}
                       </button>
                     ))}
                   </div>
@@ -353,7 +410,7 @@ export default function LedgerPage() {
             {/* Log */}
             {selectedReceipt.log && selectedReceipt.log.length > 0 && (
               <div className={styles.logSection}>
-                <span className={styles.logTitle}>Receipt Log</span>
+                <span className={styles.logTitle}>{st.receiptLabel} Log</span>
                 <div className={styles.logTimeline}>
                   {selectedReceipt.log.map((entry, i) => (
                     <div key={i} className={styles.logEntry}>
@@ -380,7 +437,7 @@ export default function LedgerPage() {
               onClick={() => setSelectedReceipt(null)}
             >
               <ExternalLink size={14} aria-hidden="true" />
-              View Full Receipt
+              View Full {st.receiptLabel}
             </Link>
           </div>
         )}

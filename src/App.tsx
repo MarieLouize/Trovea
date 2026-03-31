@@ -11,11 +11,23 @@ import IdentityPage from '@/pages/onboarding/IdentityPage';
 import SetupStorePage from '@/pages/onboarding/SetupStorePage';
 import FirstItemPage from '@/pages/onboarding/FirstItemPage';
 
+// ── Phase 2B ──
+import StoreTypePage from '@/pages/onboarding/StoreTypePage';
+
 // ── Phase 1C ──
 import DashboardPage from '@/pages/merchant/DashboardPage';
 import ArchivePage from '@/pages/merchant/ArchivePage';
+
+// ── Phase 1C (cont.) ──
 import TerminalPage from '@/pages/merchant/TerminalPage';
 import LedgerPage from '@/pages/merchant/LedgerPage';
+
+// ── Phase 2D ──
+import CataloguePage from '@/pages/merchant/CataloguePage';
+
+// ── Phase 2E ──
+import SchedulePage from '@/pages/merchant/SchedulePage';
+import BookingsPage from '@/pages/merchant/BookingsPage';
 
 // ── Phase 1D ──
 import InsightsPage from '@/pages/merchant/InsightsPage';
@@ -31,6 +43,26 @@ import ItemDetailPage from '@/pages/public/ItemDetailPage';
 import CollectionPage from '@/pages/public/CollectionPage';
 
 import CustomizePage from '@/pages/public/CustomizePage';
+
+// ── Phase 2P — Admin Panel ──
+import AdminShell from '@/components/admin/AdminShell';
+import AdminOverviewPage from '@/pages/admin/AdminOverviewPage';
+import AdminStoresPage from '@/pages/admin/AdminStoresPage';
+import AdminReportsPage from '@/pages/admin/AdminReportsPage';
+import AdminVerificationPage from '@/pages/admin/AdminVerificationPage';
+import AdminSuspensionsPage from '@/pages/admin/AdminSuspensionsPage';
+import AdminReceiptsPage from '@/pages/admin/AdminReceiptsPage';
+
+// ── Placeholder for routes not yet built ──
+function Placeholder({ name }: { name: string }) {
+  return (
+    <div style={{ padding: '48px 24px', textAlign: 'center', opacity: 0.5 }}>
+      <p style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+        {name} — coming soon
+      </p>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -48,7 +80,7 @@ export default function App() {
             }
           />
 
-          {/* ── Onboarding ── *
+          {/* ── Onboarding ── */}
           <Route
             path="/onboarding/select-role"
             element={
@@ -62,6 +94,15 @@ export default function App() {
             element={
               <ErrorBoundary pageName="onboarding/identity">
                 <IdentityPage />
+              </ErrorBoundary>
+            }
+          />
+          {/* Phase 2B — Store type selection step */}
+          <Route
+            path="/onboarding/store-type"
+            element={
+              <ErrorBoundary pageName="onboarding/store-type">
+                <StoreTypePage />
               </ErrorBoundary>
             }
           />
@@ -86,17 +127,24 @@ export default function App() {
           <Route element={<MerchantShell />}>
             {/* Phase 1C — Updated */}
             <Route path="/dashboard"     element={<DashboardPage />} />
-            
-            {/* Phase 1C — Pending Updates 
+
+            {/* Phase 1C + 2D + 2F */}
             <Route path="/archive"       element={<ArchivePage />} />
             <Route path="/terminal"      element={<TerminalPage />} />
             <Route path="/ledger"        element={<LedgerPage />} />
-            
-            Phase 1D — Pending Updates 
+
+            {/* Phase 2G */}
             <Route path="/insights"      element={<InsightsPage />} />
-            <Route path="/dispatch"      element={<DispatchPage />} /> */}
+            {/* <Route path="/dispatch"      element={<DispatchPage />} /> */}
             <Route path="/settings"      element={<SettingsPage />} />
-           {/* <Route path="/notifications" element={<NotificationsPage />} /> */}
+            {/* <Route path="/notifications" element={<NotificationsPage />} /> */}
+
+            {/* Phase 2D — Digital Creator only */}
+            <Route path="/catalogue" element={<CataloguePage />} />
+
+            {/* Phase 2E — Vendor + Host */}
+            <Route path="/schedule"  element={<SchedulePage />} />
+            <Route path="/bookings"  element={<BookingsPage />} />
           </Route>
 
           {/* ── Public — Phase 1E (Pending Updates) ── */}
@@ -116,8 +164,7 @@ export default function App() {
               </ErrorBoundary>
             }
           />
-        
-          
+
           {/* ── Phase 1F: The Architect — must be before /store/:handle ── */}
           <Route
             path="/store/:handle/customize"
@@ -152,6 +199,22 @@ export default function App() {
               </ErrorBoundary>
             }
           />
+
+          {/* Phase 2I — Host booking flow (public) */}
+          <Route
+            path="/store/:handle/book"
+            element={<Placeholder name="Booking Flow" />}
+          />
+
+          {/* ── Admin — Phase 2P (nested under AdminShell) ── */}
+          <Route path="/admin" element={<AdminShell />}>
+            <Route index                    element={<AdminOverviewPage />} />
+            <Route path="stores"            element={<AdminStoresPage />} />
+            <Route path="reports"           element={<AdminReportsPage />} />
+            <Route path="verification"      element={<AdminVerificationPage />} />
+            <Route path="suspensions"       element={<AdminSuspensionsPage />} />
+            <Route path="receipts"          element={<AdminReceiptsPage />} />
+          </Route>
 
           {/* ── Default ── */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -1,27 +1,123 @@
 /**
- * Trove'a — ReceiptPage (Phase 1E Redesign)
+ * Trove'a — ReceiptPage (Phase 2I: Per-type adaptive labels)
  * Sealed document aesthetic: wax seal motif, ceremonial timeline,
  * premium typography. This is the "proof of care" moment.
+ *
+ * Adapts labels, tracker, and sections based on receipt.receipt_type:
+ *   sale     → Collector (default)
+ *   order    → Vendor food/goods
+ *   booking  → Host appointment
+ *   download → Digital Creator purchase
+ *   project  → Studio brief
  */
 
+import type { ElementType } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Share2, Check, Package } from 'lucide-react';
+import { Share2, Check, Package, Calendar, Download, Briefcase } from 'lucide-react';
 import { m } from '@/lib/motion';
 import { FIXTURE_RECEIPTS, FIXTURE_MERCHANT } from '@/lib/fixtures';
 import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
 import { buildStoreContactLink } from '@/lib/utils/whatsapp';
-import type { ShipmentStatus } from '@/lib/types';
+import type { ReceiptType, ShipmentStatus } from '@/lib/types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
 import styles from './ReceiptPage.module.css';
 
-const SHIP_STEPS: { status: ShipmentStatus; label: string }[] = [
-  { status: 'not_started', label: 'Processing' },
-  { status: 'packed',      label: 'Packed' },
-  { status: 'shipped',     label: 'Shipped' },
-  { status: 'received',    label: 'Received' },
-];
+// ─── Per-type metadata ─────────────────────────────────────────────────────
+
+interface ReceiptTypeMeta {
+  paidLabel:        string;
+  pendingLabel:     string;
+  cancelledLabel:   string;
+  itemsSectionLabel: string;
+  issuedToLabel:    string;
+  showShipTracker:  boolean;
+  shipTitle:        string;
+  shipSteps:        { status: ShipmentStatus; label: string }[];
+  contactBtnLabel:  string;
+  ContactBtnIcon:   ElementType;
+}
 
 const STATUS_ORDER: ShipmentStatus[] = ['not_started', 'packed', 'shipped', 'received'];
+
+function getReceiptTypeMeta(type: ReceiptType): ReceiptTypeMeta {
+  switch (type) {
+    case 'order':
+      return {
+        paidLabel:        'Fulfilled',
+        pendingLabel:     'Pending',
+        cancelledLabel:   'Cancelled',
+        itemsSectionLabel: 'Items Ordered',
+        issuedToLabel:    'Ordered by',
+        showShipTracker:  true,
+        shipTitle:        'Order Status',
+        shipSteps: [
+          { status: 'not_started', label: 'Received' },
+          { status: 'packed',      label: 'Preparing' },
+          { status: 'shipped',     label: 'Ready' },
+          { status: 'received',    label: 'Delivered' },
+        ],
+        contactBtnLabel:  'Contact Vendor on WhatsApp',
+        ContactBtnIcon:   Package,
+      };
+    case 'booking':
+      return {
+        paidLabel:        'Confirmed',
+        pendingLabel:     'Pending Confirmation',
+        cancelledLabel:   'Cancelled',
+        itemsSectionLabel: 'Service Booked',
+        issuedToLabel:    'Booked by',
+        showShipTracker:  false,
+        shipTitle:        '',
+        shipSteps:        [],
+        contactBtnLabel:  'Contact Host on WhatsApp',
+        ContactBtnIcon:   Calendar,
+      };
+    case 'download':
+      return {
+        paidLabel:        'Delivered',
+        pendingLabel:     'Pending',
+        cancelledLabel:   'Refunded',
+        itemsSectionLabel: 'Products',
+        issuedToLabel:    'Issued to',
+        showShipTracker:  false,
+        shipTitle:        '',
+        shipSteps:        [],
+        contactBtnLabel:  'Contact Creator on WhatsApp',
+        ContactBtnIcon:   Download,
+      };
+    case 'project':
+      return {
+        paidLabel:        'Active',
+        pendingLabel:     'Pending',
+        cancelledLabel:   'Closed',
+        itemsSectionLabel: 'Package',
+        issuedToLabel:    'Issued to',
+        showShipTracker:  false,
+        shipTitle:        '',
+        shipSteps:        [],
+        contactBtnLabel:  'Contact Studio on WhatsApp',
+        ContactBtnIcon:   Briefcase,
+      };
+    default: // 'sale'
+      return {
+        paidLabel:        'Paid',
+        pendingLabel:     'Awaiting Payment',
+        cancelledLabel:   'Cancelled',
+        itemsSectionLabel: 'Items',
+        issuedToLabel:    'Issued to',
+        showShipTracker:  true,
+        shipTitle:        'Delivery Status',
+        shipSteps: [
+          { status: 'not_started', label: 'Processing' },
+          { status: 'packed',      label: 'Packed' },
+          { status: 'shipped',     label: 'Shipped' },
+          { status: 'received',    label: 'Received' },
+        ],
+        contactBtnLabel:  'Contact Seller on WhatsApp',
+        ContactBtnIcon:   Package,
+      };
+  }
+}
 
 function statusBadgeClass(status: string) {
   if (status === 'paid')            return styles.statusPaid;
@@ -29,10 +125,10 @@ function statusBadgeClass(status: string) {
   return styles.statusCancelled;
 }
 
-function statusLabel(status: string) {
-  if (status === 'paid')            return 'Paid';
-  if (status === 'pending_payment') return 'Awaiting Payment';
-  return 'Cancelled';
+function statusLabel(status: string, meta: ReceiptTypeMeta) {
+  if (status === 'paid')            return meta.paidLabel;
+  if (status === 'pending_payment') return meta.pendingLabel;
+  return meta.cancelledLabel;
 }
 
 function relDate(iso: string) {
@@ -126,8 +222,10 @@ export default function ReceiptPage() {
     );
   }
 
+  const meta = getReceiptTypeMeta(receipt.receipt_type);
   const currentShipIdx = STATUS_ORDER.indexOf(receipt.shipment_status ?? 'not_started');
   const storeInitial = FIXTURE_MERCHANT.store_name.charAt(0).toUpperCase();
+  const { ContactBtnIcon } = meta;
 
   return (
     <m.div
@@ -156,36 +254,41 @@ export default function ReceiptPage() {
         {/* Seal Header */}
         <div className={styles.sealHeader}>
           <WaxSeal initial={storeInitial} />
+          <div className={styles.sealStoreRow}>
+            <span className={styles.sealStoreName}>{FIXTURE_MERCHANT.store_name}</span>
+            {FIXTURE_MERCHANT.verification_tier !== 'unverified' && (
+              <span className={`badge-verified ${FIXTURE_MERCHANT.verification_tier === 'trusted' ? 'badge-trusted' : ''}`}>
+                {FIXTURE_MERCHANT.verification_tier === 'trusted' ? '★ Trusted' : '✓ Verified'}
+              </span>
+            )}
+          </div>
           <span className={styles.sealId}>{receipt.seal_id}</span>
           <span className={styles.sealDate}>{formatDate(receipt.created_at, 'long')}</span>
           <div>
             <span className={`${styles.statusBadge} ${statusBadgeClass(receipt.payment_status)}`}>
               <span className={styles.statusDot} />
-              {statusLabel(receipt.payment_status)}
+              {statusLabel(receipt.payment_status, meta)}
             </span>
           </div>
         </div>
 
         {/* Buyer */}
         <div className={styles.buyerSection}>
-          <p className={styles.buyerLabel}>Issued to</p>
+          <p className={styles.buyerLabel}>{meta.issuedToLabel}</p>
           <p className={styles.buyerName}>{receipt.buyer_name}</p>
           {receipt.buyer_phone && (
             <p className={styles.buyerPhone}>{receipt.buyer_phone}</p>
+          )}
+          {receipt.buyer_email && !receipt.buyer_phone && (
+            <p className={styles.buyerPhone}>{receipt.buyer_email}</p>
           )}
         </div>
 
         {/* Line Items */}
         <div className={styles.lineItems}>
+          <p className={styles.lineItemsSectionLabel}>{meta.itemsSectionLabel}</p>
           {receipt.line_items.map((item, i) => (
             <div key={i} className={styles.lineItem}>
-              {item.image_url && (
-                <img
-                  src={item.image_url}
-                  alt={item.name}
-                  className={styles.lineItemImg}
-                />
-              )}
               <div className={styles.lineItemInfo}>
                 <p className={styles.lineItemName}>{item.name}</p>
                 {item.variant_label && (
@@ -218,18 +321,24 @@ export default function ReceiptPage() {
               </span>
             </div>
           )}
+          {receipt.delivery_fee != null && receipt.delivery_fee > 0 && (
+            <div className={styles.totalRow}>
+              <span className={styles.totalLabel}>Delivery fee</span>
+              <span className={styles.totalValue}>{formatCurrencyFull(receipt.delivery_fee)}</span>
+            </div>
+          )}
           <div className={`${styles.totalRow} ${styles.totalRowGrand}`}>
             <span className={styles.totalLabelGrand}>Total</span>
             <span className={styles.totalValueGrand}>{formatCurrencyFull(receipt.total)}</span>
           </div>
         </div>
 
-        {/* Shipment Tracker */}
-        {receipt.payment_status === 'paid' && (
+        {/* Shipment / Order Tracker — sale + order types only */}
+        {meta.showShipTracker && receipt.payment_status === 'paid' && (
           <div className={styles.shipSection}>
-            <p className={styles.shipTitle}>Delivery Status</p>
+            <p className={styles.shipTitle}>{meta.shipTitle}</p>
             <div className={styles.shipTrack}>
-              {SHIP_STEPS.map((step, i) => {
+              {meta.shipSteps.map((step, i) => {
                 const isDone   = i < currentShipIdx;
                 const isActive = i === currentShipIdx;
                 return (
@@ -285,8 +394,8 @@ export default function ReceiptPage() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Package size={14} />
-            Contact Seller on WhatsApp
+            <ContactBtnIcon size={14} />
+            {meta.contactBtnLabel}
           </a>
           <button className={styles.shareReceiptBtn} onClick={handleShare}>
             <Share2 size={13} />

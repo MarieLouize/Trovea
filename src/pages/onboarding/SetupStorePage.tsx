@@ -91,14 +91,14 @@ export default function SetupStorePage() {
           {/* Progress */}
           <div className={styles.progressBar}>
             <div className={styles.progressMeta}>
-              <span className={styles.progressStep}>Step 3 of 4</span>
+              <span className={styles.progressStep}>Step 4 of 5</span>
               <span className={styles.progressStep}>Your Store</span>
             </div>
-            <div className={styles.progressTrack} role="progressbar" aria-valuenow={75} aria-valuemin={0} aria-valuemax={100}>
+            <div className={styles.progressTrack} role="progressbar" aria-valuenow={80} aria-valuemin={0} aria-valuemax={100}>
               <motion.div
                 className={styles.progressFill}
-                initial={{ width: '50%' }}
-                animate={{ width: '75%' }}
+                initial={{ width: '60%' }}
+                animate={{ width: '80%' }}
                 transition={{ duration: 0.6, ease: [0.34, 1.2, 0.64, 1] }}
               />
             </div>

@@ -41,7 +41,7 @@ export default function SelectRolePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
       >
-        <span className={styles.step}>Step 1 of 4</span>
+        <span className={styles.step}>Step 1 of 5</span>
         <h1 className={styles.headline}>How will you use<br />Trove'a?</h1>
         <p className={styles.subheadline}>Choose the path that fits your role.</p>
       </motion.div>

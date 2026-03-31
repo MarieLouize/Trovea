@@ -1,25 +1,29 @@
 /**
- * Trove'a — StorefrontPage (Phase 1E Upgrade)
- * The definitive public storefront: cinematic hero, palette-injected theming,
- * inquiry basket, staggered animations, deep card styles, closed interstitial.
+ * Trove'a — StorefrontPage (Phase 2N: Trust Layer)
+ * Verification badges, pause enforcement, store reporting.
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { MessageCircle, Instagram, ShoppingBag, X, Trash2, Moon, Send } from 'lucide-react';
-import { FIXTURE_MERCHANT, FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS } from '@/lib/fixtures';
+import { MessageCircle, Instagram, ShoppingBag, X, Trash2, Moon, Send, AlertTriangle } from 'lucide-react';
+import {
+  FIXTURE_MERCHANT, FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS,
+  FIXTURE_WINDOWS, FIXTURE_BOOKINGS, FIXTURE_HOLDS,
+} from '@/lib/fixtures';
 import { SIGNATURES } from '@/lib/constants/signatures';
-import { formatCurrencyFull, formatLastActive, truncate } from '@/lib/utils/format';
+import { formatCurrencyFull, formatLastActive, formatDate, truncate } from '@/lib/utils/format';
 import { buildStoreContactLink } from '@/lib/utils/whatsapp';
 import { m, AnimatePresence, staggerContainer, staggerChild, slideUp, SPRING_UI } from '@/lib/motion';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
 import { useBasketStore, buildBasketWhatsApp } from '@/lib/store/basket.store';
-import type { Product, StoreLayout, CardStyle } from '@/lib/types';
+import type { Product, StoreLayout, CardStyle, AvailabilityWindow } from '@/lib/types';
+import type { HoldRequest } from '@/lib/types/store-config.types';
+import PopupModal from '@/components/primitives/PopupModal/PopupModal';
 import sfStyles from './StorefrontPage.module.css';
 import '@/styles/cards.css';
 
 
-// ─── Layout → CSS class map ──────────────────────────────────────────────
+// ─── Layout → CSS class map ──────────────────────────────────────────────────
 
 const GRID_CLASS: Record<StoreLayout, string> = {
   'grid-dense': sfStyles.gridDense,
@@ -29,15 +33,59 @@ const GRID_CLASS: Record<StoreLayout, string> = {
   'minimal':    sfStyles.gridMinimal,
 };
 
-// ─── Product Card (animated + basket-aware) ───────────────────────────────
+// ─── Report categories ───────────────────────────────────────────────────────
+
+const REPORT_REASONS = [
+  'Counterfeit or fake items',
+  'Misleading product descriptions',
+  'Suspicious payment requests',
+  'Store doesn\'t respond',
+  'Inappropriate content',
+  'Other',
+] as const;
+
+// ─── Urgency signal (pure function) ──────────────────────────────────────────
+
+function getUrgencySignal(
+  product: Product,
+  storeType: string,
+  openWindow: AvailabilityWindow | null,
+  weekSlotCount: number,
+): string | null {
+  if (product.status === 'sold_out' || product.stock_level === 0) return null;
+  if (product.stock_level !== null && product.stock_level > 1 && product.stock_level <= 3) {
+    return `Only ${product.stock_level} left`;
+  }
+  if (product.stock_level !== null && product.stock_level > 3 && product.stock_level <= 8) {
+    return 'Selling fast';
+  }
+  if (storeType === 'vendor' && openWindow) {
+    const hoursLeft = Math.ceil(
+      (new Date(openWindow.closes_at).getTime() - Date.now()) / 3_600_000,
+    );
+    if (hoursLeft > 0 && hoursLeft <= 48) return `Closes in ${hoursLeft}h`;
+  }
+  if (storeType === 'host' && weekSlotCount > 0) {
+    return `${weekSlotCount} slots this week`;
+  }
+  return null;
+}
+
+// ─── Product Card ─────────────────────────────────────────────────────────────
 
 interface ProductCardProps {
   product: Product;
   handle: string;
   cardStyle: CardStyle;
+  bagEligible: boolean;
+  urgencySignal: string | null;
+  isOnHold: boolean;
+  isPaused: boolean;
 }
 
-function ProductCard({ product, handle, cardStyle }: ProductCardProps) {
+function ProductCard({
+  product, handle, cardStyle, bagEligible, urgencySignal, isOnHold, isPaused,
+}: ProductCardProps) {
   const { add, remove, has } = useBasketStore();
   const inBasket = has(product.id);
   const isSoldOut = product.status === 'sold_out' || product.stock_level === 0;
@@ -47,7 +95,7 @@ function ProductCard({ product, handle, cardStyle }: ProductCardProps) {
   const handleBasket = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isSoldOut) return;
+    if (isSoldOut || isPaused) return;
     inBasket
       ? remove(product.id)
       : add({
@@ -74,12 +122,22 @@ function ProductCard({ product, handle, cardStyle }: ProductCardProps) {
           {isSoldOut && <span className="sf-card-status sf-card-status-sold">Sold out</span>}
           {isClaim && !isSoldOut && <span className="sf-card-status sf-card-status-claim">Claim</span>}
           {isLowStock && !isClaim && <span className="sf-card-status sf-card-status-low">Last one</span>}
+          {isOnHold && !isSoldOut && (
+            <span className={sfStyles.onHoldBadge}>On Hold</span>
+          )}
 
-          {!isSoldOut && (
+          {bagEligible && urgencySignal && !isSoldOut && !isLowStock && !isOnHold && (
+            <div className={`${sfStyles.urgencyBadge} ${sfStyles.urgencyBadgeAmber}`}>
+              {urgencySignal}
+            </div>
+          )}
+
+          {/* Bag button — hidden when store is paused */}
+          {!isSoldOut && bagEligible && !isPaused && (
             <button
-              className={`sf-card-basket-btn ${inBasket ? 'sf-card-basket-btn-active' : ''}`}
+              className={`${sfStyles.addToBagBtn} ${inBasket ? sfStyles.addToBagAdded : ''}`}
               onClick={handleBasket}
-              aria-label={inBasket ? 'Remove from inquiry' : 'Add to inquiry'}
+              aria-label={inBasket ? 'Remove from bag' : 'Add to bag'}
             >
               <ShoppingBag size={13} />
             </button>
@@ -94,7 +152,7 @@ function ProductCard({ product, handle, cardStyle }: ProductCardProps) {
   );
 }
 
-// ─── Inquiry Basket Drawer ────────────────────────────────────────────────
+// ─── Inquiry Basket Drawer ────────────────────────────────────────────────────
 
 function InquiryBasket({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
   const { items, isOpen, close, remove, clear } = useBasketStore();
@@ -129,7 +187,7 @@ function InquiryBasket({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
           >
             <div className={sfStyles.basketHandle} />
             <div className={sfStyles.basketHeader}>
-              <p className={sfStyles.basketTitle}>Your Inquiry</p>
+              <p className={sfStyles.basketTitle}>Your Bag</p>
               <button className={sfStyles.basketClose} onClick={close} aria-label="Close basket">
                 <X size={16} />
               </button>
@@ -140,7 +198,7 @@ function InquiryBasket({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
                 <ShoppingBag size={32} className={sfStyles.basketEmptyIcon} />
                 <p className={sfStyles.basketEmptyTitle}>Nothing added yet</p>
                 <p className={sfStyles.basketEmptyText}>
-                  Tap the bag icon on any item to add it to your inquiry.
+                  Tap the bag icon on any item to add it.
                 </p>
               </div>
             ) : (
@@ -207,34 +265,31 @@ function InquiryBasket({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
   );
 }
 
-// ─── Floating Basket FAB ──────────────────────────────────────────────────
+// ─── Sticky Bag Bar ───────────────────────────────────────────────────────────
 
-function BasketFab({ isDark }: { isDark: boolean }) {
+function StickyBag({ isPaused }: { isPaused: boolean }) {
   const { items, toggle } = useBasketStore();
   const count = items.length;
+  const total = items.reduce((s, i) => s + i.price, 0);
+
+  if (count === 0 || isPaused) return null;
 
   return (
-    <AnimatePresence>
-      {count > 0 && (
-        <m.button
-          className={`${sfStyles.basketFab} ${isDark ? sfStyles.basketFabDark : ''}`}
-          onClick={toggle}
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1, transition: { ...SPRING_UI, delay: 0.1 } }}
-          exit={{ scale: 0, opacity: 0 }}
-          aria-label={`Open inquiry basket — ${count} item${count > 1 ? 's' : ''}`}
-          whileTap={{ scale: 0.94 }}
-        >
-          <ShoppingBag size={18} />
-          <span className={sfStyles.basketFabBadge}>{count}</span>
-          <span className={sfStyles.basketFabLabel}>Inquire</span>
-        </m.button>
-      )}
-    </AnimatePresence>
+    <div className={sfStyles.stickyBag}>
+      <div className={sfStyles.stickyBagLeft}>
+        <span className={sfStyles.stickyBagCount}>
+          {count} item{count !== 1 ? 's' : ''}
+        </span>
+        <span className={sfStyles.stickyBagTotal}>{formatCurrencyFull(total)}</span>
+      </div>
+      <button className={sfStyles.stickyBagCta} onClick={toggle}>
+        View Bag
+      </button>
+    </div>
   );
 }
 
-// ─── Closed Store Interstitial ────────────────────────────────────────────
+// ─── Closed Store Interstitial ────────────────────────────────────────────────
 
 function ClosedInterstitial({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
   const wLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
@@ -260,14 +315,14 @@ function ClosedInterstitial({ merchant }: { merchant: typeof FIXTURE_MERCHANT })
   );
 }
 
-// ─── Cinematic Hero ───────────────────────────────────────────────────────
+// ─── Cinematic Hero ───────────────────────────────────────────────────────────
 
 function StoreHero({
   merchant,
   signature,
 }: {
   merchant: typeof FIXTURE_MERCHANT;
-  signature: { id: string; tagline: string; label: string } | undefined;
+  signature: { id: string; tagline: string } | undefined;
 }) {
   const cfg    = merchant.store_config;
   const hasImg = !!cfg.hero_image_url;
@@ -284,6 +339,9 @@ function StoreHero({
   }, [hasImg]);
 
   const liveCount = FIXTURE_PRODUCTS.filter((p) => p.status !== 'hidden').length;
+
+  const tier = merchant.verification_tier;
+  const showBadge = tier !== 'unverified';
 
   return (
     <div className={sfStyles.heroSection} data-has-image={hasImg}>
@@ -335,6 +393,14 @@ function StoreHero({
               <span className={sfStyles.heroTrustChip}>{formatLastActive(merchant.last_active_at)}</span>
             </>
           )}
+          {showBadge && (
+            <>
+              <span className={sfStyles.heroTrustSep}>·</span>
+              <span className={`badge-verified ${tier === 'trusted' ? 'badge-trusted' : ''}`}>
+                {tier === 'trusted' ? '★ Trusted' : '✓ Verified'}
+              </span>
+            </>
+          )}
         </m.div>
 
         {merchant.social_links.instagram && (
@@ -359,11 +425,121 @@ function StoreHero({
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────
+// ─── Report Modal ─────────────────────────────────────────────────────────────
+
+function ReportModal({
+  open,
+  onClose,
+  storeName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  storeName: string;
+}) {
+  const [reason, setReason] = useState<string | null>(null);
+  const [details, setDetails] = useState('');
+  const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleClose = useCallback(() => {
+    onClose();
+    setTimeout(() => {
+      setReason(null);
+      setDetails('');
+      setError('');
+      setSubmitted(false);
+    }, 300);
+  }, [onClose]);
+
+  const handleSubmit = () => {
+    if (!reason) {
+      setError('Please select a reason.');
+      return;
+    }
+    setSubmitted(true);
+  };
+
+  return (
+    <PopupModal
+      open={open}
+      onClose={handleClose}
+      title={submitted ? undefined : `Report this store`}
+    >
+      {submitted ? (
+        <div className={sfStyles.reportConfirm}>
+          <div className={sfStyles.reportConfirmIcon}>✓</div>
+          <p className={sfStyles.reportConfirmTitle}>Report submitted</p>
+          <p className={sfStyles.reportConfirmBody}>
+            Thank you. Our team will review this store.
+          </p>
+          <button className={sfStyles.reportSubmitBtn} onClick={handleClose}>
+            Close
+          </button>
+        </div>
+      ) : (
+        <div className={sfStyles.reportBody}>
+          <p className={sfStyles.reportSubtitle}>
+            Why are you reporting {storeName}?
+          </p>
+
+          <div className={sfStyles.reportReasons} role="radiogroup" aria-label="Report reason">
+            {REPORT_REASONS.map((r) => (
+              <label key={r} className={sfStyles.reportReasonLabel}>
+                <input
+                  type="radio"
+                  name="report-reason"
+                  value={r}
+                  checked={reason === r}
+                  onChange={() => { setReason(r); setError(''); }}
+                  className={sfStyles.reportRadio}
+                />
+                <span className={sfStyles.reportReasonText}>{r}</span>
+              </label>
+            ))}
+          </div>
+
+          {error && <p className={sfStyles.reportError}>{error}</p>}
+
+          <div className={sfStyles.reportDetailsField}>
+            <label className={sfStyles.reportDetailsLabel} htmlFor="report-details">
+              Additional details <span className={sfStyles.reportOptional}>(optional)</span>
+            </label>
+            <textarea
+              id="report-details"
+              className={sfStyles.reportTextarea}
+              placeholder="Please describe what you experienced"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className={sfStyles.reportActions}>
+            <button className={sfStyles.reportCancelBtn} onClick={handleClose}>
+              Cancel
+            </button>
+            <m.button
+              className={sfStyles.reportSubmitBtn}
+              onClick={handleSubmit}
+              whileTap={{ scale: 0.97 }}
+            >
+              Submit Report
+            </m.button>
+          </div>
+        </div>
+      )}
+    </PopupModal>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function StorefrontPage() {
   const { handle } = useParams<{ handle: string }>();
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
+  const [holds] = useState<HoldRequest[]>(FIXTURE_HOLDS);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [devPaused, setDevPaused] = useState(false);
 
   const merchant   = FIXTURE_MERCHANT;
   const { store_config: cfg } = merchant;
@@ -371,6 +547,36 @@ export default function StorefrontPage() {
   const cardStyle  = cfg.card_style;
   const { paletteId, isDark } = usePaletteTheme(cfg.palette);
   const signature  = SIGNATURES.find((s) => s.id === cfg.signature);
+
+  const storeType   = merchant.store_type;
+  const bagEligible = ['collector', 'vendor', 'digital_creator'].includes(storeType);
+  const isPaused    = devPaused || merchant.is_paused;
+
+  const openWindow = useMemo<AvailabilityWindow | null>(() => {
+    if (storeType !== 'vendor') return null;
+    return FIXTURE_WINDOWS.find(
+      (w) => w.merchant_id === merchant.id && w.status === 'open',
+    ) ?? null;
+  }, [storeType, merchant.id]);
+
+  const weekSlotCount = useMemo(() => {
+    if (storeType !== 'host') return 0;
+    const now     = Date.now();
+    const weekEnd = now + 7 * 24 * 3_600_000;
+    return FIXTURE_BOOKINGS.filter(
+      (b) =>
+        b.merchant_id === merchant.id &&
+        new Date(b.scheduled_at).getTime() > now &&
+        new Date(b.scheduled_at).getTime() <= weekEnd &&
+        b.status !== 'cancelled',
+    ).length;
+  }, [storeType, merchant.id]);
+
+  const isOnHold = useCallback(
+    (productId: string) =>
+      holds.some((h) => h.product_id === productId && h.status === 'active'),
+    [holds],
+  );
 
   const liveProducts = useMemo(
     () => FIXTURE_PRODUCTS.filter((p) => p.status !== 'hidden'),
@@ -393,7 +599,6 @@ export default function StorefrontPage() {
   const whatsappLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
   const gridClass    = GRID_CLASS[layout];
 
-  // Closed interstitial
   if (!merchant.store_open) {
     return (
       <div
@@ -416,6 +621,17 @@ export default function StorefrontPage() {
     >
       {/* ── Cinematic Hero ── */}
       <StoreHero merchant={merchant} signature={signature} />
+
+      {/* ── Pause Banner ── */}
+      {isPaused && (
+        <div className={sfStyles.pauseBanner}>
+          <AlertTriangle size={14} className={sfStyles.pauseBannerIcon} />
+          <span>
+            {merchant.pause_message ?? 'This store is currently paused — browsing only, ordering is unavailable.'}
+            {merchant.pause_return_date && ` Back ${formatDate(merchant.pause_return_date, 'short')}.`}
+          </span>
+        </div>
+      )}
 
       {/* ── Collection Nav ── */}
       {FIXTURE_COLLECTIONS.length > 0 && (
@@ -455,7 +671,16 @@ export default function StorefrontPage() {
             animate="animate"
           >
             {featuredProducts.map((p) => (
-              <ProductCard key={p.id} product={p} handle={handle ?? merchant.handle} cardStyle={cardStyle} />
+              <ProductCard
+                key={p.id}
+                product={p}
+                handle={handle ?? merchant.handle}
+                cardStyle={cardStyle}
+                bagEligible={bagEligible}
+                urgencySignal={getUrgencySignal(p, storeType, openWindow, weekSlotCount)}
+                isOnHold={isOnHold(p.id)}
+                isPaused={isPaused}
+              />
             ))}
           </m.div>
         </section>
@@ -507,13 +732,22 @@ export default function StorefrontPage() {
             animate="animate"
           >
             {displayProducts.map((p) => (
-              <ProductCard key={p.id} product={p} handle={handle ?? merchant.handle} cardStyle={cardStyle} />
+              <ProductCard
+                key={p.id}
+                product={p}
+                handle={handle ?? merchant.handle}
+                cardStyle={cardStyle}
+                bagEligible={bagEligible}
+                urgencySignal={getUrgencySignal(p, storeType, openWindow, weekSlotCount)}
+                isOnHold={isOnHold(p.id)}
+                isPaused={isPaused}
+              />
             ))}
           </m.div>
         )}
       </section>
 
-      {/* ── Contact CTA ── */}
+      {/* ── Contact CTA — WhatsApp always active, even during pause ── */}
       <m.section
         className={sfStyles.contactSection}
         initial={{ opacity: 0, y: 20 }}
@@ -545,13 +779,38 @@ export default function StorefrontPage() {
           Powered by{' '}
           <Link to="/auth" className={sfStyles.footerBrandLink}>Trove'a</Link>
         </span>
+        <button
+          className={sfStyles.reportLink}
+          onClick={() => setReportOpen(true)}
+        >
+          Report this store
+        </button>
       </footer>
 
-      {/* ── Floating Basket FAB ── */}
-      <BasketFab isDark={isDark} />
+      {/* ── Sticky Bag Bar (bag-eligible, not paused) ── */}
+      {bagEligible && <StickyBag isPaused={isPaused} />}
 
       {/* ── Inquiry Basket Drawer ── */}
       <InquiryBasket merchant={merchant} />
+
+      {/* ── Report Modal ── */}
+      <ReportModal
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        storeName={merchant.store_name}
+      />
+
+      {/* ── Dev Pause Toggle (DEV only) ── */}
+      {import.meta.env.DEV && (
+        <div className={sfStyles.devPauseToggle}>
+          <button
+            onClick={() => setDevPaused((p) => !p)}
+            className={sfStyles.devPauseBtn}
+          >
+            DEV: {devPaused ? 'Store PAUSED' : 'Store ACTIVE'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

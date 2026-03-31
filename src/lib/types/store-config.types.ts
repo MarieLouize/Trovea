@@ -48,8 +48,25 @@ export interface ClaimRequest {
   merchant_id: string;
   buyer_name: string;
   buyer_phone: string;
+  buyer_email: string | null;
   buyer_note: string | null;
-  status: 'pending' | 'accepted' | 'declined';
+  proof_submitted: boolean;
+  proof_note: string | null;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
   created_at: string;
   updated_at: string;
+  expires_at: string;
+}
+
+export interface HoldRequest {
+  id: string;
+  product_id: string;
+  merchant_id: string;
+  buyer_name: string;
+  buyer_phone: string;
+  buyer_note: string | null;
+  status: 'active' | 'expired' | 'released';
+  duration_hours: number;   // copy of merchant.hold_duration_hours at time of hold
+  created_at: string;
+  expires_at: string;       // created_at + duration_hours
 }

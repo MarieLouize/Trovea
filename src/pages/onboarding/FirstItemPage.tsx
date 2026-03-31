@@ -76,13 +76,13 @@ export default function FirstItemPage() {
           {/* Progress */}
           <div className={styles.progressBar}>
             <div className={styles.progressMeta}>
-              <span className={styles.progressStep}>Step 4 of 4</span>
+              <span className={styles.progressStep}>Step 5 of 5</span>
               <span className={styles.progressStep}>First Item</span>
             </div>
             <div className={styles.progressTrack} role="progressbar" aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}>
               <motion.div
                 className={styles.progressFill}
-                initial={{ width: '75%' }}
+                initial={{ width: '80%' }}
                 animate={{ width: '100%' }}
                 transition={{ duration: 0.6, ease: [0.34, 1.2, 0.64, 1] }}
               />

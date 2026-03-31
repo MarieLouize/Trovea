@@ -3,7 +3,7 @@
    Extracted here to avoid circular imports between
    ArchitectShell (imports LayerNav) and LayerNav (needs LayerId). */
 
-export type LayerId = 'palette' | 'layout' | 'typography' | 'card' | 'signature';
+export type LayerId = 'palette' | 'layout' | 'typography' | 'card' | 'signature' | 'store';
 
 export const LAYER_ORDER: LayerId[] = [
   'palette',
@@ -11,4 +11,5 @@ export const LAYER_ORDER: LayerId[] = [
   'typography',
   'card',
   'signature',
+  'store',
 ];

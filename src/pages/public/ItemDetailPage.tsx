@@ -1,6 +1,6 @@
 /**
- * Trove'a — ItemDetailPage (Phase 1E Upgrade)
- * Image lightbox with swipe/keyboard, basket integration, clean render.
+ * Trove'a — ItemDetailPage (Phase 2M: Hold CTA + Payment Proof)
+ * Image lightbox with swipe/keyboard, basket integration, per-type action buttons.
  *
  * Motion rule: NEVER use initial={{ opacity: 0 }} on elements visible above the fold.
  * Only AnimatePresence (image crossfade, lightbox overlay) and whileInView (below-fold grid).
@@ -10,19 +10,42 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Share2, MessageCircle, X, ShoppingBag,
-  ZoomIn, ChevronLeft, ChevronRight, Check,
+  ZoomIn, ChevronLeft, ChevronRight, Check, Calendar, Tag,
+  Clock, ChevronDown, AlertTriangle,
 } from 'lucide-react';
-import { FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS, FIXTURE_MERCHANT } from '@/lib/fixtures';
+import {
+  FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS, FIXTURE_MERCHANT,
+  FIXTURE_CLAIMS, FIXTURE_HOLDS,
+} from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import { buildChatToBuyLink, buildStoreContactLink } from '@/lib/utils/whatsapp';
 import { m, AnimatePresence, staggerContainer, staggerChild, SPRING_UI } from '@/lib/motion';
 import { useBasketStore } from '@/lib/store/basket.store';
+import { useStoreType } from '@/lib/hooks/use-store-type';
 import type { ProductVariant, CardStyle } from '@/lib/types';
+import type { ClaimRequest, HoldRequest } from '@/lib/types/store-config.types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
+import ClaimSheet from '@/components/public/ClaimSheet';
+import HoldSheet from '@/components/public/HoldSheet';
 import styles from './ItemDetailPage.module.css';
 import '@/styles/cards.css';
 
-// ─── Lightbox ─────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function hoursRemaining(expiresAt: string): number {
+  return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 3_600_000));
+}
+
+// Payment methods for proof modal
+const PAYMENT_METHODS = [
+  'Bank Transfer',
+  'Opay',
+  'PalmPay',
+  'Moniepoint',
+  'Cash',
+] as const;
+
+// ─── Lightbox ─────────────────────────────────────────────────────────────────
 
 function Lightbox({
   images,
@@ -58,7 +81,6 @@ function Lightbox({
   };
 
   return (
-    /* Backdrop fades in — safe because it's inside AnimatePresence */
     <m.div
       className={styles.lightboxBackdrop}
       initial={{ opacity: 0 }}
@@ -114,7 +136,7 @@ function Lightbox({
   );
 }
 
-// ─── Mini Card (below-fold "More" grid) ───────────────────────────────────
+// ─── Mini Card (below-fold "More" grid) ───────────────────────────────────────
 
 function MiniCard({
   product,
@@ -126,7 +148,6 @@ function MiniCard({
   cardStyle: CardStyle;
 }) {
   return (
-    /* staggerChild is safe here — its parent grid uses whileInView so it's below the fold */
     <m.div variants={staggerChild}>
       <Link to={`/store/${handle}/item/${product.id}`} className={`sf-card sf-card-${cardStyle}`}>
         <div className="sf-card-image" style={{ aspectRatio: '1/1' }}>
@@ -148,7 +169,210 @@ function MiniCard({
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────
+// ─── Payment Proof Modal (internal) ───────────────────────────────────────────
+
+interface PaymentProofFormState {
+  buyerName: string;
+  buyerPhone: string;
+  method: string;
+  referenceNote: string;
+}
+
+interface PaymentProofErrors {
+  buyerName?: string;
+  buyerPhone?: string;
+  referenceNote?: string;
+}
+
+function PaymentProofModal({
+  open,
+  onClose,
+  product,
+  merchant,
+}: {
+  open: boolean;
+  onClose: () => void;
+  product: { name: string; price: number };
+  merchant: typeof FIXTURE_MERCHANT;
+}) {
+  const [form, setForm] = useState<PaymentProofFormState>({
+    buyerName: '', buyerPhone: '', method: 'Bank Transfer', referenceNote: '',
+  });
+  const [errors, setErrors] = useState<PaymentProofErrors>({});
+
+  const handleClose = useCallback(() => {
+    onClose();
+    setTimeout(() => {
+      setForm({ buyerName: '', buyerPhone: '', method: 'Bank Transfer', referenceNote: '' });
+      setErrors({});
+    }, 300);
+  }, [onClose]);
+
+  const handleSubmit = () => {
+    const errs: PaymentProofErrors = {};
+    if (!form.buyerName.trim() || form.buyerName.trim().length < 2) {
+      errs.buyerName = 'Please enter your name.';
+    }
+    if (!form.buyerPhone.trim() || form.buyerPhone.trim().length < 8) {
+      errs.buyerPhone = 'Please enter a valid WhatsApp number.';
+    }
+    if (!form.referenceNote.trim()) {
+      errs.referenceNote = 'Please add a reference or note for your payment.';
+    }
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
+
+    const priceStr = new Intl.NumberFormat('en-NG', {
+      style: 'currency', currency: 'NGN', maximumFractionDigits: 0,
+    }).format(product.price);
+
+    const message = [
+      `Hi ${merchant.store_name}! I've made payment for ${product.name} (${priceStr}).`,
+      '',
+      `Payment method: ${form.method}`,
+      `Reference: ${form.referenceNote.trim()}`,
+      '',
+      `My name: ${form.buyerName.trim()}`,
+      `My WhatsApp: ${form.buyerPhone.trim()}`,
+      '',
+      'Please confirm receipt. Thank you!',
+    ].join('\n');
+
+    const clean = merchant.whatsapp.replace(/[^0-9]/g, '');
+    const waLink = `https://wa.me/${clean}?text=${encodeURIComponent(message)}`;
+    window.open(waLink, '_blank', 'noopener,noreferrer');
+    handleClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <m.div
+            className={styles.proofBackdrop}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.18 } }}
+            onClick={handleClose}
+          />
+          <m.div
+            className={styles.proofModal}
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] } }}
+            exit={{ opacity: 0, y: 12, scale: 0.97, transition: { duration: 0.18 } }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="I've already paid"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.proofHeader}>
+              <h2 className={styles.proofTitle}>I've already paid</h2>
+              <button className={styles.proofClose} onClick={handleClose} aria-label="Close">
+                <X size={15} />
+              </button>
+            </div>
+
+            <p className={styles.proofSubtitle}>
+              Let the seller know your payment details:
+            </p>
+
+            <div className={styles.proofForm}>
+              <div className={styles.proofField}>
+                <label className={styles.proofLabel} htmlFor="proof-name">
+                  Your Name <span className={styles.proofRequired}>*</span>
+                </label>
+                <input
+                  id="proof-name"
+                  className={`${styles.proofInput} ${errors.buyerName ? styles.proofInputError : ''}`}
+                  type="text"
+                  placeholder="e.g. Adaeze Okonkwo"
+                  value={form.buyerName}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, buyerName: e.target.value }));
+                    setErrors((err) => ({ ...err, buyerName: undefined }));
+                  }}
+                  autoComplete="name"
+                />
+                {errors.buyerName && <p className={styles.proofError}>{errors.buyerName}</p>}
+              </div>
+
+              <div className={styles.proofField}>
+                <label className={styles.proofLabel} htmlFor="proof-phone">
+                  WhatsApp <span className={styles.proofRequired}>*</span>
+                </label>
+                <input
+                  id="proof-phone"
+                  className={`${styles.proofInput} ${errors.buyerPhone ? styles.proofInputError : ''}`}
+                  type="tel"
+                  placeholder="08012345678"
+                  value={form.buyerPhone}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, buyerPhone: e.target.value }));
+                    setErrors((err) => ({ ...err, buyerPhone: undefined }));
+                  }}
+                  autoComplete="tel"
+                />
+                {errors.buyerPhone && <p className={styles.proofError}>{errors.buyerPhone}</p>}
+              </div>
+
+              <div className={styles.proofField}>
+                <label className={styles.proofLabel} htmlFor="proof-method">
+                  Payment method
+                </label>
+                <div className={styles.proofSelectWrap}>
+                  <select
+                    id="proof-method"
+                    className={styles.proofSelect}
+                    value={form.method}
+                    onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={13} className={styles.proofSelectIcon} />
+                </div>
+              </div>
+
+              <div className={styles.proofField}>
+                <label className={styles.proofLabel} htmlFor="proof-ref">
+                  Reference / Note <span className={styles.proofRequired}>*</span>
+                </label>
+                <textarea
+                  id="proof-ref"
+                  className={`${styles.proofTextarea} ${errors.referenceNote ? styles.proofInputError : ''}`}
+                  placeholder="e.g. Transfer ref: 3849201, sent 2:15pm"
+                  value={form.referenceNote}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, referenceNote: e.target.value }));
+                    setErrors((err) => ({ ...err, referenceNote: undefined }));
+                  }}
+                  rows={3}
+                />
+                {errors.referenceNote && (
+                  <p className={styles.proofError}>{errors.referenceNote}</p>
+                )}
+              </div>
+            </div>
+
+            <m.button
+              className={styles.proofSubmitBtn}
+              onClick={handleSubmit}
+              whileTap={{ scale: 0.97 }}
+            >
+              <MessageCircle size={14} />
+              Send Confirmation →
+            </m.button>
+          </m.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function ItemDetailPage() {
   const { handle, item_id } = useParams<{ handle: string; item_id: string }>();
@@ -157,10 +381,16 @@ export default function ItemDetailPage() {
   const merchant = FIXTURE_MERCHANT;
   const cfg      = merchant.store_config;
   const { paletteId, isDark } = usePaletteTheme(cfg.palette);
+  const st = useStoreType();
 
   const [selectedImage,    setSelectedImage]    = useState(0);
   const [lightboxOpen,     setLightboxOpen]      = useState(false);
   const [selectedVariants, setSelectedVariants]  = useState<Record<string, string>>({});
+  const [claimSheetOpen,   setClaimSheetOpen]    = useState(false);
+  const [holdSheetOpen,    setHoldSheetOpen]     = useState(false);
+  const [proofModalOpen,   setProofModalOpen]    = useState(false);
+  const [claims,           setClaims]            = useState<ClaimRequest[]>(FIXTURE_CLAIMS);
+  const [holds,            setHolds]             = useState<HoldRequest[]>(FIXTURE_HOLDS);
 
   const { add, remove, has } = useBasketStore();
   const inBasket = product ? has(product.id) : false;
@@ -177,6 +407,19 @@ export default function ItemDetailPage() {
     [item_id]
   );
 
+  const addClaim = useCallback((claim: ClaimRequest) => {
+    setClaims((prev) => [claim, ...prev]);
+  }, []);
+
+  const addHold = useCallback((hold: HoldRequest) => {
+    setHolds((prev) => [hold, ...prev]);
+  }, []);
+
+  const hasPendingClaim = useCallback((productId: string) =>
+    claims.some((c) => c.product_id === productId && (c.status === 'pending' || c.status === 'accepted')),
+    [claims]
+  );
+
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({ title: product?.name ?? '', url: window.location.href }).catch(() => {});
@@ -188,7 +431,6 @@ export default function ItemDetailPage() {
   const selectVariant = (groupName: string, value: string) =>
     setSelectedVariants((prev) => ({ ...prev, [groupName]: value }));
 
-  // Gallery swipe
   const onTouchStart = (e: React.TouchEvent) => { touchStart.current = e.touches[0].clientX; };
   const onTouchEnd   = (e: React.TouchEvent) => {
     if (!product || touchStart.current === null) return;
@@ -215,7 +457,7 @@ export default function ItemDetailPage() {
     }
   }, [product, inBasket, selectedVariants]);
 
-  // ── Not found ────────────────────────────────────────────────────────────
+  // ── Not found ─────────────────────────────────────────────────────────────
   if (!product) {
     return (
       <div className={styles.page}>
@@ -253,10 +495,47 @@ export default function ItemDetailPage() {
     ? product.images
     : [`https://picsum.photos/seed/${product.id}/600/600`];
 
+  // Bag eligibility for this store type
+  const bagEligible = st.isCollector || st.isVendor || st.isDigital;
+
+  // Checkout (Claim) eligibility
+  const checkoutEligible =
+    merchant.checkout_enabled &&
+    product.status === 'live' &&
+    !merchant.is_paused &&
+    !st.isDigital;
+
+  // Hold eligibility — Collector and Vendor only
+  const holdEligible =
+    merchant.holds_enabled &&
+    product.status === 'live' &&
+    !merchant.is_paused &&
+    (st.isCollector || st.isVendor);
+
+  // Active hold on this product
+  const activeHold = holds.find(
+    (h) => h.product_id === product.id && h.status === 'active',
+  );
+
+  // Payment proof: no structured flows available — show "I've already paid" link
+  const showPaymentProof =
+    !merchant.checkout_enabled &&
+    !merchant.holds_enabled &&
+    !isSoldOut &&
+    !st.isHost &&
+    !st.isStudio;
+
+  // Claim CTA label per store type
+  const claimCtaLabel = (() => {
+    if (st.isVendor) return 'Claim Pre-order';
+    if (st.isHost || st.isStudio) return 'Book & Pay Deposit';
+    return 'Claim This Piece';
+  })();
+
   return (
     <div className={`sf-themed ${styles.page}`} data-palette={paletteId} data-dark={isDark}>
 
-      {/* ── Nav — plain div, always visible ── */}
+      {/* ── Nav ── */}
       <nav className={styles.navBar}>
         <Link to={`/store/${handle ?? merchant.handle}`} className={styles.backBtn} aria-label="Back">
           <ArrowLeft size={16} />
@@ -269,9 +548,19 @@ export default function ItemDetailPage() {
         </button>
       </nav>
 
+      {/* ── Pause Banner ── */}
+      {merchant.is_paused && (
+        <div className={styles.pauseBanner}>
+          <AlertTriangle size={13} />
+          <span>
+            {merchant.pause_message ?? 'This store is temporarily paused — new orders are unavailable.'}
+          </span>
+        </div>
+      )}
+
       <div className={styles.layout}>
 
-        {/* ── Gallery — plain div, always visible ── */}
+        {/* ── Gallery ── */}
         <div className={styles.gallery}>
           <div
             className={styles.mainImageWrap}
@@ -279,7 +568,6 @@ export default function ItemDetailPage() {
             onTouchEnd={onTouchEnd}
             onClick={() => !isSoldOut && setLightboxOpen(true)}
           >
-            {/* Image crossfade — inside AnimatePresence so opacity:0 initial is safe */}
             <AnimatePresence mode="wait">
               <m.img
                 key={selectedImage}
@@ -338,7 +626,7 @@ export default function ItemDetailPage() {
           )}
         </div>
 
-        {/* ── Product Info — plain div, always visible ── */}
+        {/* ── Product Info ── */}
         <div className={styles.info}>
           {collection && (
             <Link
@@ -379,17 +667,79 @@ export default function ItemDetailPage() {
                     disabled={opt.stock_level === 0}
                   >
                     {opt.label}
-                    {opt.price_modifier !== 0 && <> (+{formatCurrencyFull(opt.price_modifier)})</>}
+                    {opt.price_override !== null && <> (+{formatCurrencyFull(opt.price_override)})</>}
                   </button>
                 ))}
               </div>
             </div>
           ))}
 
-          {/* Actions */}
+          {/* ── Actions (per store type) ── */}
           <div className={styles.actions}>
-            {isSoldOut ? (
+            {merchant.is_paused ? (
+              <div className={styles.pauseBanner}>
+                <AlertTriangle size={13} />
+                <span>Ordering unavailable while this store is paused.</span>
+              </div>
+
+            ) : isSoldOut ? (
               <span className={`${styles.actionBtn} ${styles.actionBtnDisabled}`}>Sold Out</span>
+
+            ) : st.isHost ? (
+              <a
+                href={whatsappBuyLink}
+                className={`${styles.actionBtn} ${styles.ctaPrimary}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Calendar size={16} />
+                Book a Slot
+              </a>
+
+            ) : st.isStudio ? (
+              <a
+                href={whatsappContactLink}
+                className={`${styles.actionBtn} ${styles.ctaPrimary}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <MessageCircle size={16} />
+                Request Quote
+              </a>
+
+            ) : checkoutEligible ? (
+              /* Checkout ON — Claim primary, Bag + Chat secondary */
+              <>
+                <m.button
+                  className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
+                  onClick={() => setClaimSheetOpen(true)}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <Tag size={15} />
+                  {claimCtaLabel}
+                </m.button>
+                {bagEligible && (
+                  <button
+                    className={`${styles.actionBtn} ${inBasket ? styles.actionBtnBasketAdded : styles.ctaSecondary}`}
+                    onClick={handleBasketToggle}
+                  >
+                    {inBasket
+                      ? <><Check size={15} /> In Bag</>
+                      : <><ShoppingBag size={15} /> Add to Bag</>
+                    }
+                  </button>
+                )}
+                <a
+                  href={whatsappBuyLink}
+                  className={`${styles.actionBtn} ${styles.ctaSecondary}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={16} />
+                  Chat to Buy
+                </a>
+              </>
+
             ) : product.claim_mode ? (
               <a
                 href={`/submit-receipt/${product.id}`}
@@ -397,52 +747,94 @@ export default function ItemDetailPage() {
               >
                 Claim This Piece
               </a>
+
+            ) : bagEligible ? (
+              <>
+                <button
+                  className={`${styles.actionBtn} ${inBasket ? styles.actionBtnBasketAdded : styles.ctaPrimary}`}
+                  onClick={handleBasketToggle}
+                >
+                  {inBasket
+                    ? <><Check size={15} /> In Bag</>
+                    : <><ShoppingBag size={15} /> Add to Bag</>
+                  }
+                </button>
+                <a
+                  href={whatsappBuyLink}
+                  className={`${styles.actionBtn} ${styles.ctaSecondary}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={16} />
+                  Chat to Buy
+                </a>
+                {showPaymentProof && (
+                  <button
+                    className={styles.paidLink}
+                    onClick={() => setProofModalOpen(true)}
+                  >
+                    I've already paid →
+                  </button>
+                )}
+              </>
+
             ) : (
+              <>
+                <a
+                  href={whatsappBuyLink}
+                  className={`${styles.actionBtn} ${styles.actionBtnWhatsapp}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={16} />
+                  Buy via WhatsApp
+                </a>
+                {showPaymentProof && (
+                  <button
+                    className={styles.paidLink}
+                    onClick={() => setProofModalOpen(true)}
+                  >
+                    I've already paid →
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* ── Hold CTA ── */}
+            {!isSoldOut && holdEligible && (
+              activeHold ? (
+                <div className={styles.holdStatusText}>
+                  <Clock size={12} />
+                  On hold · {hoursRemaining(activeHold.expires_at)}h remaining
+                </div>
+              ) : (
+                <m.button
+                  className={`${styles.actionBtn} ${styles.ctaTertiary}`}
+                  onClick={() => setHoldSheetOpen(true)}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <Clock size={14} />
+                  Hold for me · {merchant.hold_duration_hours}h
+                </m.button>
+              )
+            )}
+
+            {!isSoldOut && !st.isHost && !st.isStudio && (
               <a
-                href={whatsappBuyLink}
-                className={`${styles.actionBtn} ${styles.actionBtnWhatsapp}`}
+                href={whatsappContactLink}
+                className={`${styles.actionBtn} ${styles.actionBtnSecondary}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <MessageCircle size={16} />
-                Buy via WhatsApp
+                Ask a Question
               </a>
             )}
-
-            {!isSoldOut && (
-              <button
-                className={`${styles.actionBtn} ${inBasket ? styles.actionBtnBasketAdded : styles.actionBtnBasket}`}
-                onClick={handleBasketToggle}
-              >
-                {inBasket
-                  ? <><Check size={15} /> In Inquiry Basket</>
-                  : <><ShoppingBag size={15} /> Add to Inquiry</>
-                }
-              </button>
-            )}
-
-            <a
-              href={whatsappContactLink}
-              className={`${styles.actionBtn} ${styles.actionBtnSecondary}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Ask a Question
-            </a>
           </div>
 
           <div className={styles.divider} />
 
           {/* Meta */}
           <div className={styles.metaTable}>
-            {product.type && (
-              <div className={styles.metaRow}>
-                <span className={styles.metaKey}>Type</span>
-                <span className={styles.metaVal}>
-                  {product.type.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-                </span>
-              </div>
-            )}
             {collection && (
               <div className={styles.metaRow}>
                 <span className={styles.metaKey}>Collection</span>
@@ -451,7 +843,17 @@ export default function ItemDetailPage() {
             )}
             <div className={styles.metaRow}>
               <span className={styles.metaKey}>Seller</span>
-              <span className={styles.metaVal}>{merchant.store_name}</span>
+              <span className={styles.metaVal}>
+                {merchant.store_name}
+                {merchant.verification_tier !== 'unverified' && (
+                  <span
+                    className={`badge-verified ${merchant.verification_tier === 'trusted' ? 'badge-trusted' : ''}`}
+                    style={{ marginLeft: 6 }}
+                  >
+                    {merchant.verification_tier === 'trusted' ? '★ Trusted' : '✓ Verified'}
+                  </span>
+                )}
+              </span>
             </div>
             {product.tags?.length > 0 && (
               <div className={styles.metaRow}>
@@ -464,7 +866,7 @@ export default function ItemDetailPage() {
 
       </div>{/* end .layout */}
 
-      {/* ── More from Archive — below fold, whileInView stagger is safe ── */}
+      {/* ── More from Archive — below fold ── */}
       {relatedProducts.length > 0 && (
         <div className={`${styles.moreSection} card-${cfg.card_style}`}>
           <p className={styles.moreSectionTitle}>More from the Archive</p>
@@ -487,7 +889,7 @@ export default function ItemDetailPage() {
         </div>
       )}
 
-      {/* ── Image Lightbox — AnimatePresence, safe ── */}
+      {/* ── Image Lightbox ── */}
       <AnimatePresence>
         {lightboxOpen && (
           <Lightbox
@@ -498,6 +900,35 @@ export default function ItemDetailPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* ── Claim Sheet ── */}
+      <ClaimSheet
+        open={claimSheetOpen}
+        onClose={() => setClaimSheetOpen(false)}
+        product={product}
+        merchant={merchant}
+        variantLabel={variantString || null}
+        hasPendingClaim={hasPendingClaim(product.id)}
+        onClaimSubmitted={addClaim}
+      />
+
+      {/* ── Hold Sheet ── */}
+      <HoldSheet
+        open={holdSheetOpen}
+        onClose={() => setHoldSheetOpen(false)}
+        product={product}
+        merchant={merchant}
+        hasActiveHold={!!activeHold}
+        onHoldCreated={addHold}
+      />
+
+      {/* ── Payment Proof Modal ── */}
+      <PaymentProofModal
+        open={proofModalOpen}
+        onClose={() => setProofModalOpen(false)}
+        product={product}
+        merchant={merchant}
+      />
 
     </div>
   );

@@ -4,74 +4,189 @@ import { m, AnimatePresence } from '@/lib/motion';
 import {
   Bell, Share2, DollarSign, BookOpen, Package,
   Archive, Terminal, Check, ChevronDown,
-  Copy, MessageCircle, Instagram, ExternalLink
+  Copy, MessageCircle, Instagram, ExternalLink,
+  Calendar, BookMarked, LayoutGrid,
 } from 'lucide-react';
-import { FIXTURE_MERCHANT } from '@/lib/fixtures';
+import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useLedgerStore } from '@/lib/store/ledger.store';
 import { useUIStore } from '@/lib/store/ui.store';
-import { useGuideStore } from '@/lib/store/guide.store';
+import { useStoreType } from '@/lib/hooks/use-store-type';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
-import GuideMarker from '@/components/primitives/GuideMarker/GuideMarker';
+import DropCardGenerator from '@/components/merchant/DropCardGenerator';
 import styles from './DashboardPage.module.css';
 
 const isMorning = new Date().getHours() < 11;
 
-const ACTIVITY = [
-  { id: 'a1', type: 'sale' as const, text: '<span>Adaeze Okonkwo</span> paid for Vintage Linen Midi Dress', time: '3h ago', amount: '₦18,500' },
-  { id: 'a2', type: 'pending' as const, text: '<span>Chisom Eze</span> receipt pending — Ankara Set Drop 03', time: '5h ago', amount: '₦80,000' },
-  { id: 'a3', type: 'sale' as const, text: '<span>Amara Obi</span> paid — Linen Co-ord + Satin Blouse', time: '8h ago', amount: '₦37,000' },
-  { id: 'a4', type: 'sale' as const, text: '<span>Ngozi Abara</span> bought 2× Vintage Bucket Bags', time: '1d ago', amount: '₦30,000' },
-  { id: 'a5', type: 'pending' as const, text: '<span>Bimpe Afolabi</span> receipt pending', time: '1d ago', amount: '₦44,500' },
-  { id: 'a6', type: 'system' as const, text: 'Ankara Set Drop 03 is trending — 4 claims today', time: '2d ago', amount: '' },
-  { id: 'a7', type: 'sale' as const, text: '<span>Damilola Akintunde</span> paid — Sandals + Crossbody', time: '2d ago', amount: '₦30,500' },
-  { id: 'a8', type: 'sale' as const, text: '<span>Sade Olaniyi</span> paid — Adire Dress + Raffia Tote', time: '3d ago', amount: '₦24,750' },
-  { id: 'a9', type: 'system' as const, text: 'Store visited 47 times this week', time: '4d ago', amount: '' },
-  { id: 'a10', type: 'pending' as const, text: '<span>Tunde Ogunwale</span> receipt pending', time: '5d ago', amount: '₦78,000' },
-];
+// ─── Activation checklists (3 items per type) ──────────────────────────────
 
-const CHECKLIST_ITEMS = [
-  { id: 'c1', label: 'Add your first item to the archive', done: true },
-  { id: 'c2', label: 'Customise your storefront in the Architect', done: true },
-  { id: 'c3', label: 'Share your store link with a customer', done: false },
-  { id: 'c4', label: 'Issue your first receipt via Terminal', done: false },
-  { id: 'c5', label: 'Set up your WhatsApp template', done: false },
-];
+type CheckItem = { id: string; label: string; done: boolean };
 
-const PAGE_GUIDES = ['dashboard-vitals', 'dashboard-activity', 'dashboard-checklist'];
+const CHECKLISTS: Record<string, CheckItem[]> = {
+  collector: [
+    { id: 'c1', label: 'Add your first item to the archive', done: true },
+    { id: 'c2', label: 'Share your store link with a customer', done: false },
+    { id: 'c3', label: 'Issue your first receipt via Terminal', done: false },
+  ],
+  vendor: [
+    { id: 'c1', label: 'Add your first menu item', done: false },
+    { id: 'c2', label: 'Enable checkout for online orders', done: false },
+    { id: 'c3', label: 'Share your menu link with a customer', done: false },
+  ],
+  host: [
+    { id: 'c1', label: 'Add your first service', done: false },
+    { id: 'c2', label: 'Set your availability schedule', done: false },
+    { id: 'c3', label: 'Enable deposits on bookings', done: false },
+  ],
+  digital_creator: [
+    { id: 'c1', label: 'Upload your first product', done: false },
+    { id: 'c2', label: 'Set download delivery links', done: false },
+    { id: 'c3', label: 'Share your catalogue with followers', done: false },
+  ],
+  studio: [
+    { id: 'c1', label: 'Add your first package', done: false },
+    { id: 'c2', label: 'Set up your booking intake form', done: false },
+    { id: 'c3', label: 'Enable deposits on packages', done: false },
+  ],
+};
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const merchant = useMerchantStore((s) => s.merchant);
   const { receipts } = useLedgerStore();
   const { addToast } = useUIStore();
-  const { allComplete } = useGuideStore();
+  const st = useStoreType();
   const [shareOpen, setShareOpen] = useState(false);
-  const [checklist, setChecklist] = useState(CHECKLIST_ITEMS);
+  const [checklist, setChecklist] = useState<CheckItem[]>(() => CHECKLISTS[st.type] ?? CHECKLISTS.collector);
   const [visibleActivity, setVisibleActivity] = useState(5);
-  const [showCompletion, setShowCompletion] = useState(false);
 
-  const pendingCount = receipts.filter(r => r.payment_status === 'pending_payment').length;
-  const pendingTotal = receipts
-    .filter(r => r.payment_status === 'pending_payment')
-    .reduce((s, r) => s + r.total, 0);
-  const todayRevenue = receipts
-    .filter(r => r.payment_status === 'paid' && new Date(r.updated_at).toDateString() === new Date().toDateString())
-    .reduce((s, r) => s + r.total, 0);
-
-  const completedChecklist = checklist.filter(c => c.done).length;
-  const checklistPct = Math.round((completedChecklist / checklist.length) * 100);
-
-  const storeUrl = `trovea.store/${FIXTURE_MERCHANT.handle}`;
-
-  // Show completion message when all guides are done
+  // Reset checklist when store type changes (dev switcher)
   useEffect(() => {
-    if (allComplete(PAGE_GUIDES)) {
-      setShowCompletion(true);
-      const timer = setTimeout(() => setShowCompletion(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [allComplete(PAGE_GUIDES)]);
+    setChecklist(CHECKLISTS[st.type] ?? CHECKLISTS.collector);
+    setVisibleActivity(5);
+  }, [st.type]);
 
+  // ── Ledger-derived vitals (Collector only) ──
+  const pendingReceipts = receipts.filter((r) => r.payment_status === 'pending_payment');
+  const pendingCount = pendingReceipts.length;
+  const pendingTotal = pendingReceipts.reduce((s, r) => s + r.total, 0);
+  const todayRevenue = receipts
+    .filter((r) => r.payment_status === 'paid' && new Date(r.updated_at).toDateString() === new Date().toDateString())
+    .reduce((s, r) => s + r.total, 0);
+
+  // ── Derived ──
+  const storeUrl = `trovea.store/${merchant.handle}`;
+  const completedCount = checklist.filter((c) => c.done).length;
+  const checklistPct = Math.round((completedCount / checklist.length) * 100);
+
+  // ── Vitals per type (2 cards) ──
+  const vitals = st.isCollector
+    ? [
+        {
+          icon: <DollarSign size={16} />, iconClass: styles.maroon,
+          label: "Today's Revenue",
+          value: todayRevenue > 0 ? formatCurrencyFull(todayRevenue) : '₦0',
+          delta: '+23% vs yesterday', deltaClass: styles.up,
+        },
+        {
+          icon: <BookOpen size={16} />, iconClass: styles.gold,
+          label: 'Pending Receipts',
+          value: String(pendingCount),
+          delta: pendingTotal > 0 ? formatCurrencyFull(pendingTotal) : 'All clear',
+          deltaClass: pendingCount > 0 ? styles.warn : styles.up,
+        },
+      ]
+    : st.isVendor
+    ? [
+        {
+          icon: <Package size={16} />, iconClass: styles.maroon,
+          label: "Today's Orders", value: '—',
+          delta: 'No orders yet', deltaClass: styles.neutral,
+        },
+        {
+          icon: <DollarSign size={16} />, iconClass: styles.gold,
+          label: 'Pending Orders', value: '0',
+          delta: 'All clear', deltaClass: styles.up,
+        },
+      ]
+    : st.isHost
+    ? [
+        {
+          icon: <Calendar size={16} />, iconClass: styles.maroon,
+          label: 'Upcoming Bookings', value: '—',
+          delta: 'No bookings yet', deltaClass: styles.neutral,
+        },
+        {
+          icon: <DollarSign size={16} />, iconClass: styles.gold,
+          label: 'Pending Deposits', value: '0',
+          delta: 'All clear', deltaClass: styles.up,
+        },
+      ]
+    : st.isDigital
+    ? [
+        {
+          icon: <Package size={16} />, iconClass: styles.maroon,
+          label: 'Total Downloads', value: '—',
+          delta: 'No sales yet', deltaClass: styles.neutral,
+        },
+        {
+          icon: <DollarSign size={16} />, iconClass: styles.gold,
+          label: 'Revenue This Month', value: '₦0',
+          delta: 'Publish a product', deltaClass: styles.neutral,
+        },
+      ]
+    : [
+        {
+          icon: <BookMarked size={16} />, iconClass: styles.maroon,
+          label: 'Active Projects', value: '—',
+          delta: 'No projects yet', deltaClass: styles.neutral,
+        },
+        {
+          icon: <DollarSign size={16} />, iconClass: styles.gold,
+          label: 'Pending Invoices', value: '0',
+          delta: 'All clear', deltaClass: styles.up,
+        },
+      ];
+
+  // ── Action desk per type (4 tiles) ──
+  const actionDesk = st.isCollector
+    ? [
+        { to: '/terminal',               icon: <Terminal size={16} />,    iconClass: styles.maroon,  label: 'New Sale',          sub: 'Issue a receipt' },
+        { to: '/archive',                icon: <Archive size={16} />,     iconClass: styles.gold,    label: st.archiveLabel,     sub: 'Manage inventory' },
+        { to: '/ledger',                 icon: <BookOpen size={16} />,    iconClass: styles.green,   label: 'Ledger',            sub: `${pendingCount} pending` },
+        { to: `/store/${merchant.handle}`, icon: <ExternalLink size={16} />, iconClass: styles.neutral, label: 'Storefront',      sub: 'Public view' },
+      ]
+    : st.isVendor
+    ? [
+        { to: '/terminal',               icon: <Terminal size={16} />,    iconClass: styles.maroon,  label: 'New Order',         sub: 'Issue a receipt' },
+        { to: '/archive',                icon: <Archive size={16} />,     iconClass: styles.gold,    label: st.archiveLabel,     sub: 'Manage menu' },
+        { to: '/schedule',               icon: <Calendar size={16} />,    iconClass: styles.green,   label: 'Schedule',          sub: 'View timeline' },
+        { to: `/store/${merchant.handle}`, icon: <ExternalLink size={16} />, iconClass: styles.neutral, label: 'Storefront',      sub: 'Public view' },
+      ]
+    : st.isHost
+    ? [
+        { to: '/terminal',               icon: <Terminal size={16} />,    iconClass: styles.maroon,  label: 'New Booking',       sub: 'Issue a receipt' },
+        { to: '/archive',                icon: <Archive size={16} />,     iconClass: styles.gold,    label: st.archiveLabel,     sub: 'Manage services' },
+        { to: '/bookings',               icon: <BookMarked size={16} />,  iconClass: styles.green,   label: 'Bookings',          sub: 'View calendar' },
+        { to: `/store/${merchant.handle}`, icon: <ExternalLink size={16} />, iconClass: styles.neutral, label: 'Storefront',      sub: 'Public view' },
+      ]
+    : st.isDigital
+    ? [
+        { to: '/catalogue',              icon: <LayoutGrid size={16} />,  iconClass: styles.maroon,  label: 'Catalogue',         sub: 'Manage products' },
+        { to: '/ledger',                 icon: <BookOpen size={16} />,    iconClass: styles.gold,    label: 'Downloads',         sub: 'Track sales' },
+        { to: '/insights',               icon: <Package size={16} />,     iconClass: styles.green,   label: 'Insights',          sub: 'View analytics' },
+        { to: `/store/${merchant.handle}`, icon: <ExternalLink size={16} />, iconClass: styles.neutral, label: 'Storefront',      sub: 'Public view' },
+      ]
+    : [
+        { to: '/terminal',               icon: <Terminal size={16} />,    iconClass: styles.maroon,  label: 'New Project',       sub: 'Issue a brief' },
+        { to: '/archive',                icon: <Archive size={16} />,     iconClass: styles.gold,    label: st.archiveLabel,     sub: 'Manage packages' },
+        { to: '/bookings',               icon: <BookMarked size={16} />,  iconClass: styles.green,   label: 'Bookings',          sub: 'View requests' },
+        { to: `/store/${merchant.handle}`, icon: <ExternalLink size={16} />, iconClass: styles.neutral, label: 'Storefront',      sub: 'Public view' },
+      ];
+
+  // ── Handlers ──
   const handleCopy = () => {
     void navigator.clipboard.writeText(`https://${storeUrl}`).catch(() => {});
     addToast('Store link copied.', 'success');
@@ -79,29 +194,13 @@ export default function DashboardPage() {
   };
 
   const toggleCheck = (id: string) => {
-    setChecklist(prev =>
-      prev.map(c => c.id === id ? { ...c, done: !c.done } : c)
-    );
+    setChecklist((prev) => prev.map((c) => (c.id === id ? { ...c, done: !c.done } : c)));
   };
 
   return (
     <div className={styles.root}>
-      {/* Page Completion Toast */}
-      <AnimatePresence>
-        {showCompletion && (
-          <m.div
-            className={styles.pageCompletion}
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span aria-hidden="true">✦</span> All page features explored
-          </m.div>
-        )}
-      </AnimatePresence>
 
-      {/* Top Bar */}
+      {/* ── Top Bar ── */}
       <div className={styles.topBar}>
         <div className={styles.greeting}>
           <span className={styles.greetingTime}>
@@ -109,13 +208,13 @@ export default function DashboardPage() {
           </span>
           <h1 className={styles.greetingName}>
             {isMorning ? 'Good morning, ' : 'Welcome back, '}
-            {FIXTURE_MERCHANT.display_name.split(' ')[0]}.
+            {merchant.display_name.split(' ')[0]}.
           </h1>
         </div>
         <div className={styles.topBarActions}>
           <Link to="/notifications" className={styles.iconBtn} aria-label="Notifications">
             <Bell size={18} aria-hidden="true" />
-            {pendingCount > 0 && (
+            {pendingCount > 0 && st.isCollector && (
               <span className={styles.iconBtnBadge} aria-label={`${pendingCount} notifications`}>
                 {pendingCount}
               </span>
@@ -132,8 +231,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Morning Brief */}
-      {isMorning && pendingCount > 0 && (
+      {/* ── Morning Brief (Collector + pending only) ── */}
+      {isMorning && st.isCollector && pendingCount > 0 && (
         <m.div
           className={styles.morningBrief}
           initial={{ opacity: 0, y: -12 }}
@@ -156,41 +255,11 @@ export default function DashboardPage() {
         </m.div>
       )}
 
-      {/* Vitals Grid with Guide Marker */}
+      {/* ── Vitals (2 cards, per type) ── */}
       <div className={styles.vitalsSection}>
-        <div className={styles.sectionHeader}>
-          <span className={styles.sectionTitle}>Key Metrics</span>
-          <GuideMarker
-            id="dashboard-vitals"
-            prompt="Track your store's performance at a glance"
-            reward="Understand your daily revenue and pending payments"
-            xp={15}
-          />
-        </div>
+        <span className={styles.sectionTitle}>Key Metrics</span>
         <div className={styles.vitalsGrid}>
-          {[
-            {
-              icon: <DollarSign size={16} />, iconClass: styles.maroon,
-              label: 'Today\'s Revenue', value: todayRevenue > 0 ? formatCurrencyFull(todayRevenue) : '₦0',
-              delta: '+23% vs yesterday', deltaClass: styles.up,
-            },
-            {
-              icon: <BookOpen size={16} />, iconClass: styles.gold,
-              label: 'Receipts', value: String(receipts.length),
-              delta: '+3 this week', deltaClass: styles.up,
-            },
-            {
-              icon: <Package size={16} />, iconClass: styles.green,
-              label: 'Pending', value: String(pendingCount),
-              delta: pendingTotal > 0 ? `${formatCurrencyFull(pendingTotal)}` : 'All clear',
-              deltaClass: pendingCount > 0 ? styles.warn : styles.up,
-            },
-            {
-              icon: <Archive size={16} />, iconClass: styles.neutral,
-              label: 'Live Items', value: '17',
-              delta: '5 sold out', deltaClass: styles.down,
-            },
-          ].map((v, i) => (
+          {vitals.map((v, i) => (
             <m.div
               key={v.label}
               className={styles.vitalCard}
@@ -209,18 +278,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main grid */}
+      {/* ── Main two-column grid ── */}
       <div className={styles.mainGrid}>
+
+        {/* Left column: Action Desk + Activity Log */}
         <div>
-          {/* Action Desk */}
           <span className={styles.sectionTitle}>Quick Actions</span>
           <div className={styles.actionDesk}>
-            {[
-              { to: '/terminal', icon: <Terminal size={16} />, iconClass: styles.maroon, label: 'New Sale', sub: 'Issue a receipt' },
-              { to: '/archive', icon: <Archive size={16} />, iconClass: styles.gold, label: 'Archive', sub: 'Manage inventory' },
-              { to: '/ledger', icon: <BookOpen size={16} />, iconClass: styles.green, label: 'Ledger', sub: `${pendingCount} pending` },
-              { to: `/store/${FIXTURE_MERCHANT.handle}`, icon: <ExternalLink size={16} />, iconClass: styles.neutral, label: 'Storefront', sub: 'Public view' },
-            ].map((tile, i) => (
+            {actionDesk.map((tile, i) => (
               <m.div
                 key={tile.label}
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -240,77 +305,84 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Activity Log with Guide Marker */}
           <div className={styles.sectionHeader}>
             <span className={styles.sectionTitle}>Recent Activity</span>
-            <GuideMarker
-              id="dashboard-activity"
-              prompt="Stay updated on sales and pending payments"
-              reward="Monitor your store's pulse in real-time"
-              xp={15}
-            />
           </div>
           <div className={styles.activityCard}>
-            <div className={styles.activityList} role="list">
-              {ACTIVITY.slice(0, visibleActivity).map((item, i) => (
-                <m.div
-                  key={item.id}
-                  className={styles.activityItem}
-                  role="listitem"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2, delay: i * 0.04 }}
-                >
-                  <div className={`${styles.activityDot} ${styles[item.type]}`} aria-hidden="true" />
-                  <div className={styles.activityBody}>
-                    <p
-                      className={styles.activityText}
-                      dangerouslySetInnerHTML={{ __html: item.text }}
-                    />
-                    <span className={styles.activityTime}>{item.time}</span>
+            {st.isCollector ? (
+              <>
+                <div className={styles.activityList} role="list">
+                  {receipts.slice(0, visibleActivity).map((r, i) => {
+                    const isPaid = r.payment_status === 'paid';
+                    const dateStr = new Date(r.updated_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' });
+                    return (
+                      <m.div
+                        key={r.id}
+                        className={styles.activityItem}
+                        role="listitem"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.2, delay: i * 0.04 }}
+                      >
+                        <div className={`${styles.activityDot} ${isPaid ? styles.sale : styles.pending}`} aria-hidden="true" />
+                        <div className={styles.activityBody}>
+                          <p className={styles.activityText}>
+                            <strong>{r.buyer_name}</strong>
+                            {isPaid
+                              ? ` paid — ${r.line_items[0]?.name ?? 'item'}`
+                              : ` receipt pending`}
+                          </p>
+                          <span className={styles.activityTime}>{dateStr}</span>
+                        </div>
+                        <span className={styles.activityAmount}>{formatCurrencyFull(r.total)}</span>
+                      </m.div>
+                    );
+                  })}
+                </div>
+                {visibleActivity < receipts.length && (
+                  <button
+                    className={styles.loadMoreBtn}
+                    onClick={() => setVisibleActivity((v) => Math.min(v + 5, receipts.length))}
+                    aria-label="Load more activity"
+                  >
+                    Load more
+                    <ChevronDown size={12} aria-hidden="true" />
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className={styles.activitySkeleton} aria-label="Activity log coming soon">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className={styles.skeletonRow}>
+                    <div className={styles.skeletonDot} />
+                    <div className={styles.skeletonLines}>
+                      <div className={styles.skeletonLine} style={{ width: `${60 + (i % 3) * 12}%` }} />
+                      <div className={styles.skeletonLineSub} style={{ width: '40%' }} />
+                    </div>
                   </div>
-                  {item.amount && (
-                    <span className={styles.activityAmount}>{item.amount}</span>
-                  )}
-                </m.div>
-              ))}
-            </div>
-            {visibleActivity < ACTIVITY.length && (
-              <button
-                className={styles.loadMoreBtn}
-                onClick={() => setVisibleActivity(v => Math.min(v + 5, ACTIVITY.length))}
-                aria-label="Load more activity"
-              >
-                Load more
-                <ChevronDown size={12} aria-hidden="true" />
-              </button>
+                ))}
+                <p className={styles.skeletonHint}>Activity will appear here once you start transacting.</p>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Right column */}
+        {/* Right column: Activation Checklist */}
         <div>
-          {/* Checklist with Guide Marker */}
           <div className={styles.sectionHeader}>
-            <span className={styles.sectionTitle}>Setup Progress</span>
-            <GuideMarker
-              id="dashboard-checklist"
-              prompt="Complete these steps to set up your store"
-              reward="Track your onboarding progress and earn XP"
-              xp={20}
-            />
+            <span className={styles.sectionTitle}>Activation</span>
           </div>
           <div className={styles.checklistCard}>
             <div className={styles.checklistHeader}>
               <h2 className={styles.checklistTitle}>Store Setup</h2>
-              <span className={styles.checklistProgress}>{completedChecklist}/{checklist.length}</span>
+              <span className={styles.checklistProgress}>{completedCount}/{checklist.length}</span>
             </div>
-            <div 
-              className={styles.progressTrack} 
-              role="progressbar" 
-              aria-valuenow={checklistPct} 
-              aria-valuemin={0} 
-              aria-valuemax={100} 
+            <div
+              className={styles.progressTrack}
+              role="progressbar"
+              aria-valuenow={checklistPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
               aria-label={`${checklistPct}% complete`}
             >
               <m.div
@@ -342,7 +414,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Share Drawer */}
+      {/* ── Share Drawer ── */}
       <BaseDrawer open={shareOpen} onClose={() => setShareOpen(false)} title="Share Your Store">
         <div className={styles.shareDrawerContent}>
           <div className={styles.shareUrlBox}>
@@ -376,7 +448,7 @@ export default function DashboardPage() {
                 icon: <ExternalLink size={16} style={{ color: 'var(--color-fg-muted)' }} />,
                 bg: 'rgba(0,0,0,0.06)',
                 label: 'Open Store',
-                action: () => navigate(`/store/${FIXTURE_MERCHANT.handle}`),
+                action: () => navigate(`/store/${merchant.handle}`),
               },
             ].map((opt) => (
               <button
@@ -392,6 +464,8 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
+          <div className={styles.shareDivider} role="separator" />
+          <DropCardGenerator merchant={merchant} />
         </div>
       </BaseDrawer>
     </div>

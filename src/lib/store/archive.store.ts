@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Product, ProductStatus } from '../types';
+import type { Product, ProductStatus, ProductType } from '../types';
 import type { ParsedItem } from '../utils/smart-paste';
 import { FIXTURE_PRODUCTS } from '../fixtures';
 
@@ -28,7 +28,9 @@ interface ArchiveState {
   setSearchQuery: (query: string) => void;
 
   // Mutations (Phase 1: operates on local state)
-  mintProducts: (cards: GhostCard[]) => void;
+  setProducts: (products: Product[]) => void;
+  addProduct: (product: Product) => void;
+  mintProducts: (cards: GhostCard[], productType?: ProductType) => void;
   toggleProductStatus: (productId: string) => void;
   updateProduct: (productId: string, updates: Partial<Product>) => void;
 
@@ -62,27 +64,57 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
   setCollectionFilter: (collectionId) => set({ collectionFilter: collectionId }),
   setSearchQuery: (query) => set({ searchQuery: query }),
 
-  mintProducts: (cards) => {
-    const newProducts: Product[] = cards.map((card) => ({
-      id: `product-new-${++ghostCounter}`,
-      merchant_id: 'merchant-001',
-      name: card.confirmedName,
-      price: card.confirmedPrice,
-      stock_level: card.quantity,
-      collection_id: null,
-      tags: card.tags,
-      status: 'live' as ProductStatus,
-      images: [],
-      type: 'standard' as const,
-      variants:
-        card.variantHints.length > 0
-          ? card.variantHints.map((label) => ({ label, stock: 1 }))
+  setProducts: (products) =>
+    set({ products, statusFilter: 'all', collectionFilter: null, searchQuery: '' }),
+
+  addProduct: (product) =>
+    set((state) => ({ products: [product, ...state.products] })),
+
+  mintProducts: (cards, productType = 'item') => {
+    const newProducts: Product[] = cards.map((card) => {
+      const hasVariants = card.variantHints.length > 0;
+      return {
+        id: `product-new-${++ghostCounter}`,
+        merchant_id: 'merchant-001',
+        name: card.confirmedName,
+        description: null,
+        price: card.confirmedPrice,
+        product_type: productType,
+        stock_level: hasVariants ? null : card.quantity,
+        collection_id: null,
+        tags: card.tags,
+        status: 'live' as ProductStatus,
+        images: [],
+        has_variants: hasVariants,
+        variant_axis: hasVariants ? 'size' : null,
+        variants: hasVariants
+          ? card.variantHints.map((label, i) => ({
+              id: `v-new-${ghostCounter}-${i + 1}`,
+              label,
+              price_override: null,
+              stock_level: 1,
+              status: 'live' as ProductStatus,
+              display_order: i + 1,
+            }))
           : null,
-      claim_mode: false,
-      claim_limit: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
+        claim_mode: false,
+        claim_limit: null,
+        duration: null,
+        deposit_amount: null,
+        deposit_required: false,
+        delivery_url: null,
+        is_free: false,
+        early_access_price: null,
+        early_access_cap: null,
+        price_type: null,
+        scope_description: null,
+        deliverables: null,
+        timeline_estimate: null,
+        deposit_pct: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    });
 
     set((state) => ({
       products: [...newProducts, ...state.products],

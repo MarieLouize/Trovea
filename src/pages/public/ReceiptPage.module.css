@@ -114,6 +114,22 @@
   font-style: italic;
 }
 
+.sealStoreRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+
+.sealStoreName {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--color-fg);
+  line-height: 1.2;
+}
+
 .sealId {
   display: block;
   font-family: var(--font-mono);
@@ -220,6 +236,15 @@
   gap: var(--space-4);
   position: relative;
   z-index: 1;
+}
+
+.lineItemsSectionLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  margin-bottom: var(--space-1);
 }
 
 .lineItem {

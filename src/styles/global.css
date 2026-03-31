@@ -262,6 +262,31 @@ body {
   flex-shrink: 0;
 }
 
+/* ── VERIFICATION BADGES (global — used on Storefront, ItemDetail, ReceiptPage) ── */
+.badge-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  background: rgba(201, 168, 76, 0.12);
+  border: 1px solid var(--color-gold-dim);
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  white-space: nowrap;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.badge-trusted {
+  color: var(--color-gold-light);
+  background: rgba(201, 168, 76, 0.18);
+  border-color: var(--color-gold);
+}
+
 /* ── DIVIDER ── */
 .divider {
   display: flex;
