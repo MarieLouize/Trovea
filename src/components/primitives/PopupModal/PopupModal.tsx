@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import { X } from 'lucide-react';
 import styles from './PopupModal.module.css';
 
@@ -29,7 +29,7 @@ export default function PopupModal({ open, onClose, title, children }: PopupModa
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           className={styles.backdrop}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -37,7 +37,7 @@ export default function PopupModal({ open, onClose, title, children }: PopupModa
           transition={{ duration: 0.2 }}
           onClick={onClose}
         >
-          <motion.div
+          <m.div
             role="dialog"
             aria-modal="true"
             aria-label={title ?? 'Dialog'}
@@ -61,8 +61,8 @@ export default function PopupModal({ open, onClose, title, children }: PopupModa
               </div>
             )}
             <div className={styles.body}>{children}</div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

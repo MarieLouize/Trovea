@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from '@/lib/motion';
 import { ArrowLeft, ArrowRight, Check, X, Loader } from 'lucide-react';
 import styles from './SetupStorePage.module.css';
 
@@ -81,7 +81,7 @@ export default function SetupStorePage() {
 
   return (
     <div className={styles.root}>
-      <motion.div
+      <m.div
         className={styles.card}
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
@@ -95,7 +95,7 @@ export default function SetupStorePage() {
               <span className={styles.progressStep}>Your Store</span>
             </div>
             <div className={styles.progressTrack} role="progressbar" aria-valuenow={80} aria-valuemin={0} aria-valuemax={100}>
-              <motion.div
+              <m.div
                 className={styles.progressFill}
                 initial={{ width: '60%' }}
                 animate={{ width: '80%' }}
@@ -221,7 +221,7 @@ export default function SetupStorePage() {
             </Link>
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

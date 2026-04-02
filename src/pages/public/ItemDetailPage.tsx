@@ -16,13 +16,15 @@ import {
 import {
   FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS, FIXTURE_MERCHANT,
   FIXTURE_CLAIMS, FIXTURE_HOLDS,
+  FIXTURE_HOST_MERCHANT, FIXTURE_HOST_PRODUCTS,
+  FIXTURE_DIGITAL_MERCHANT, FIXTURE_DIGITAL_PRODUCTS,
+  FIXTURE_STUDIO_MERCHANT, FIXTURE_STUDIO_PRODUCTS,
 } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import { buildChatToBuyLink, buildStoreContactLink } from '@/lib/utils/whatsapp';
-import { m, AnimatePresence, staggerContainer, staggerChild, SPRING_UI } from '@/lib/motion';
+import { m, AnimatePresence, staggerContainer, staggerChild } from '@/lib/motion';
 import { useBasketStore } from '@/lib/store/basket.store';
-import { useStoreType } from '@/lib/hooks/use-store-type';
-import type { ProductVariant, CardStyle } from '@/lib/types';
+import type { Product, ProductVariant, CardStyle } from '@/lib/types';
 import type { ClaimRequest, HoldRequest } from '@/lib/types/store-config.types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
 import ClaimSheet from '@/components/public/ClaimSheet';
@@ -35,6 +37,18 @@ import '@/styles/cards.css';
 function hoursRemaining(expiresAt: string): number {
   return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 3_600_000));
 }
+
+const getFileTypeBadge = (product: Product): string | null => {
+  if (!product.delivery_url && !product.name) return null;
+  const url = product.delivery_url?.toLowerCase() ?? '';
+  const name = product.name.toLowerCase();
+  if (url.includes('.zip') || name.includes('kit') || name.includes('pack')) return 'ZIP';
+  if (url.includes('.pdf') || name.includes('guide') || name.includes('ebook')) return 'PDF';
+  if (url.includes('.lrtemplate') || name.includes('lightroom') || name.includes('preset')) return 'LRTEMPLATE';
+  if (url.includes('.aep') || name.includes('after effects')) return 'AEP';
+  if (name.includes('notion') || name.includes('template')) return 'NOTION';
+  return 'DIGITAL';
+};
 
 // Payment methods for proof modal
 const PAYMENT_METHODS = [
@@ -76,7 +90,10 @@ function Lightbox({
   const onTouchEnd   = (e: React.TouchEvent) => {
     if (touchStart.current === null) return;
     const diff = touchStart.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 40) diff > 0 ? next() : prev();
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) next();
+      else prev();
+    }
     touchStart.current = null;
   };
 
@@ -377,11 +394,27 @@ function PaymentProofModal({
 export default function ItemDetailPage() {
   const { handle, item_id } = useParams<{ handle: string; item_id: string }>();
 
-  const product  = FIXTURE_PRODUCTS.find((p) => p.id === item_id);
-  const merchant = FIXTURE_MERCHANT;
+  // Derive merchant and products based on handle
+  const { merchant, products } = useMemo(() => {
+    if (handle === 'chisombeauty') return { merchant: FIXTURE_HOST_MERCHANT, products: FIXTURE_HOST_PRODUCTS };
+    if (handle === 'femicreates') return { merchant: FIXTURE_DIGITAL_MERCHANT, products: FIXTURE_DIGITAL_PRODUCTS };
+    if (handle === 'ngozistudio') return { merchant: FIXTURE_STUDIO_MERCHANT, products: FIXTURE_STUDIO_PRODUCTS };
+    return { merchant: FIXTURE_MERCHANT, products: FIXTURE_PRODUCTS };
+  }, [handle]);
+
+  const product  = products.find((p) => p.id === item_id);
   const cfg      = merchant.store_config;
   const { paletteId, isDark } = usePaletteTheme(cfg.palette);
-  const st = useStoreType();
+  
+  const type = merchant.store_type;
+  const st = useMemo(() => ({
+    type,
+    isCollector: type === 'collector',
+    isVendor:    type === 'vendor',
+    isHost:      type === 'host',
+    isDigital:   type === 'digital_creator',
+    isStudio:    type === 'studio',
+  }), [type]);
 
   const [selectedImage,    setSelectedImage]    = useState(0);
   const [lightboxOpen,     setLightboxOpen]      = useState(false);
@@ -403,8 +436,8 @@ export default function ItemDetailPage() {
   );
 
   const relatedProducts = useMemo(
-    () => FIXTURE_PRODUCTS.filter((p) => p.id !== item_id && p.status !== 'hidden').slice(0, 4),
-    [item_id]
+    () => products.filter((p) => p.id !== item_id && p.status !== 'hidden').slice(0, 4),
+    [item_id, products]
   );
 
   const addClaim = useCallback((claim: ClaimRequest) => {
@@ -442,6 +475,9 @@ export default function ItemDetailPage() {
     touchStart.current = null;
   };
 
+  const isSoldOut  = product?.status === 'sold_out' || product?.stock_level === 0;
+  const isLowStock = !isSoldOut && product?.stock_level === 1;
+
   const handleBasketToggle = useCallback(() => {
     if (!product || isSoldOut) return;
     if (inBasket) {
@@ -455,7 +491,17 @@ export default function ItemDetailPage() {
         variantLabel: Object.entries(selectedVariants).map(([k, v]) => `${k}: ${v}`).join(', ') || undefined,
       });
     }
-  }, [product, inBasket, selectedVariants]);
+  }, [product, inBasket, selectedVariants, add, remove, isSoldOut]);
+
+  const variantGroups = useMemo(() => {
+    if (!product?.variants?.length) return [];
+    const map = new Map<string, ProductVariant[]>();
+    product.variants.forEach((v) => {
+      if (!map.has(v.label)) map.set(v.label, []);
+      map.get(v.label)!.push(v);
+    });
+    return Array.from(map.entries()).map(([name, opts]) => ({ name, opts }));
+  }, [product?.variants]);
 
   // ── Not found ─────────────────────────────────────────────────────────────
   if (!product) {
@@ -470,9 +516,6 @@ export default function ItemDetailPage() {
     );
   }
 
-  const isSoldOut  = product.status === 'sold_out' || product.stock_level === 0;
-  const isLowStock = !isSoldOut && product.stock_level === 1;
-
   const variantString = Object.entries(selectedVariants).map(([k, v]) => `${k}: ${v}`).join(', ');
 
   const whatsappBuyLink     = buildChatToBuyLink({
@@ -480,16 +523,6 @@ export default function ItemDetailPage() {
     variantLabel: variantString || undefined, storeName: merchant.store_name,
   });
   const whatsappContactLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
-
-  const variantGroups = useMemo(() => {
-    if (!product.variants?.length) return [];
-    const map = new Map<string, ProductVariant[]>();
-    product.variants.forEach((v) => {
-      if (!map.has(v.label)) map.set(v.label, []);
-      map.get(v.label)!.push(v);
-    });
-    return Array.from(map.entries()).map(([name, opts]) => ({ name, opts }));
-  }, [product.variants]);
 
   const images = product.images.length > 0
     ? product.images
@@ -640,16 +673,59 @@ export default function ItemDetailPage() {
           <h1 className={styles.itemName}>{product.name}</h1>
 
           <div className={styles.priceRow}>
-            <span className={styles.price}>{formatCurrencyFull(product.price)}</span>
+            <span className={styles.price}>
+              {st.isDigital && product.is_free ? 'Free' : formatCurrencyFull(product.price)}
+            </span>
             {isSoldOut  && <span className={`${styles.stockBadge} ${styles.stockOut}`}>Sold out</span>}
             {isLowStock && <span className={`${styles.stockBadge} ${styles.stockLow}`}>Last one</span>}
             {product.claim_mode && !isSoldOut && (
               <span className={`${styles.stockBadge} ${styles.stockClaim}`}>Claim mode</span>
             )}
+            {st.isDigital && getFileTypeBadge(product) && (
+              <span className={styles.stockBadge}>{getFileTypeBadge(product)}</span>
+            )}
           </div>
+
+          {(st.isHost || st.isStudio) && (
+            <div className={styles.serviceBrief}>
+              {product.duration && <p className={styles.metaInfo}>{product.duration} min service</p>}
+              {product.deposit_required && (
+                <p className={styles.metaInfo}>{formatCurrencyFull(product.deposit_amount || 0)} deposit required to book</p>
+              )}
+              {product.deposit_pct && (
+                <p className={styles.metaInfo}>{product.deposit_pct}% deposit required to book</p>
+              )}
+            </div>
+          )}
 
           {product.description && (
             <p className={styles.description}>{product.description}</p>
+          )}
+
+          {product.scope_description && (
+            <div className={styles.scopeSection}>
+              <p className={styles.scopeHeading}>Scope of Work</p>
+              <p className={styles.description}>{product.scope_description}</p>
+            </div>
+          )}
+
+          {product.deliverables && (
+            <div className={styles.deliverablesSection}>
+              <p className={styles.scopeHeading}>Deliverables</p>
+              <ul className={styles.deliverablesList}>
+                {product.deliverables.split(',').map((d, i) => (
+                  <li key={i}>{d.trim()}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {st.isDigital && product.delivery_url && (
+            <div className={styles.previewSection}>
+              <a href={product.delivery_url} target="_blank" rel="noopener noreferrer" className={styles.previewLink}>
+                Preview Resource ↗
+              </a>
+            </div>
           )}
 
           {/* Variants */}
@@ -687,10 +763,8 @@ export default function ItemDetailPage() {
 
             ) : st.isHost ? (
               <a
-                href={whatsappBuyLink}
+                href={`/store/${handle}/book`}
                 className={`${styles.actionBtn} ${styles.ctaPrimary}`}
-                target="_blank"
-                rel="noopener noreferrer"
               >
                 <Calendar size={16} />
                 Book a Slot
@@ -704,7 +778,7 @@ export default function ItemDetailPage() {
                 rel="noopener noreferrer"
               >
                 <MessageCircle size={16} />
-                Request Quote
+                {product.product_type === 'package' ? 'Book Package' : 'Request Quote'}
               </a>
 
             ) : checkoutEligible ? (
@@ -756,7 +830,7 @@ export default function ItemDetailPage() {
                 >
                   {inBasket
                     ? <><Check size={15} /> In Bag</>
-                    : <><ShoppingBag size={15} /> Add to Bag</>
+                    : <><ShoppingBag size={15} /> {st.isDigital && product.is_free ? 'Get Free' : 'Add to Bag'}</>
                   }
                 </button>
                 <a
@@ -869,7 +943,7 @@ export default function ItemDetailPage() {
       {/* ── More from Archive — below fold ── */}
       {relatedProducts.length > 0 && (
         <div className={`${styles.moreSection} card-${cfg.card_style}`}>
-          <p className={styles.moreSectionTitle}>More from the Archive</p>
+          <p className={styles.moreSectionTitle}>More from {merchant.store_name}</p>
           <m.div
             className={styles.moreGrid}
             variants={staggerContainer}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import styles from './BaseDrawer.module.css';
 
 interface BaseDrawerProps {
@@ -53,7 +53,7 @@ export default function BaseDrawer({
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
+          <m.div
             className={styles.backdrop}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -62,7 +62,7 @@ export default function BaseDrawer({
             onClick={onClose}
             aria-hidden="true"
           />
-          <motion.div
+          <m.div
             role="dialog"
             aria-modal="true"
             aria-label={title ?? 'Panel'}
@@ -87,7 +87,7 @@ export default function BaseDrawer({
               </div>
             )}
             <div className={styles.content}>{children}</div>
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

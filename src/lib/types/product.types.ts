@@ -20,6 +20,7 @@ export interface Product {
   stock_level: number | null;
   status: ProductStatus;
   collection_id: string | null;
+  category: string | null;
   tags: string[];
   images: string[];
   has_variants: boolean;

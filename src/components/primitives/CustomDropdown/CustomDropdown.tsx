@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import { ChevronDown } from 'lucide-react';
 import styles from './CustomDropdown.module.css';
 
@@ -73,7 +73,7 @@ export default function CustomDropdown({
 
       <AnimatePresence>
         {open && (
-          <motion.div
+          <m.div
             role="listbox"
             aria-label={label ?? 'Options'}
             className={styles.menu}
@@ -97,7 +97,7 @@ export default function CustomDropdown({
                 {option.label}
               </div>
             ))}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

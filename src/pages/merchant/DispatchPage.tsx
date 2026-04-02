@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import { Package, Check, Truck, CheckCircle, MessageCircle, MapPin } from 'lucide-react';
 import { useLedgerStore } from '@/lib/store/ledger.store';
 import { useUIStore } from '@/lib/store/ui.store';
@@ -94,7 +94,7 @@ export default function DispatchPage() {
   return (
     <div className={styles.root}>
       {/* Header */}
-      <motion.div
+      <m.div
         className={styles.pageHeader}
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -103,10 +103,10 @@ export default function DispatchPage() {
         <span className={styles.eyebrow}>Dispatch</span>
         <h1 className={styles.headline}>In transit.</h1>
         <p className={styles.subtext}>Track and advance every active shipment.</p>
-      </motion.div>
+      </m.div>
 
       {/* Filter Bar */}
-      <motion.div
+      <m.div
         className={styles.filterBar}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -125,13 +125,13 @@ export default function DispatchPage() {
             )}
           </button>
         ))}
-      </motion.div>
+      </m.div>
 
       {/* Card List */}
       <div className={styles.cardList}>
         <AnimatePresence mode="popLayout">
           {filtered.length === 0 ? (
-            <motion.div
+            <m.div
               key="empty"
               className={styles.empty}
               initial={{ opacity: 0 }}
@@ -145,7 +145,7 @@ export default function DispatchPage() {
               <p className={styles.emptyBody}>
                 Paid orders will appear once marked as packed or shipped.
               </p>
-            </motion.div>
+            </m.div>
           ) : (
             filtered.map((r, i) => {
               const stepIdx = currentStepIndex(r.shipment_status);
@@ -154,7 +154,7 @@ export default function DispatchPage() {
               ).join(', ');
 
               return (
-                <motion.div
+                <m.div
                   key={r.id}
                   className={styles.dispatchCard}
                   initial={{ opacity: 0, y: 20 }}
@@ -244,7 +244,7 @@ export default function DispatchPage() {
                       {formatRelativeDate(r.updated_at)}
                     </span>
                   </div>
-                </motion.div>
+                </m.div>
               );
             })
           )}

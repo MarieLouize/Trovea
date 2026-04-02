@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import styles from './Tooltip.module.css';
 
 type TooltipPosition = 'top' | 'bottom' | 'left' | 'right';
@@ -31,7 +31,7 @@ export default function Tooltip({ content, position = 'top', children }: Tooltip
       {children}
       <AnimatePresence>
         {visible && (
-          <motion.span
+          <m.span
             role="tooltip"
             className={`${styles.tip} ${positionClass[position]}`}
             initial={{ opacity: 0, scale: 0.9 }}
@@ -40,7 +40,7 @@ export default function Tooltip({ content, position = 'top', children }: Tooltip
             transition={{ duration: 0.12 }}
           >
             {content}
-          </motion.span>
+          </m.span>
         )}
       </AnimatePresence>
     </span>

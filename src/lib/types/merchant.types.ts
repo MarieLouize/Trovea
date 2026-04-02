@@ -34,20 +34,27 @@ export interface StoreTypeConfig {
   // Collector
   drop_banner_text: string | null;
   sold_out_overlay_style: 'dim' | 'strikethrough' | 'badge';
+  preview_state: 'static' | 'pre_drop' | 'live_drop' | 'all_sold';
   // Vendor
   window_banner_text: string | null;
   preorder_cta_text: string;
+  dormant_message: string | null;
+  dormant_image_url: string | null;
   // Host
   booking_cta_text: string;
   calendar_format: 'week' | 'month';
   portfolio_density: 'compact' | 'medium' | 'airy';
+  price_prominence: 'prominent' | 'subdued';
   // Digital Creator
   catalogue_display: 'grid' | 'list';
   free_badge_style: 'pill' | 'corner' | 'none';
+  currency_display: 'ngn' | 'ngn_usd' | 'usd';
   // Studio
   portfolio_layout: 'masonry' | 'grid' | 'editorial';
   enquiry_form_fields: string[];
   package_card_style: 'full' | 'minimal';
+  portfolio_order: 'curated' | 'recent';
+  client_logos_enabled: boolean;
 }
 
 export interface StoreConfig {
@@ -93,6 +100,9 @@ export interface Merchant {
     bank_name: string;
     account_name: string;
   } | null;
+  arrival_notes: string | null;
+  response_time_hours: number;
+  portfolio_images: string[];
 }
 
 // ─── Admin types ────────────────────────────────────────────────────────────
@@ -127,6 +137,39 @@ export interface AdminLogEntry {
   actor: 'admin';
   timestamp: string;
   note: string | null;
+}
+
+// ─── Drop ────────────────────────────────────────────────────────────────────
+
+export interface Drop {
+  id: string;
+  merchant_id: string;
+  label: string;
+  scheduled_at: string;
+  status: 'draft' | 'scheduled' | 'live' | 'completed';
+  product_ids: string[];
+  notify_emails: string[];
+  created_at: string;
+}
+
+// ─── Enquiry ─────────────────────────────────────────────────────────────────
+
+export interface Enquiry {
+  id: string;
+  merchant_id: string;
+  client_name: string;
+  company: string | null;
+  project_type: string;
+  budget_range: string;
+  timeline: string;
+  message: string;
+  package_id: string | null;
+  status: 'new' | 'in_discussion' | 'active_project' | 'completed' | 'declined';
+  response_time_hours: number | null;
+  package_value: number | null;
+  deposit_paid: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ─── Availability / Booking ─────────────────────────────────────────────────

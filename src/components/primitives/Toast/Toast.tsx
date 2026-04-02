@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import { useUIStore } from '@/lib/store/ui.store';
 import styles from './Toast.module.css';
 
@@ -9,7 +9,7 @@ export default function ToastContainer() {
     <div className={styles.container} aria-live="polite" aria-atomic="false">
       <AnimatePresence initial={false}>
         {toasts.map((toast) => (
-          <motion.div
+          <m.div
             key={toast.id}
             layout
             initial={{ opacity: 0, y: 16, scale: 0.94 }}
@@ -23,7 +23,7 @@ export default function ToastContainer() {
             style={{ cursor: 'pointer' }}
           >
             <span style={{ position: 'relative', zIndex: 1 }}>{toast.message}</span>
-          </motion.div>
+          </m.div>
         ))}
       </AnimatePresence>
     </div>

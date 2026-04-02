@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from '@/lib/motion';
 import { ArrowLeft, ArrowRight, Camera } from 'lucide-react';
 import styles from './IdentityPage.module.css';
 
@@ -18,7 +18,7 @@ export default function IdentityPage() {
 
   return (
     <div className={styles.root}>
-      <motion.div
+      <m.div
         className={styles.card}
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
@@ -32,7 +32,7 @@ export default function IdentityPage() {
               <span className={styles.progressStep}>Identity</span>
             </div>
             <div className={styles.progressTrack} role="progressbar" aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
-              <motion.div
+              <m.div
                 className={styles.progressFill}
                 initial={{ width: '20%' }}
                 animate={{ width: '40%' }}
@@ -138,7 +138,7 @@ export default function IdentityPage() {
             </Link>
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }
