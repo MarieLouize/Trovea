@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import type { Receipt, ReceiptPaymentStatus, PaymentMethod, ShipmentStatus } from '../types';
+import type { Receipt, PaymentStatus, PaymentMethod, ShipmentStatus } from '../types';
 import { FIXTURE_RECEIPTS } from '../fixtures';
 
-type LedgerTab = 'all' | 'pending' | 'dispatch' | 'completed';
+export type LedgerTab = 'all' | 'pending' | 'dispatch' | 'completed' | 'drops' | 'fulfilment' | 'deposits' | 'delivery' | 'pipeline' | 'buyers' | 'clients';
 
 interface LedgerState {
   receipts: Receipt[];
@@ -21,10 +21,16 @@ interface LedgerState {
   selectAll: () => void;
 
   // Mutations
+  setReceipts: (receipts: Receipt[]) => void;
+  setProducts: (receipts: Receipt[]) => void; // alias for integration
+  
   markAsPaid: (receiptId: string, method: PaymentMethod) => void;
   markManyAsPaid: (ids: string[], method: PaymentMethod) => void;
   markShipped: (receiptId: string) => void;
   markReceived: (receiptId: string) => void;
+  markPacked: (id: string) => void;
+  
+  updateReceiptStatus: (receiptId: string, updates: Partial<Receipt>) => void;
 
   // Derived
   filteredReceipts: () => Receipt[];
@@ -55,6 +61,9 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     set({ selectedIds: pending.map((r) => r.id) });
   },
 
+  setReceipts: (receipts) => set({ receipts }),
+  setProducts: (receipts) => set({ receipts }),
+
   markAsPaid: (receiptId, method) => {
     const logEntry = {
       id: `log-${Date.now()}`,
@@ -67,7 +76,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
         r.id === receiptId
           ? {
               ...r,
-              payment_status: 'paid' as ReceiptPaymentStatus,
+              payment_status: 'paid' as PaymentStatus,
               payment_method: method,
               updated_at: new Date().toISOString(),
               log: [...r.log, logEntry],
@@ -90,7 +99,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
         ids.includes(r.id)
           ? {
               ...r,
-              payment_status: 'paid' as ReceiptPaymentStatus,
+              payment_status: 'paid' as PaymentStatus,
               payment_method: method,
               updated_at: now,
               log: [...r.log, logEntry],
@@ -103,19 +112,22 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   },
   
   markPacked: (id: string) =>
-  set(state => ({
-    receipts: state.receipts.map(r =>
-      r.id === id
-        ? {
-            ...r,
-            shipment_status: 'packed',
-            log: [...(r.log ?? []), { event: 'Marked as packed', actor: 'merchant', timestamp: new Date().toISOString() }],
-          }
-        : r
-    ),
-  })),
-
-
+    set(state => ({
+      receipts: state.receipts.map(r =>
+        r.id === id
+          ? {
+              ...r,
+              shipment_status: 'packed',
+              log: [...(r.log ?? []), { 
+                id: `log-${Date.now()}`,
+                event: 'Marked as packed', 
+                actor: 'merchant', 
+                timestamp: new Date().toISOString() 
+              }],
+            }
+          : r
+      ),
+    })),
 
   markShipped: (receiptId) => {
     const logEntry = {
@@ -159,6 +171,15 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     }));
   },
 
+  updateReceiptStatus: (receiptId, updates) =>
+    set((state) => ({
+      receipts: state.receipts.map((r) =>
+        r.id === receiptId
+          ? { ...r, ...updates, updated_at: new Date().toISOString() }
+          : r
+      ),
+    })),
+
   filteredReceipts: () => {
     const { receipts, activeTab } = get();
     switch (activeTab) {
@@ -172,7 +193,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
         );
       case 'completed':
         return receipts.filter(
-          (r) => r.payment_status === 'paid' && r.shipment_status === 'received'
+          (r) => r.payment_status === 'paid' && (r.shipment_status === 'received' || r.receipt_type === 'download' || r.receipt_type === 'project')
         );
       default:
         return receipts.filter((r) => r.payment_status !== 'cancelled');
@@ -188,6 +209,7 @@ function formatMethodName(method: PaymentMethod): string {
     palmpay: 'PalmPay',
     moniepoint: 'Moniepoint',
     ussd: 'USSD',
+    other: 'Other'
   };
   return names[method];
 }

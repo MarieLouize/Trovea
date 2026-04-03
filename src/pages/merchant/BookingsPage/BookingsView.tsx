@@ -1,28 +1,53 @@
-import { useState } from 'react';
-import { CheckCircle, MessageCircle, Package } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  CheckCircle, MessageCircle, Package, Clock, XCircle, 
+  ArrowRight, UserCheck, UserMinus, ExternalLink 
+} from 'lucide-react';
 import { m, AnimatePresence } from '@/lib/motion';
-import type { Booking } from '@/lib/types';
-import { FIXTURE_BOOKINGS } from '@/lib/fixtures';
+import type { Booking, Enquiry } from '@/lib/types';
+import { FIXTURE_BOOKINGS, FIXTURE_ENQUIRIES, FIXTURE_STUDIO_PRODUCTS } from '@/lib/fixtures';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { formatCurrencyFull, formatPhone } from '@/lib/utils/format';
 import { buildStoreContactLink } from '@/lib/utils/whatsapp';
-import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import styles from './BookingsPage.module.css';
 
-// ─── Types & constants ───────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
-
-const TABS: { value: BookingStatus; label: string }[] = [
+const HOST_TABS = [
   { value: 'pending', label: 'Pending' },
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
-];
+] as const;
+
+const STUDIO_TABS = [
+  { value: 'new', label: 'New Enquiries' },
+  { value: 'in_discussion', label: 'In Discussion' },
+  { value: 'active_project', label: 'Active Projects' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'declined', label: 'Declined' },
+] as const;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+const getWaitingTime = (createdAt: string): string => {
+  const diff = Date.now() - new Date(createdAt).getTime();
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (days >= 1) return `${days}d ${hours % 24}h`;
+  return `${hours}h`;
+};
+
+const getTimeAgo = (iso: string): string => {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
+};
 
 function formatScheduledAt(iso: string): string {
   const d = new Date(iso);
@@ -31,326 +56,347 @@ function formatScheduledAt(iso: string): string {
   return `${date} · ${time}`;
 }
 
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function BookingsPage() {
+  const navigate = useNavigate();
   const st = useStoreType();
   const merchant = useMerchantStore((s) => s.merchant);
   const { addToast } = useUIStore();
 
+  const [searchParams] = useSearchParams();
+
+  // ── State ──
   const [bookings, setBookings] = useState<Booking[]>(FIXTURE_BOOKINGS);
-  const [activeTab, setActiveTab] = useState<BookingStatus>('pending');
-  const [detailTarget, setDetailTarget] = useState<string | null>(null);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>(
+    FIXTURE_ENQUIRIES.filter(e => e.merchant_id === merchant.id)
+  );
+  const [hostTab, setHostTab] = useState<string>('pending');
+  const [studioTab, setStudioTab] = useState<string>('new');
+  const [expandedEnquiries, setExpandedEnquiries] = useState<Record<string, boolean>>({});
+  const [noShows, setNoShows] = useState<Record<string, boolean>>({});
 
-  const updateStatus = (id: string, status: BookingStatus) => {
-    setBookings((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status } : b))
+  // ── Param Handling ──
+  useEffect(() => {
+    const enqId = searchParams.get('enquiry');
+    if (enqId && st.isStudio) {
+      const enq = enquiries.find(e => e.id === enqId);
+      if (enq) {
+        setStudioTab(enq.status);
+        setExpandedEnquiries(prev => ({ ...prev, [enqId]: true }));
+      }
+    }
+  }, [searchParams, enquiries, st.isStudio]);
+
+  // ── Computed ──
+  const avgResponseHours = useMemo(() => {
+    const withResponse = FIXTURE_ENQUIRIES.filter(
+      e => e.merchant_id === merchant.id && e.response_time_hours !== null
     );
+    if (!withResponse.length) return null;
+    return Math.round(
+      withResponse.reduce((sum, e) => sum + (e.response_time_hours ?? 0), 0) / withResponse.length
+    );
+  }, [merchant.id]);
+
+  // ── Handlers ──
+  const updateBookingStatus = (id: string, status: Booking['status']) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
   };
 
-  const handleConfirm = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    updateStatus(id, 'confirmed');
-    addToast('Booking confirmed!', 'success');
+  const updateEnquiryStatus = (id: string, status: Enquiry['status']) => {
+    setEnquiries(prev => prev.map(e => 
+      e.id === id ? { ...e, status, updated_at: new Date().toISOString() } : e
+    ));
   };
 
-  const handleComplete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    updateStatus(id, 'completed');
-    addToast('Appointment marked complete', 'success');
-  };
-
-  const handleWhatsApp = (booking: Booking, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const link = buildStoreContactLink(booking.buyer_phone, merchant.store_name);
+  const handleWhatsApp = (phone: string | null) => {
+    if (!phone) return;
+    const link = buildStoreContactLink(phone, merchant.store_name);
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
-  const filtered = bookings.filter((b) => b.status === activeTab);
-  const pendingCount = bookings.filter((b) => b.status === 'pending').length;
+  const toggleEnquiryExpand = (id: string) => {
+    setExpandedEnquiries(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
-  const detailBooking = detailTarget
-    ? bookings.find((b) => b.id === detailTarget) ?? null
-    : null;
+  const handleNoShow = (id: string, isNoShow: boolean) => {
+    setNoShows(prev => ({ ...prev, [id]: isNoShow }));
+    if (isNoShow) addToast('No-show recorded', 'info');
+  };
 
-  // ── Studio placeholder ──
-  if (st.type === 'studio') {
+  const handleRebook = (booking: Booking) => {
+    const params = new URLSearchParams({
+      service: booking.service_id,
+      client: booking.buyer_name,
+      phone: booking.buyer_phone ?? '',
+    });
+    navigate(`/terminal?${params.toString()}`);
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER: STUDIO (Enquiry CRM)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (st.isStudio) {
+    const filteredEnquiries = enquiries.filter(e => e.status === studioTab);
+
     return (
       <div className={styles.page}>
         <div className={styles.header}>
-          <h1 className={styles.pageTitle}>Bookings</h1>
+          <div>
+            <h1 className={styles.pageTitle}>Enquiries & Projects</h1>
+            {avgResponseHours !== null && (
+              <p className={styles.avgResponse}>Avg response: {avgResponseHours}h this month</p>
+            )}
+          </div>
         </div>
-        <div className={styles.studioPlaceholder}>
-          <Package size={28} aria-hidden="true" />
-          <p className={styles.studioPlaceholderText}>
-            Enquiry management coming in a future update.
-          </p>
+
+        <div className={styles.tabs}>
+          {STUDIO_TABS.map(tab => (
+            <button
+              key={tab.value}
+              className={`${styles.tab} ${studioTab === tab.value ? styles.tabActive : ''}`}
+              onClick={() => setStudioTab(tab.value)}
+            >
+              {tab.label}
+              {tab.value === 'new' && enquiries.filter(e => e.status === 'new').length > 0 && (
+                <span className={styles.tabBadge}>{enquiries.filter(e => e.status === 'new').length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className={styles.bookingList}>
+          <AnimatePresence mode="popLayout">
+            {filteredEnquiries.length === 0 ? (
+              <m.div key="empty" className={styles.emptyState}>No enquiries in this stage.</m.div>
+            ) : (
+              filteredEnquiries.map(enquiry => (
+                <m.div
+                  key={enquiry.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className={styles.enquiryCard}
+                >
+                  <div className={styles.enquiryHeader}>
+                    <div className={styles.clientInfo}>
+                      <span className={styles.clientName}>{enquiry.client_name}</span>
+                      {enquiry.company && <span className={styles.companyName}>{enquiry.company}</span>}
+                    </div>
+                    <span className={styles.timeAgo}>{getTimeAgo(enquiry.created_at)}</span>
+                  </div>
+
+                  <div className={styles.enquiryMeta}>
+                    <span>{enquiry.project_type}</span>
+                    <span>•</span>
+                    <span>{enquiry.budget_range}</span>
+                  </div>
+
+                  <div className={styles.enquiryMessage}>
+                    {expandedEnquiries[enquiry.id] 
+                      ? enquiry.message 
+                      : `${enquiry.message.slice(0, 100)}${enquiry.message.length > 100 ? '...' : ''}`}
+                    {enquiry.message.length > 100 && (
+                      <button className={styles.readMoreBtn} onClick={() => toggleEnquiryExpand(enquiry.id)}>
+                        {expandedEnquiries[enquiry.id] ? 'read less' : 'read more'}
+                      </button>
+                    )}
+                  </div>
+
+                  {enquiry.package_id && (
+                    <div className={styles.packageLink}>
+                      <Package size={12} />
+                      Enquired about: {FIXTURE_STUDIO_PRODUCTS.find(p => p.id === enquiry.package_id)?.name}
+                    </div>
+                  )}
+
+                  {enquiry.status === 'active_project' && enquiry.package_value && (
+                    <div className={styles.packageValue}>
+                      {formatCurrencyFull(enquiry.package_value)}
+                      {enquiry.deposit_paid && (
+                        <div className={styles.depositStatus}>
+                          <span className={styles.depositPaid}>✓ {formatCurrencyFull(enquiry.deposit_paid)} received</span>
+                          <span> · Balance: {formatCurrencyFull(enquiry.package_value - enquiry.deposit_paid)} pending</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {enquiry.status === 'completed' && enquiry.package_value && (
+                    <div className={styles.packageValue}>
+                      Project Value: {formatCurrencyFull(enquiry.package_value)}
+                    </div>
+                  )}
+
+                  <div className={styles.enquiryActions}>
+                    {enquiry.status === 'new' && (
+                      <>
+                        <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => updateEnquiryStatus(enquiry.id, 'in_discussion')}>
+                          Move to Discussion
+                        </button>
+                        <button className={styles.actionBtn} onClick={() => updateEnquiryStatus(enquiry.id, 'declined')}>
+                          Decline
+                        </button>
+                      </>
+                    )}
+                    {enquiry.status === 'in_discussion' && (
+                      <>
+                        <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => updateEnquiryStatus(enquiry.id, 'active_project')}>
+                          Start Project
+                        </button>
+                        <button className={styles.actionBtn} onClick={() => updateEnquiryStatus(enquiry.id, 'declined')}>
+                          Decline
+                        </button>
+                      </>
+                    )}
+                    {enquiry.status === 'active_project' && (
+                      <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => updateEnquiryStatus(enquiry.id, 'completed')}>
+                        Mark Completed
+                      </button>
+                    )}
+                    {enquiry.status === 'declined' && (
+                      <button className={styles.actionBtn} onClick={() => updateEnquiryStatus(enquiry.id, 'new')}>
+                        Reopen
+                      </button>
+                    )}
+                    <button className={`${styles.actionBtn} ${styles.actionBtnWhatsApp}`} onClick={() => handleWhatsApp('+2348012345678')}>
+                      <MessageCircle size={14} /> WhatsApp
+                    </button>
+                  </div>
+                </m.div>
+              ))
+            )}
+          </AnimatePresence>
         </div>
       </div>
     );
   }
 
-  // ── Not available ──
-  if (st.type !== 'host') {
-    return (
-      <div className={styles.page}>
-        <div className={styles.header}>
-          <h1 className={styles.pageTitle}>Bookings</h1>
-        </div>
-        <div className={styles.studioPlaceholder}>
-          <p className={styles.studioPlaceholderText}>
-            Bookings are not available for your store type.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER: HOST (Appointment Manager)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const filteredBookings = bookings.filter(b => b.status === hostTab);
 
-  // ── Host bookings ──
   return (
     <div className={styles.page}>
-      {/* Header */}
       <div className={styles.header}>
-        <h1 className={styles.pageTitle}>Bookings</h1>
-        <span className={styles.bookingCount}>
-          {bookings.filter((b) => b.status === 'confirmed' || b.status === 'pending').length} upcoming
-        </span>
+        <h1 className={styles.pageTitle}>Appointments</h1>
       </div>
 
-      {/* Tabs */}
-      <div className={styles.tabs} role="tablist" aria-label="Filter bookings">
-        {TABS.map((tab) => (
-          <m.button
+      <div className={styles.tabs}>
+        {HOST_TABS.map(tab => (
+          <button
             key={tab.value}
-            className={`${styles.tab} ${activeTab === tab.value ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab(tab.value)}
-            role="tab"
-            aria-selected={activeTab === tab.value}
-            whileTap={{ scale: 0.95 }}
+            className={`${styles.tab} ${hostTab === tab.value ? styles.tabActive : ''}`}
+            onClick={() => setHostTab(tab.value)}
           >
             {tab.label}
-            {tab.value === 'pending' && pendingCount > 0 && (
-              <span className={styles.tabBadge}>{pendingCount}</span>
+            {tab.value === 'pending' && bookings.filter(b => b.status === 'pending').length > 0 && (
+              <span className={styles.tabBadge}>{bookings.filter(b => b.status === 'pending').length}</span>
             )}
-          </m.button>
+          </button>
         ))}
       </div>
 
-      {/* Booking list */}
-      {filtered.length === 0 ? (
-        <div className={styles.emptyState} role="status">
-          <p className={styles.emptyText}>No {activeTab} bookings.</p>
-        </div>
-      ) : (
-        <div className={styles.bookingList} role="list">
-          <AnimatePresence initial={false}>
-            {filtered.map((booking, i) => {
-              const balanceDue = booking.total_amount - booking.deposit_paid;
+      <div className={styles.bookingList}>
+        <AnimatePresence mode="popLayout">
+          {filteredBookings.length === 0 ? (
+            <m.div key="empty" className={styles.emptyState}>No {hostTab} appointments.</m.div>
+          ) : (
+            filteredBookings.map(booking => {
+              const isWaitingLong = hostTab === 'pending' && (Date.now() - new Date(booking.created_at).getTime()) > 86400000;
+              
               return (
                 <m.div
                   key={booking.id}
-                  role="listitem"
                   layout
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2, delay: i * 0.04 }}
-                  className={styles.bookingCard}
-                  onClick={() => setDetailTarget(booking.id)}
-                  tabIndex={0}
-                  aria-label={`${booking.service_name} — ${booking.buyer_name}`}
-                  onKeyDown={(e) => { if (e.key === 'Enter') setDetailTarget(booking.id); }}
-                  whileTap={{ scale: 0.995 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className={`${styles.bookingCard} ${isWaitingLong ? styles.waitingTimeLong : ''}`}
                 >
-                  {/* Top row: status dot + service + amount */}
                   <div className={styles.cardTopRow}>
-                    <span
-                      className={
-                        booking.status === 'confirmed'
-                          ? `${styles.statusDot} ${styles.statusDotConfirmed}`
-                          : booking.status === 'pending'
-                          ? `${styles.statusDot} ${styles.statusDotPending}`
-                          : booking.status === 'completed'
-                          ? `${styles.statusDot} ${styles.statusDotCompleted}`
-                          : `${styles.statusDot} ${styles.statusDotCancelled}`
-                      }
-                    />
                     <span className={styles.cardService}>{booking.service_name}</span>
-                    <span className={styles.bookingAmount}>
-                      {formatCurrencyFull(booking.total_amount)}
-                    </span>
+                    <span className={styles.bookingAmount}>{formatCurrencyFull(booking.total_amount)}</span>
                   </div>
 
-                  {/* Meta: buyer name + phone */}
                   <div className={styles.bookingMeta}>
                     <span className={styles.buyerName}>{booking.buyer_name}</span>
-                    <span className={styles.buyerPhone}>{formatPhone(booking.buyer_phone)}</span>
+                    <span className={styles.bookingTime}>{formatScheduledAt(booking.scheduled_at)}</span>
                   </div>
 
-                  {/* Time row */}
-                  <div className={styles.bookingTime}>
-                    {formatScheduledAt(booking.scheduled_at)} · {formatDuration(booking.duration_minutes)}
-                  </div>
-
-                  {/* Deposit note if any */}
-                  {booking.deposit_paid > 0 && (
-                    <div className={styles.depositNote}>
-                      Deposit paid: {formatCurrencyFull(booking.deposit_paid)}
-                      {balanceDue > 0 && (
-                        <span className={styles.balanceDue}> · Balance: {formatCurrencyFull(balanceDue)}</span>
-                      )}
+                  {hostTab === 'pending' && (
+                    <div className={styles.waitingTime}>
+                      <Clock size={10} /> Waiting {getWaitingTime(booking.created_at)}
+                      {booking.deposit_paid > 0 && <span>• {formatCurrencyFull(booking.deposit_paid)} deposit req.</span>}
                     </div>
                   )}
 
-                  {/* Notes */}
-                  {booking.notes && (
-                    <p className={styles.bookingNotes}>{booking.notes}</p>
+                  {hostTab === 'confirmed' && (
+                    <div className={styles.depositStatus}>
+                      <span className={styles.depositPaid}>✓ Paid {formatCurrencyFull(booking.deposit_paid)}</span>
+                      <span> · Balance: {formatCurrencyFull(booking.total_amount - booking.deposit_paid)} due at appointment</span>
+                    </div>
                   )}
 
-                  {/* Actions */}
-                  {(booking.status === 'pending' || booking.status === 'confirmed') && (
-                    <div className={styles.bookingActions}>
-                      {booking.status === 'pending' && (
-                        <m.button
-                          className={styles.actionBtnPrimary}
-                          onClick={(e) => handleConfirm(booking.id, e)}
-                          aria-label={`Confirm booking for ${booking.buyer_name}`}
-                          whileTap={{ scale: 0.96 }}
-                        >
-                          <CheckCircle size={13} aria-hidden="true" />
+                  {hostTab === 'completed' && (
+                    <>
+                      {noShows[booking.id] === undefined ? (
+                        <div className={styles.noShowPrompt}>
+                          <span className={styles.noShowLabel}>Did the client show up?</span>
+                          <div className={styles.noShowActions}>
+                            <button className={styles.noShowBtn} onClick={() => handleNoShow(booking.id, false)}>Yes</button>
+                            <button className={styles.noShowBtn} onClick={() => handleNoShow(booking.id, true)}>No — No-show</button>
+                          </div>
+                        </div>
+                      ) : noShows[booking.id] ? (
+                        <div className={styles.noShowRecorded}>
+                          <UserMinus size={12} /> No-show recorded
+                        </div>
+                      ) : (
+                        <div className={styles.noShowRecorded} style={{ color: 'var(--color-success)' }}>
+                          <UserCheck size={12} /> Client showed up
+                        </div>
+                      )}
+                      <button className={styles.rebookBtn} onClick={() => handleRebook(booking)}>
+                        Rebook — same service
+                      </button>
+                    </>
+                  )}
+
+                  <div className={styles.enquiryActions}>
+                    {hostTab === 'pending' && (
+                      <>
+                        <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => updateBookingStatus(booking.id, 'confirmed')}>
                           Confirm
-                        </m.button>
-                      )}
-                      {booking.status === 'confirmed' && (
-                        <m.button
-                          className={styles.actionBtnSecondary}
-                          onClick={(e) => handleComplete(booking.id, e)}
-                          aria-label={`Mark ${booking.service_name} as complete`}
-                          whileTap={{ scale: 0.96 }}
-                        >
-                          <CheckCircle size={13} aria-hidden="true" />
-                          Mark Complete
-                        </m.button>
-                      )}
-                      <m.button
-                        className={styles.actionBtnWhatsApp}
-                        onClick={(e) => handleWhatsApp(booking, e)}
-                        aria-label={`WhatsApp ${booking.buyer_name}`}
-                        whileTap={{ scale: 0.96 }}
-                      >
-                        <MessageCircle size={13} aria-hidden="true" />
-                        WhatsApp
-                      </m.button>
-                    </div>
-                  )}
+                        </button>
+                        <button className={styles.actionBtn} onClick={() => updateBookingStatus(booking.id, 'cancelled')}>
+                          Decline
+                        </button>
+                      </>
+                    )}
+                    {hostTab === 'confirmed' && (
+                      <>
+                        <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => updateBookingStatus(booking.id, 'completed')}>
+                          Mark Completed
+                        </button>
+                        <button className={styles.actionBtn} onClick={() => updateBookingStatus(booking.id, 'cancelled')}>
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                    <button className={`${styles.actionBtn} ${styles.actionBtnWhatsApp}`} onClick={() => handleWhatsApp(booking.buyer_phone)}>
+                      <MessageCircle size={14} /> WhatsApp
+                    </button>
+                  </div>
                 </m.div>
               );
-            })}
-          </AnimatePresence>
-        </div>
-      )}
-
-      {/* Booking detail drawer */}
-      <BaseDrawer
-        open={!!detailBooking}
-        onClose={() => setDetailTarget(null)}
-        position="bottom"
-        title={detailBooking?.service_name ?? ''}
-      >
-        {detailBooking && (() => {
-          const b = detailBooking;
-          const balanceDue = b.total_amount - b.deposit_paid;
-          return (
-            <div className={styles.drawerDetail}>
-              {/* Date / time / duration */}
-              <div className={styles.drawerMeta}>
-                <span className={styles.drawerMetaTime}>{formatScheduledAt(b.scheduled_at)}</span>
-                <span className={styles.drawerMetaDuration}>{formatDuration(b.duration_minutes)}</span>
-              </div>
-
-              {/* Buyer */}
-              <div className={styles.drawerBuyer}>
-                <span className={styles.drawerBuyerName}>{b.buyer_name}</span>
-                <a
-                  href={`tel:${b.buyer_phone}`}
-                  className={styles.drawerBuyerPhone}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {formatPhone(b.buyer_phone)}
-                </a>
-              </div>
-
-              {/* Balance */}
-              <div className={styles.drawerBalance}>
-                <div className={styles.drawerBalanceRow}>
-                  <span className={styles.drawerBalanceLabel}>Total</span>
-                  <span className={styles.drawerBalanceAmount}>{formatCurrencyFull(b.total_amount)}</span>
-                </div>
-                <div className={styles.drawerBalanceRow}>
-                  <span className={styles.drawerBalanceLabel}>Deposit Paid</span>
-                  <span className={styles.drawerBalanceDeposit}>{formatCurrencyFull(b.deposit_paid)}</span>
-                </div>
-                {balanceDue > 0 && (
-                  <div className={`${styles.drawerBalanceRow} ${styles.drawerBalanceRowDue}`}>
-                    <span className={styles.drawerBalanceLabel}>Balance Due</span>
-                    <span className={styles.drawerBalanceDue}>{formatCurrencyFull(balanceDue)}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Notes */}
-              {b.notes && (
-                <div className={styles.drawerNotesBox}>
-                  <span className={styles.drawerNotesLabel}>Note</span>
-                  <p className={styles.drawerNotesText}>{b.notes}</p>
-                </div>
-              )}
-
-              {/* Actions */}
-              {(b.status === 'pending' || b.status === 'confirmed') && (
-                <div className={styles.drawerActions}>
-                  {b.status === 'pending' && (
-                    <m.button
-                      className={styles.actionBtnPrimary}
-                      onClick={(e) => { handleConfirm(b.id, e); setDetailTarget(null); }}
-                      whileTap={{ scale: 0.97 }}
-                    >
-                      <CheckCircle size={14} aria-hidden="true" />
-                      Confirm Booking
-                    </m.button>
-                  )}
-                  {b.status === 'confirmed' && (
-                    <m.button
-                      className={styles.actionBtnSecondary}
-                      onClick={(e) => { handleComplete(b.id, e); setDetailTarget(null); }}
-                      whileTap={{ scale: 0.97 }}
-                    >
-                      <CheckCircle size={14} aria-hidden="true" />
-                      Mark Complete
-                    </m.button>
-                  )}
-                  <m.button
-                    className={styles.actionBtnWhatsApp}
-                    onClick={(e) => handleWhatsApp(b, e)}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    <MessageCircle size={14} aria-hidden="true" />
-                    WhatsApp
-                  </m.button>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-      </BaseDrawer>
+            })
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

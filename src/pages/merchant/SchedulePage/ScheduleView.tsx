@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { Plus, Calendar, Clock } from 'lucide-react';
+import { Plus, Calendar, Clock, Lock } from 'lucide-react';
 import { m, AnimatePresence } from '@/lib/motion';
-import type { AvailabilityWindow } from '@/lib/types';
+import type { AvailabilityWindow, Booking } from '@/lib/types';
 import { FIXTURE_WINDOWS, FIXTURE_BOOKINGS } from '@/lib/fixtures';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { useUIStore } from '@/lib/store/ui.store';
-import { formatCurrencyFull } from '@/lib/utils/format';
-import { truncate } from '@/lib/utils/format';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import styles from './SchedulePage.module.css';
 
@@ -33,6 +31,14 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-NG', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 function formatWindowRange(opensAt: string, closesAt: string): string {
   const fmt = (iso: string) => {
     const d = new Date(iso);
@@ -43,51 +49,7 @@ function formatWindowRange(opensAt: string, closesAt: string): string {
   return `${fmt(opensAt)} — ${fmt(closesAt)}`;
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-NG', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-}
-
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
-
-function formatBookingDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-NG', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
-}
-
-// ─── Window form ─────────────────────────────────────────────────────────────
-
-interface WindowForm {
-  label: string;
-  opensDate: string;
-  opensTime: string;
-  closesDate: string;
-  closesTime: string;
-  notes: string;
-}
-
-const EMPTY_WINDOW_FORM: WindowForm = {
-  label: '',
-  opensDate: '',
-  opensTime: '',
-  closesDate: '',
-  closesTime: '',
-  notes: '',
-};
-
-// ─── Working hours state ─────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface WorkingHours {
   monday: boolean;
@@ -128,60 +90,36 @@ export default function SchedulePage() {
   const st = useStoreType();
   const { addToast } = useUIStore();
 
-  // ── Vendor state ──
+  // ── State ──
   const [windows, setWindows] = useState<AvailabilityWindow[]>(FIXTURE_WINDOWS);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [windowForm, setWindowForm] = useState<WindowForm>(EMPTY_WINDOW_FORM);
-
-  // ── Host state ──
   const [workingHours, setWorkingHours] = useState<WorkingHours>(DEFAULT_HOURS);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
   const [hoursDrawerOpen, setHoursDrawerOpen] = useState(false);
   const [hoursForm, setHoursForm] = useState<WorkingHours>(DEFAULT_HOURS);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
-  // ── Vendor: sorted windows ──
-  const sortedWindows = [...windows].sort((a, b) => {
-    const order = { open: 0, upcoming: 1, closed: 2 };
-    if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
-    if (a.status === 'closed') return new Date(b.closes_at).getTime() - new Date(a.closes_at).getTime();
-    return new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime();
-  });
+  // ── Computed ──
+  const weekDays = getWeekDays();
+  const today = new Date();
 
-  const openCount = windows.filter((w) => w.status === 'open').length;
-  const upcomingCount = windows.filter((w) => w.status === 'upcoming').length;
-  const allTimeOrders = windows.filter((w) => w.status === 'closed').reduce((sum, w) => sum + w.total_orders, 0);
+  const getBookingsForDay = (day: Date) =>
+    FIXTURE_BOOKINGS.filter(
+      (b) => isSameDay(new Date(b.scheduled_at), day) && b.status === 'confirmed'
+    ).sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
-  const canSubmitWindow =
-    windowForm.label.trim().length > 0 &&
-    !!windowForm.opensDate &&
-    !!windowForm.opensTime &&
-    !!windowForm.closesDate &&
-    !!windowForm.closesTime;
+  // ── Handlers ──
+  const handleSaveHours = () => {
+    setWorkingHours(hoursForm);
+    addToast('Working hours updated', 'success');
+    setHoursDrawerOpen(false);
+  };
 
-  const handleCreateWindow = () => {
-    if (!canSubmitWindow) return;
-    const opensAt = new Date(`${windowForm.opensDate}T${windowForm.opensTime}`).toISOString();
-    const closesAt = new Date(`${windowForm.closesDate}T${windowForm.closesTime}`).toISOString();
-    const now = new Date();
-    const openTs = new Date(opensAt);
-    const closeTs = new Date(closesAt);
-    const status: AvailabilityWindow['status'] =
-      now >= openTs && now <= closeTs ? 'open' : now < openTs ? 'upcoming' : 'closed';
-    setWindows((prev) => [
-      {
-        id: `window-new-${Date.now()}`,
-        merchant_id: 'merchant-002',
-        label: windowForm.label.trim(),
-        opens_at: opensAt,
-        closes_at: closesAt,
-        status,
-        total_orders: 0,
-        notes: windowForm.notes.trim() || null,
-      },
-      ...prev,
-    ]);
-    addToast('Window created!', 'success');
-    setDrawerOpen(false);
-    setWindowForm(EMPTY_WINDOW_FORM);
+  const handleBlockOff = () => {
+    const date = prompt('Enter date to block (YYYY-MM-DD):');
+    if (date) {
+      setBlockedDates(prev => [...prev, date]);
+      addToast('Date blocked off', 'info');
+    }
   };
 
   const handleCloseEarly = (id: string) => {
@@ -195,407 +133,248 @@ export default function SchedulePage() {
     addToast('Window closed.', 'info');
   };
 
-  const handleSaveHours = () => {
-    setWorkingHours(hoursForm);
-    addToast('Hours updated!', 'success');
-    setHoursDrawerOpen(false);
+  const handleBookingClick = (booking: Booking) => {
+    setSelectedBooking(booking);
   };
 
-  // ── Host: week grid ──
-  const weekDays = getWeekDays();
-  const today = new Date();
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER: VENDOR (Window Management)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (st.isVendor) {
+    const sortedWindows = [...windows].sort((a, b) => {
+      const order = { open: 0, upcoming: 1, closed: 2 };
+      if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+      return new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime();
+    });
 
-  const bookingsForDay = (day: Date) =>
-    FIXTURE_BOOKINGS.filter(
-      (b) => isSameDay(new Date(b.scheduled_at), day) && b.status !== 'cancelled'
-    ).sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
-
-  const upcomingBookings = FIXTURE_BOOKINGS.filter(
-    (b) => b.status === 'confirmed' || b.status === 'pending'
-  )
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-    .slice(0, 5);
-
-  // ── Not available fallback ──
-  if (st.type !== 'vendor' && st.type !== 'host') {
     return (
       <div className={styles.page}>
-        <div className={styles.notAvailable}>
-          <Calendar size={28} />
-          <p>Schedule is not available for your store type.</p>
+        <div className={styles.header}>
+          <h1 className={styles.pageTitle}>Order Windows</h1>
+          <button className={styles.primaryBtn}>
+            <Plus size={14} /> New Window
+          </button>
+        </div>
+
+        <div className={styles.summaryStrip}>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryValue}>{windows.filter(w => w.status === 'open').length}</span>
+            <span className={styles.summaryLabel}>Open</span>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryValue}>{windows.filter(w => w.status === 'upcoming').length}</span>
+            <span className={styles.summaryLabel}>Upcoming</span>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryValue}>
+              {windows.filter(w => w.status === 'closed').reduce((sum, w) => sum + w.total_orders, 0)}
+            </span>
+            <span className={styles.summaryLabel}>Total Orders</span>
+          </div>
+        </div>
+
+        <div className={styles.windowList}>
+          {sortedWindows.map(w => (
+            <div key={w.id} className={styles.windowCard}>
+              <div className={styles.cardTopRow}>
+                <span className={`${styles.statusBadge} ${
+                  w.status === 'open' ? styles.statusBadgeOpen : 
+                  w.status === 'upcoming' ? styles.statusBadgeUpcoming : 
+                  styles.statusBadgeClosed
+                }`}>
+                  {w.status.toUpperCase()}
+                </span>
+                {w.status === 'open' && (
+                  <button className={styles.secondaryBtn} style={{ fontSize: 9, padding: '2px 8px' }} onClick={() => handleCloseEarly(w.id)}>
+                    Close Early
+                  </button>
+                )}
+              </div>
+              <p className={styles.windowLabel} style={{ marginTop: 8, fontWeight: 600 }}>{w.label}</p>
+              <p className={styles.windowRange} style={{ fontSize: 12, color: 'var(--color-fg-ghost)', marginTop: 2 }}>
+                {formatWindowRange(w.opens_at, w.closes_at)}
+              </p>
+              <div className={styles.packageValue} style={{ marginTop: 12 }}>
+                {w.total_orders} orders received
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // VENDOR — Window Management
+  // RENDER: HOST (Week View Schedule)
   // ═══════════════════════════════════════════════════════════════════════════
-  if (st.type === 'vendor') {
+  if (st.isHost) {
     return (
       <div className={styles.page}>
-        {/* Header */}
         <div className={styles.header}>
-          <div>
-            <h1 className={styles.pageTitle}>Schedule</h1>
-          </div>
-          <m.button
-            className={styles.primaryBtn}
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Create new window"
-            whileTap={{ scale: 0.97 }}
+          <h1 className={styles.pageTitle}>Schedule</h1>
+          <button 
+            className={styles.secondaryBtn} 
+            onClick={() => { setHoursForm(workingHours); setHoursDrawerOpen(true); }}
           >
-            <Plus size={14} aria-hidden="true" />
-            New Window
-          </m.button>
+            <Clock size={14} /> Edit Hours
+          </button>
         </div>
 
-        {/* Summary strip */}
-        <div className={styles.summaryStrip}>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryValue}>{openCount}</span>
-            <span className={styles.summaryLabel}>Open</span>
-          </div>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryValue}>{upcomingCount}</span>
-            <span className={styles.summaryLabel}>Upcoming</span>
-          </div>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryValue}>{allTimeOrders}</span>
-            <span className={styles.summaryLabel}>All-time Orders</span>
-          </div>
-        </div>
-
-        {/* Window list */}
-        <div className={styles.windowList}>
-          <AnimatePresence initial={false}>
-            {sortedWindows.map((w, i) => (
-              <m.div
-                key={w.id}
-                layout
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2, delay: i * 0.03 }}
-                className={styles.windowCard}
-              >
-                {/* Badge + label */}
-                <div className={styles.windowCardTop}>
-                  <span
-                    className={
-                      w.status === 'open'
-                        ? `${styles.statusBadge} ${styles.statusBadgeOpen}`
-                        : w.status === 'upcoming'
-                        ? `${styles.statusBadge} ${styles.statusBadgeUpcoming}`
-                        : `${styles.statusBadge} ${styles.statusBadgeClosed}`
-                    }
-                  >
-                    {w.status.toUpperCase()}
-                  </span>
-                  {w.status === 'open' && (
-                    <button
-                      className={styles.closeEarlyBtn}
-                      onClick={() => handleCloseEarly(w.id)}
-                      aria-label={`Close ${w.label} early`}
-                    >
-                      Close Early
-                    </button>
-                  )}
-                  {w.status === 'upcoming' && (
-                    <m.button
-                      className={styles.editWindowBtn}
-                      aria-label={`Edit ${w.label}`}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      Edit
-                    </m.button>
-                  )}
+        {/* Week View Grid */}
+        <div className={styles.weekGridWrapper}>
+          <div className={styles.weekGrid}>
+            {weekDays.map((day, i) => {
+              const bookings = getBookingsForDay(day);
+              const isToday = isSameDay(day, today);
+              const isBlocked = blockedDates.includes(day.toISOString().split('T')[0]);
+              
+              return (
+                <div key={i} className={styles.dayColumn}>
+                  <div className={`${styles.dayHeader} ${isToday ? styles.dayHeaderToday : ''}`}>
+                    <span className={styles.dayName}>{DAY_LABELS[DAY_KEYS[i]]}</span>
+                    <span className={styles.dayNum}>{day.getDate()}</span>
+                  </div>
+                  <div className={`${styles.daySlots} ${isBlocked ? styles.blockOff : ''}`}>
+                    {isBlocked ? (
+                      <Lock size={12} color="var(--color-fg-ghost)" />
+                    ) : bookings.length === 0 ? (
+                      <span className={styles.dayEmpty}>—</span>
+                    ) : (
+                      bookings.map(b => (
+                        <div key={b.id} className={styles.bookingBlock} onClick={() => handleBookingClick(b)}>
+                          <span className={styles.slotTime}>{formatTime(b.scheduled_at)}</span>
+                          <span className={styles.slotName}>
+                            {b.service_name.includes('Lash') ? 'Lash' : 
+                             b.service_name.includes('Brow') ? 'Brow' : 
+                             b.service_name.includes('Refill') ? 'Refill' : 'Combo'}
+                          </span>
+                          <span className={styles.slotClient}>{b.buyer_name.split(' ')[0]}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-
-                <p className={styles.windowLabel}>{w.label}</p>
-                <p className={styles.windowRange}>{formatWindowRange(w.opens_at, w.closes_at)}</p>
-
-                <div className={styles.windowFooter}>
-                  <span
-                    className={
-                      w.status === 'closed' ? styles.windowOrdersAccent : styles.windowOrdersMuted
-                    }
-                  >
-                    {w.total_orders} order{w.total_orders !== 1 ? 's' : ''}
-                  </span>
-                </div>
-
-                {w.notes && (
-                  <p className={styles.windowNotes}>{w.notes}</p>
-                )}
-              </m.div>
-            ))}
-          </AnimatePresence>
+              );
+            })}
+          </div>
         </div>
 
-        {/* New Window Drawer */}
+        <button className={styles.blockOffLink} onClick={handleBlockOff}>
+          + Block off a date
+        </button>
+
+        {/* Selected Booking Drawer */}
         <BaseDrawer
-          open={drawerOpen}
-          onClose={() => { setDrawerOpen(false); setWindowForm(EMPTY_WINDOW_FORM); }}
-          position="bottom"
-          title="New Window"
+          open={!!selectedBooking}
+          onClose={() => setSelectedBooking(null)}
+          title="Booking Details"
+        >
+          {selectedBooking && (
+            <div className={styles.drawerForm}>
+              <div className={styles.drawerSection}>
+                <span className={styles.drawerLabel}>Client</span>
+                <p style={{ fontSize: 16, fontWeight: 500 }}>{selectedBooking.buyer_name}</p>
+                <p style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>{selectedBooking.buyer_phone}</p>
+              </div>
+              <div className={styles.drawerSection}>
+                <span className={styles.drawerLabel}>Service</span>
+                <p style={{ fontSize: 15 }}>{selectedBooking.service_name}</p>
+              </div>
+              <div className={styles.drawerSection}>
+                <span className={styles.drawerLabel}>Time</span>
+                <p style={{ fontSize: 15 }}>{formatScheduledAt(selectedBooking.scheduled_at)}</p>
+              </div>
+              <div className={styles.drawerSection}>
+                <span className={styles.drawerLabel}>Amount</span>
+                <p style={{ fontSize: 15 }}>{formatCurrencyFull(selectedBooking.total_amount)}</p>
+                <p style={{ fontSize: 12, color: 'var(--color-success)' }}>✓ {formatCurrencyFull(selectedBooking.deposit_paid)} deposit received</p>
+              </div>
+            </div>
+          )}
+        </BaseDrawer>
+
+        {/* Working Hours Secondary Section */}
+        <div className={styles.workingHoursSection}>
+          <h2 className={styles.sectionTitle}>Standard Hours</h2>
+          <div className={styles.workingHoursCard}>
+            <div className={styles.workingHoursHeader}>
+              <span className={styles.workingHoursTitle}>Available Times</span>
+              <span className={styles.workingHoursTime}>
+                {workingHours.startTime} — {workingHours.endTime}
+              </span>
+            </div>
+            <div className={styles.workingDays}>
+              {DAY_KEYS.map((key) => (
+                <span
+                  key={key as string}
+                  className={`${styles.dayPill} ${workingHours[key] ? styles.dayPillActive : ''}`}
+                >
+                  {DAY_LABELS[key as string]}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Edit Hours Drawer */}
+        <BaseDrawer
+          open={hoursDrawerOpen}
+          onClose={() => setHoursDrawerOpen(false)}
+          title="Edit Working Hours"
         >
           <div className={styles.drawerForm}>
             <div className={styles.drawerSection}>
-              <label className={styles.drawerLabel} htmlFor="win-label">Window Label</label>
-              <input
-                id="win-label"
-                className={styles.drawerInput}
-                type="text"
-                placeholder="Weekend Drop — 28 Jun"
-                value={windowForm.label}
-                onChange={(e) => setWindowForm((f) => ({ ...f, label: e.target.value }))}
-              />
+              <span className={styles.drawerLabel}>Working Days</span>
+              <div className={styles.dayToggles}>
+                {DAY_KEYS.map((key) => (
+                  <button
+                    key={key as string}
+                    className={`${styles.dayToggleBtn} ${hoursForm[key] ? styles.dayToggleBtnActive : ''}`}
+                    onClick={() => setHoursForm((f) => ({ ...f, [key]: !f[key] }))}
+                  >
+                    {DAY_LABELS[key as string]}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className={styles.drawerSection}>
-              <span className={styles.drawerLabel}>Opens</span>
-              <div className={styles.drawerRow}>
-                <input
-                  className={styles.drawerInput}
-                  type="date"
-                  value={windowForm.opensDate}
-                  onChange={(e) => setWindowForm((f) => ({ ...f, opensDate: e.target.value }))}
-                  aria-label="Opens date"
-                />
+            <div className={styles.drawerRow} style={{ display: 'flex', gap: 'var(--space-4)' }}>
+              <div className={styles.drawerSection} style={{ flex: 1 }}>
+                <label className={styles.drawerLabel}>Start Time</label>
                 <input
                   className={styles.drawerInput}
                   type="time"
-                  value={windowForm.opensTime}
-                  onChange={(e) => setWindowForm((f) => ({ ...f, opensTime: e.target.value }))}
-                  aria-label="Opens time"
+                  value={hoursForm.startTime}
+                  onChange={(e) => setHoursForm((f) => ({ ...f, startTime: e.target.value }))}
+                />
+              </div>
+              <div className={styles.drawerSection} style={{ flex: 1 }}>
+                <label className={styles.drawerLabel}>End Time</label>
+                <input
+                  className={styles.drawerInput}
+                  type="time"
+                  value={hoursForm.endTime}
+                  onChange={(e) => setHoursForm((f) => ({ ...f, endTime: e.target.value }))}
                 />
               </div>
             </div>
 
-            <div className={styles.drawerSection}>
-              <span className={styles.drawerLabel}>Closes</span>
-              <div className={styles.drawerRow}>
-                <input
-                  className={styles.drawerInput}
-                  type="date"
-                  value={windowForm.closesDate}
-                  onChange={(e) => setWindowForm((f) => ({ ...f, closesDate: e.target.value }))}
-                  aria-label="Closes date"
-                />
-                <input
-                  className={styles.drawerInput}
-                  type="time"
-                  value={windowForm.closesTime}
-                  onChange={(e) => setWindowForm((f) => ({ ...f, closesTime: e.target.value }))}
-                  aria-label="Closes time"
-                />
-              </div>
-            </div>
-
-            <div className={styles.drawerSection}>
-              <label className={styles.drawerLabel} htmlFor="win-notes">
-                Notes <span className={styles.drawerLabelMuted}>(optional)</span>
-              </label>
-              <textarea
-                id="win-notes"
-                className={styles.drawerTextarea}
-                placeholder="e.g. Jollof, fried rice. Pickup from 12pm."
-                value={windowForm.notes}
-                onChange={(e) => setWindowForm((f) => ({ ...f, notes: e.target.value }))}
-                rows={3}
-              />
-            </div>
-
-            <m.button
-              className={styles.submitBtn}
-              onClick={handleCreateWindow}
-              disabled={!canSubmitWindow}
-              aria-label="Create window"
-              whileTap={canSubmitWindow ? { scale: 0.98 } : {}}
-            >
-              Create Window
-            </m.button>
+            <button className={styles.submitBtn} onClick={handleSaveHours}>
+              Save Changes
+            </button>
           </div>
         </BaseDrawer>
       </div>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HOST — Calendar Availability
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ── Fallback ──
   return (
     <div className={styles.page}>
-      {/* Header */}
-      <div className={styles.header}>
-        <div>
-          <h1 className={styles.pageTitle}>Schedule</h1>
-        </div>
-        <m.button
-          className={styles.secondaryBtn}
-          onClick={() => { setHoursForm({ ...workingHours }); setHoursDrawerOpen(true); }}
-          aria-label="Edit working hours"
-          whileTap={{ scale: 0.97 }}
-        >
-          <Clock size={14} aria-hidden="true" />
-          Edit Hours
-        </m.button>
+      <div className={styles.notAvailable}>
+        <Calendar size={28} />
+        <p>Schedule management not available for your store type.</p>
       </div>
-
-      {/* Week grid */}
-      <div className={styles.weekGridWrapper}>
-        <div className={styles.weekGrid}>
-          {weekDays.map((day, i) => {
-            const dayBookings = bookingsForDay(day);
-            const isToday = isSameDay(day, today);
-            const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-            return (
-              <div key={i} className={styles.dayColumn}>
-                <div className={`${styles.dayHeader} ${isToday ? styles.dayHeaderToday : ''}`}>
-                  <span className={styles.dayName}>{dayNames[i]}</span>
-                  <span className={styles.dayNum}>{day.getDate()}</span>
-                </div>
-                <div className={styles.daySlots}>
-                  {dayBookings.length === 0 ? (
-                    <span className={styles.dayEmpty}>—</span>
-                  ) : (
-                    dayBookings.map((b) => (
-                      <div
-                        key={b.id}
-                        className={`${styles.bookingSlot} ${
-                          b.status === 'pending' ? styles.bookingSlotPending : ''
-                        }`}
-                      >
-                        <span
-                          className={
-                            b.status === 'confirmed'
-                              ? `${styles.dot} ${styles.dotConfirmed}`
-                              : b.status === 'pending'
-                              ? `${styles.dot} ${styles.dotPending}`
-                              : `${styles.dot} ${styles.dotCompleted}`
-                          }
-                        />
-                        <span className={styles.slotName}>{truncate(b.service_name, 12)}</span>
-                        <span className={styles.slotTime}>{formatTime(b.scheduled_at)}</span>
-                        <span className={styles.slotDuration}>{formatDuration(b.duration_minutes)}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Working Hours card */}
-      <div className={styles.workingHoursCard}>
-        <div className={styles.workingHoursHeader}>
-          <span className={styles.workingHoursTitle}>Working Hours</span>
-          <span className={styles.workingHoursTime}>
-            {workingHours.startTime} — {workingHours.endTime}
-          </span>
-        </div>
-        <div className={styles.workingDays}>
-          {DAY_KEYS.map((key) => (
-            <span
-              key={key as string}
-              className={`${styles.dayPill} ${workingHours[key] ? styles.dayPillActive : ''}`}
-            >
-              {DAY_LABELS[key as string]}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Upcoming appointments */}
-      {upcomingBookings.length > 0 && (
-        <div className={styles.upcomingSection}>
-          <h2 className={styles.sectionTitle}>Upcoming</h2>
-          <div className={styles.upcomingList}>
-            {upcomingBookings.map((b) => (
-              <div key={b.id} className={styles.upcomingRow}>
-                <span
-                  className={
-                    b.status === 'confirmed'
-                      ? `${styles.dot} ${styles.dotConfirmed}`
-                      : `${styles.dot} ${styles.dotPending}`
-                  }
-                />
-                <div className={styles.upcomingBody}>
-                  <span className={styles.upcomingService}>{b.service_name}</span>
-                  <span className={styles.upcomingBuyer}>{b.buyer_name}</span>
-                </div>
-                <div className={styles.upcomingRight}>
-                  <span className={styles.upcomingDate}>{formatBookingDate(b.scheduled_at)}</span>
-                  <span className={styles.upcomingTime}>{formatTime(b.scheduled_at)}</span>
-                  <span className={styles.upcomingDuration}>{formatDuration(b.duration_minutes)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Edit Hours Drawer */}
-      <BaseDrawer
-        open={hoursDrawerOpen}
-        onClose={() => setHoursDrawerOpen(false)}
-        position="bottom"
-        title="Edit Hours"
-      >
-        <div className={styles.drawerForm}>
-          <div className={styles.drawerSection}>
-            <span className={styles.drawerLabel}>Working Days</span>
-            <div className={styles.dayToggles}>
-              {DAY_KEYS.map((key) => (
-                <button
-                  key={key as string}
-                  className={`${styles.dayToggleBtn} ${hoursForm[key] ? styles.dayToggleBtnActive : ''}`}
-                  onClick={() => setHoursForm((f) => ({ ...f, [key]: !f[key] }))}
-                  aria-pressed={!!hoursForm[key]}
-                  aria-label={DAY_LABELS[key as string]}
-                >
-                  {DAY_LABELS[key as string]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className={styles.drawerRow}>
-            <div className={styles.drawerSection}>
-              <label className={styles.drawerLabel} htmlFor="hours-start">Start Time</label>
-              <input
-                id="hours-start"
-                className={styles.drawerInput}
-                type="time"
-                value={hoursForm.startTime}
-                onChange={(e) => setHoursForm((f) => ({ ...f, startTime: e.target.value }))}
-              />
-            </div>
-            <div className={styles.drawerSection}>
-              <label className={styles.drawerLabel} htmlFor="hours-end">End Time</label>
-              <input
-                id="hours-end"
-                className={styles.drawerInput}
-                type="time"
-                value={hoursForm.endTime}
-                onChange={(e) => setHoursForm((f) => ({ ...f, endTime: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <m.button
-            className={styles.submitBtn}
-            onClick={handleSaveHours}
-            aria-label="Save hours"
-            whileTap={{ scale: 0.98 }}
-          >
-            Save Hours
-          </m.button>
-        </div>
-      </BaseDrawer>
     </div>
   );
 }

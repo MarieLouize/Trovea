@@ -1,281 +1,94 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { m } from '@/lib/motion';
-import { TrendingUp, ArrowUpRight } from 'lucide-react';
-import { useLedgerStore } from '@/lib/store/ledger.store';
-import { useArchiveStore } from '@/lib/store/archive.store';
+import { 
+  TrendingUp, ArrowRight, CheckCircle2, AlertCircle, 
+  Package, Clock, Zap, Calendar, MessageSquare
+} from 'lucide-react';
 import { useStoreType } from '@/lib/hooks/use-store-type';
-import type { StoreTypeContext } from '@/lib/hooks/use-store-type';
-import { formatCurrencyFull, formatRelativeDate } from '@/lib/utils/format';
+import { useMerchantStore } from '@/lib/store/merchant.store';
+import { formatCurrencyFull } from '@/lib/utils/format';
 import {
+  FIXTURE_RECEIPTS,
+  FIXTURE_DROPS,
   FIXTURE_WINDOWS,
   FIXTURE_BOOKINGS,
+  FIXTURE_ENQUIRIES,
+  FIXTURE_PRODUCTS,
   FIXTURE_VENDOR_PRODUCTS,
   FIXTURE_DIGITAL_PRODUCTS,
   FIXTURE_STUDIO_PRODUCTS,
 } from '@/lib/fixtures';
 import styles from './InsightsPage.module.css';
 
-type Period = '7d' | '30d' | '90d' | 'all';
-
-interface TypeCardData {
-  title: string;
-  value: string;
-  note: string;
-}
-
-// Derive simple analytics from fixture receipts
-function useInsights(period: Period) {
-  const { receipts } = useLedgerStore();
-  const { products } = useArchiveStore();
-
-  const cutoff = {
-    '7d': 7,
-    '30d': 30,
-    '90d': 90,
-    all: 9999,
-  }[period];
-
-  const cutoffDate = new Date(Date.now() - cutoff * 24 * 60 * 60 * 1000);
-
-  const filtered = receipts.filter(
-    (r) => r.payment_status === 'paid' && new Date(r.created_at) >= cutoffDate
-  );
-
-  const revenue = filtered.reduce((sum, r) => sum + r.total, 0);
-  const units = filtered.reduce(
-    (sum, r) => sum + r.line_items.reduce((s, li) => s + li.quantity, 0),
-    0
-  );
-  const orders = filtered.length;
-  const aov = orders > 0 ? Math.round(revenue / orders) : 0;
-
-  // Top products
-  const productRevMap: Record<string, { name: string; units: number; revenue: number }> = {};
-  for (const r of filtered) {
-    for (const li of r.line_items) {
-      const key = li.product_id ?? li.name;
-      if (!productRevMap[key]) {
-        productRevMap[key] = { name: li.name, units: 0, revenue: 0 };
-      }
-      productRevMap[key].units += li.quantity;
-      productRevMap[key].revenue += li.total_price;
-    }
-  }
-  const topProducts = Object.values(productRevMap)
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
-
-  const maxRevenue = topProducts[0]?.revenue ?? 1;
-
-  // Weekly bars (last 7 week-days)
-  const weekBars = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const label = d.toLocaleDateString('en-NG', { weekday: 'short' }).slice(0, 2);
-    const dayRevenue = filtered
-      .filter((r) => {
-        const rd = new Date(r.created_at);
-        return (
-          rd.getDate() === d.getDate() &&
-          rd.getMonth() === d.getMonth() &&
-          rd.getFullYear() === d.getFullYear()
-        );
-      })
-      .reduce((sum, r) => sum + r.total, 0);
-    return { label, value: dayRevenue };
-  });
-
-  const maxBar = Math.max(...weekBars.map((b) => b.value), 1);
-
-  // Collection breakdown for donut
-  const collectionRevMap: Record<string, number> = {};
-  for (const r of filtered) {
-    for (const li of r.line_items) {
-      const p = products.find((prod) => prod.id === li.product_id);
-      const colId = p?.collection_id ?? 'uncollected';
-      collectionRevMap[colId] = (collectionRevMap[colId] ?? 0) + li.total_price;
-    }
-  }
-
-  const COLLECTION_NAMES: Record<string, string> = {
-    'col-001': 'Dresses',
-    'col-002': 'Tops & Sets',
-    'col-003': 'Bags',
-    uncollected: 'Other',
-  };
-
-  const COLLECTION_COLORS = ['#390007', '#C9A84C', '#5C0010', '#8B5E3C', '#4A3728'];
-
-  const collectionBreakdown = Object.entries(collectionRevMap)
-    .sort(([, a], [, b]) => b - a)
-    .map(([id, rev], i) => ({
-      id,
-      name: COLLECTION_NAMES[id] ?? id,
-      revenue: rev,
-      pct: revenue > 0 ? Math.round((rev / revenue) * 100) : 0,
-      color: COLLECTION_COLORS[i % COLLECTION_COLORS.length],
-    }));
-
-  // Recent activity (last 8 receipts)
-  const recentActivity = [...receipts]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 8);
-
-  return { revenue, units, orders, aov, topProducts, maxRevenue, weekBars, maxBar, collectionBreakdown, recentActivity, products };
-}
-
-// Per-type insight cards
-function computeTypeCards(st: StoreTypeContext, archiveProducts: { status: string; stock_level: number | null }[]): TypeCardData[] {
-  if (st.isCollector) {
-    const liveProducts = archiveProducts.filter(p => p.status === 'live');
-    const inStock = liveProducts.filter(p => (p.stock_level ?? 0) > 0).length;
-    const healthPct = liveProducts.length > 0 ? Math.round((inStock / liveProducts.length) * 100) : 0;
-    return [
-      { title: 'Top Category', value: 'Dresses', note: 'Highest revenue category' },
-      { title: 'Inventory Health', value: `${healthPct}%`, note: `${inStock} of ${liveProducts.length} items in stock` },
-    ];
-  }
-
-  if (st.isVendor) {
-    const openWindows = FIXTURE_WINDOWS.filter(w => w.status === 'open').length;
-    const topItem = [...FIXTURE_VENDOR_PRODUCTS].sort((a, b) => b.price - a.price)[0];
-    return [
-      { title: 'Open Windows', value: String(openWindows), note: 'Active service windows today' },
-      { title: 'Top Menu Item', value: topItem?.name ?? '—', note: formatCurrencyFull(topItem?.price ?? 0) },
-    ];
-  }
-
-  if (st.isHost) {
-    const hostBookings = FIXTURE_BOOKINGS.filter(b => b.merchant_id === 'merchant-003');
-    const active = hostBookings.filter(b => b.status !== 'cancelled' && b.status !== 'completed').length;
-    const confirmed = hostBookings.filter(b => b.status === 'confirmed').length;
-    const rate = active > 0 ? Math.round((confirmed / active) * 100) : 0;
-    const upcoming = hostBookings.filter(b => new Date(b.scheduled_at) > new Date() && b.status !== 'cancelled').length;
-    return [
-      { title: 'Booking Rate', value: `${rate}%`, note: `${confirmed} confirmed of ${active} active` },
-      { title: 'Upcoming Slots', value: String(upcoming), note: 'Scheduled appointments' },
-    ];
-  }
-
-  if (st.isDigital) {
-    const active = FIXTURE_DIGITAL_PRODUCTS.filter(p => p.status !== 'hidden').length;
-    const withUrl = FIXTURE_DIGITAL_PRODUCTS.filter(p => p.delivery_url).length;
-    return [
-      { title: 'Active Products', value: String(active), note: `of ${FIXTURE_DIGITAL_PRODUCTS.length} total` },
-      { title: 'Delivery Health', value: `${withUrl} / ${FIXTURE_DIGITAL_PRODUCTS.length}`, note: 'Products with delivery URL' },
-    ];
-  }
-
-  if (st.isStudio) {
-    const studioBookings = FIXTURE_BOOKINGS.filter(b => b.merchant_id === 'merchant-005');
-    const fixedCount = FIXTURE_STUDIO_PRODUCTS.filter(p => p.price_type === 'fixed').length;
-    const customCount = FIXTURE_STUDIO_PRODUCTS.filter(p => p.price_type === 'custom').length;
-    return [
-      { title: 'Enquiry Pipeline', value: String(studioBookings.length), note: 'Active project enquiries' },
-      { title: 'Package Mix', value: `${fixedCount}F · ${customCount}C`, note: `${FIXTURE_STUDIO_PRODUCTS.length} packages total` },
-    ];
-  }
-
-  return [];
-}
-
-// Simple donut SVG
-function DonutChart({ data }: { data: { pct: number; color: string; name: string }[] }) {
-  const r = 52;
-  const cx = 60;
-  const cy = 60;
-  const circumference = 2 * Math.PI * r;
-
-  let offset = 0;
-  const segments = data.map((d) => {
-    const dash = (d.pct / 100) * circumference;
-    const gap = circumference - dash;
-    const seg = { ...d, dash, gap, offset };
-    offset += dash;
-    return seg;
-  });
-
-  return (
-    <svg width={120} height={120} className={styles.donutSvg} viewBox="0 0 120 120" aria-hidden="true">
-      {/* Track */}
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth={14} />
-      {segments.map((seg, i) => (
-        <circle
-          key={i}
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke={seg.color}
-          strokeWidth={14}
-          strokeDasharray={`${seg.dash} ${seg.gap}`}
-          strokeDashoffset={circumference - seg.offset}
-          style={{ transform: 'rotate(-90deg)', transformOrigin: '60px 60px' }}
-        />
-      ))}
-      {/* Center text */}
-      <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--color-fg)" fontSize={11} fontFamily="var(--font-mono)">
-        Revenue
-      </text>
-      <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--color-fg-ghost)" fontSize={9} fontFamily="var(--font-mono)">
-        by category
-      </text>
-    </svg>
-  );
-}
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 const containerVariants = {
-  animate: { transition: { staggerChildren: 0.07 } },
+  animate: { transition: { staggerChildren: 0.1 } },
 };
 
-const itemVariants = {
+const cardVariants = {
   initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] } },
 };
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function InsightsPage() {
-  const [period, setPeriod] = useState<Period>('30d');
+  const navigate = useNavigate();
   const st = useStoreType();
-  const {
-    revenue, units, orders, aov,
-    topProducts, maxRevenue,
-    weekBars, maxBar,
-    collectionBreakdown,
-    recentActivity,
-    products,
-  } = useInsights(period);
+  const merchant = useMerchantStore((s) => s.merchant);
 
-  const typeCards = computeTypeCards(st, products);
+  // ─── DATA DERIVATION ───
 
-  const periods: { key: Period; label: string }[] = [
-    { key: '7d', label: '7 Days' },
-    { key: '30d', label: '30 Days' },
-    { key: '90d', label: '90 Days' },
-    { key: 'all', label: 'All Time' },
-  ];
+  const stats = useMemo(() => {
+    const merchantReceipts = FIXTURE_RECEIPTS.filter(r => r.merchant_id === merchant.id);
+    const paidReceipts = merchantReceipts.filter(r => r.payment_status === 'paid');
+    
+    // Collector: Last drop performance
+    const lastDrop = FIXTURE_DROPS.find(d => d.merchant_id === merchant.id && d.status === 'completed');
+    const stagnantItems = FIXTURE_PRODUCTS.filter(p => 
+      p.merchant_id === merchant.id && 
+      p.status === 'live' && 
+      !paidReceipts.some(r => r.line_items.some(li => li.product_id === p.id))
+    ).slice(0, 1);
 
-  // Adaptive KPI labels
-  const ordersLabel =
-    st.isVendor  ? 'Pre-orders' :
-    st.isHost    ? 'Bookings'   :
-    st.isDigital ? 'Downloads'  :
-    st.isStudio  ? 'Projects'   :
-    'Orders';
+    // Vendor: Window sell-through
+    const closedWindows = FIXTURE_WINDOWS.filter(w => w.merchant_id === merchant.id && w.status === 'closed');
+    
+    // Host: Schedule efficiency
+    const weekBookings = FIXTURE_BOOKINGS.filter(b => b.merchant_id === merchant.id);
+    const confirmedCount = weekBookings.filter(b => b.status === 'confirmed').length;
 
-  const kpis = [
-    { label: 'Revenue',    value: formatCurrencyFull(revenue), delta: '+14%', positive: true,  gold: false },
-    { label: ordersLabel,  value: String(orders),              delta: '+3',   positive: true,  gold: false },
-    { label: 'Units Sold', value: String(units),               delta: '+8',   positive: true,  gold: true  },
-    { label: 'Avg. Order', value: formatCurrencyFull(aov),     delta: '—',    positive: false, gold: true  },
-  ];
+    // Creator: Revenue trend
+    const creatorRevenue = paidReceipts.reduce((sum, r) => sum + r.total, 0);
+    const downloadCount = paidReceipts.reduce((sum, r) => sum + r.line_items.length, 0);
 
-  // Adaptive activity subtitle
-  const activitySubtitle =
-    st.isVendor  ? 'All pre-orders' :
-    st.isHost    ? 'All bookings'   :
-    st.isDigital ? 'All purchases'  :
-    st.isStudio  ? 'All projects'   :
-    'All orders';
+    // Studio: Pipeline value
+    const activeProjects = FIXTURE_ENQUIRIES.filter(e => e.merchant_id === merchant.id && e.status === 'active_project');
+    const pipelineValue = activeProjects.reduce((sum, e) => sum + (e.package_value ?? 0), 0);
+    const pendingDepositValue = activeProjects.reduce((sum, e) => sum + ((e.package_value ?? 0) - (e.deposit_paid ?? 0)), 0);
+
+    // Studio: Response time
+    const withResponse = FIXTURE_ENQUIRIES.filter(e => e.merchant_id === merchant.id && e.response_time_hours !== null);
+    const avgResponse = withResponse.length ? Math.round(withResponse.reduce((sum, e) => sum + (e.response_time_hours ?? 0), 0) / withResponse.length) : 18;
+
+    return {
+      paidReceipts,
+      lastDrop,
+      stagnantItems,
+      closedWindows,
+      confirmedCount,
+      creatorRevenue,
+      downloadCount,
+      activeProjects,
+      pipelineValue,
+      pendingDepositValue,
+      avgResponse
+    };
+  }, [merchant.id]);
+
+  // ─── RENDERERS ───
 
   return (
     <div className={styles.root}>
@@ -286,210 +99,314 @@ export default function InsightsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <span className={styles.eyebrow}>Insights</span>
-        <h1 className={styles.headline}>Your numbers.</h1>
-      </m.div>
-
-      {/* Period selector */}
-      <m.div
-        className={styles.periodRow}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.25, delay: 0.1 }}
-      >
-        {periods.map((p) => (
-          <button
-            key={p.key}
-            className={`${styles.periodBtn} ${period === p.key ? styles.periodBtnActive : ''}`}
-            onClick={() => setPeriod(p.key)}
-            aria-pressed={period === p.key}
-          >
-            {p.label}
-          </button>
-        ))}
-      </m.div>
-
-      {/* KPI Grid */}
-      <m.div
-        className={styles.kpiGrid}
-        variants={containerVariants}
-        initial="initial"
-        animate="animate"
-      >
-        {kpis.map((kpi, i) => (
-          <m.div key={i} className={styles.kpiCard} variants={itemVariants}>
-            <span className={styles.kpiLabel}>{kpi.label}</span>
-            <span className={styles.kpiValue}>{kpi.value}</span>
-            <span className={`${styles.kpiDelta} ${kpi.positive ? styles.deltaPositive : styles.deltaNeutral}`}>
-              {kpi.positive && <ArrowUpRight size={10} aria-hidden="true" />}
-              {kpi.delta}
-            </span>
-            <div className={`${styles.kpiAccent} ${kpi.gold ? styles.kpiAccentGold : ''}`} aria-hidden="true" />
-          </m.div>
-        ))}
-      </m.div>
-
-      {/* Charts row */}
-      <m.div
-        className={styles.chartsRow}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.2 }}
-      >
-        {/* Revenue bar chart */}
-        <div className={styles.chartCard}>
-          <h2 className={styles.chartTitle}>Revenue</h2>
-          <span className={styles.chartSubtitle}>Daily — Last 7 days</span>
-          <div className={styles.barChart} aria-label="Revenue bar chart, last 7 days">
-            {weekBars.map((bar, i) => (
-              <div key={i} className={styles.barGroup}>
-                <div
-                  className={styles.barOuter}
-                  style={{ height: `${maxBar > 0 ? Math.round((bar.value / maxBar) * 120) : 4}px` }}
-                >
-                  <m.div
-                    className={styles.barFill}
-                    initial={{ height: 0 }}
-                    animate={{ height: '100%' }}
-                    transition={{ duration: 0.5, delay: i * 0.06, ease: [0.34, 1.2, 0.64, 1] }}
-                    aria-label={`${bar.label}: ${formatCurrencyFull(bar.value)}`}
-                  />
-                </div>
-                <span className={styles.barLabel}>{bar.label}</span>
-              </div>
-            ))}
-          </div>
+        <div>
+          <span className={styles.eyebrow}>Insights</span>
+          <h1 className={styles.headline}>Your numbers.</h1>
         </div>
-
-        {/* Collection donut */}
-        <div className={styles.chartCard}>
-          <h2 className={styles.chartTitle}>Breakdown</h2>
-          <span className={styles.chartSubtitle}>Revenue by category</span>
-          {collectionBreakdown.length > 0 ? (
-            <div className={styles.donutWrap}>
-              <DonutChart data={collectionBreakdown} />
-              <div className={styles.donutLegend}>
-                {collectionBreakdown.map((c) => (
-                  <div key={c.id} className={styles.legendItem}>
-                    <div className={styles.legendDot} style={{ background: c.color }} aria-hidden="true" />
-                    <span className={styles.legendLabel}>{c.name}</span>
-                    <span className={styles.legendValue}>{c.pct}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className={styles.emptyState}>
-              <p className={styles.emptyBody}>No paid sales in this period.</p>
-            </div>
-          )}
-        </div>
-      </m.div>
-
-      {/* Type-specific insight cards */}
-      {typeCards.length > 0 && (
-        <m.div
-          className={styles.typeCardRow}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.28 }}
-        >
-          {typeCards.map((card, i) => (
-            <div key={i} className={styles.typeCard}>
-              <span className={styles.typeCardLabel}>{card.title}</span>
-              <span className={styles.typeCardValue}>{card.value}</span>
-              <span className={styles.typeCardNote}>{card.note}</span>
-            </div>
-          ))}
-        </m.div>
-      )}
-
-      {/* Top Products */}
-      <m.div
-        className={styles.tableCard}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.35 }}
-      >
-        <h2 className={styles.chartTitle} style={{ position: 'relative', zIndex: 1 }}>
-          Top {st.itemsLabel}
-        </h2>
-        <span className={styles.chartSubtitle} style={{ position: 'relative', zIndex: 1 }}>
-          By revenue — {period === 'all' ? 'All Time' : `Last ${period}`}
-        </span>
-
-        {topProducts.length > 0 ? (
-          <>
-            <div className={styles.tableHeader}>
-              <span className={styles.tableHeaderCell}>#</span>
-              <span className={styles.tableHeaderCell}>Item</span>
-              <span className={styles.tableHeaderCell}>Units</span>
-              <span className={styles.tableHeaderCell}>Revenue</span>
-              <span className={styles.tableHeaderCell}></span>
-            </div>
-            {topProducts.map((p, i) => (
-              <m.div
-                key={p.name}
-                className={styles.tableRow}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2, delay: 0.35 + i * 0.06 }}
-              >
-                <span className={styles.tableRank}>{i + 1}</span>
-                <span className={styles.tableName}>{p.name}</span>
-                <span className={styles.tableUnits}>{p.units}</span>
-                <span className={styles.tableRevenue}>{formatCurrencyFull(p.revenue)}</span>
-                <div className={styles.tableBar}>
-                  <m.div
-                    className={styles.tableBarFill}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.round((p.revenue / maxRevenue) * 100)}%` }}
-                    transition={{ duration: 0.6, delay: 0.4 + i * 0.07, ease: [0.34, 1.2, 0.64, 1] }}
-                  />
-                </div>
-              </m.div>
-            ))}
-          </>
-        ) : (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}><TrendingUp size={40} strokeWidth={1} /></div>
-            <p className={styles.emptyTitle}>No sales data yet</p>
-            <p className={styles.emptyBody}>Paid orders will appear here.</p>
+        {st.isStudio && (
+          <div className={styles.avgResponse}>
+            Avg response: {stats.avgResponse}h this month
           </div>
         )}
       </m.div>
 
-      {/* Activity feed */}
-      <m.div
-        className={styles.activityCard}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.45 }}
+      <m.div 
+        className={styles.insightList}
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
       >
-        <h2 className={styles.chartTitle} style={{ position: 'relative', zIndex: 1, marginBottom: 'var(--space-1)' }}>
-          Recent Activity
-        </h2>
-        <span className={styles.chartSubtitle}>{activitySubtitle}</span>
-        <div className={styles.activityFeed}>
-          {recentActivity.map((r) => {
-            const dotClass =
-              r.payment_status === 'paid'
-                ? r.shipment_status === 'shipped' || r.shipment_status === 'received'
-                  ? styles.activityDotShipped
-                  : styles.activityDotPaid
-                : styles.activityDotPending;
-            return (
-              <div key={r.id} className={styles.activityItem}>
-                <div className={`${styles.activityDot} ${dotClass}`} aria-hidden="true" />
-                <div className={styles.activityBody}>
-                  <div className={styles.activityText}>{r.buyer_name} — {r.line_items[0]?.name}</div>
-                  <div className={styles.activityTime}>{formatRelativeDate(r.created_at)}</div>
-                </div>
-                <div className={styles.activityAmount}>{formatCurrencyFull(r.total)}</div>
+        {/* ═══════════════════════════════════════════════════════════════════
+            COLLECTOR INSIGHTS
+        ═══════════════════════════════════════════════════════════════════ */}
+        {st.isCollector && (
+          <>
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Drop Performance</span>
+              <span className={styles.insightLead}>Your last drop sold 14/18 items (78%) in 2 hours.</span>
+              <div className={styles.insightData}>
+                <div className={styles.dataLine}>Drop 03 — Ankara Revival</div>
+                <div className={styles.dataLine}>Fastest sellers: Ankara Wrap Dress, Raffia Mini Tote</div>
+                <div className={styles.dataLine}>Slowest: 4 items unsold at close</div>
               </div>
-            );
-          })}
-        </div>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>High Interest, No Sale</span>
+              <span className={styles.insightLead}>4 items have been clicked but not converted recently.</span>
+              <div className={styles.insightData}>
+                <div className={styles.dataLine}>These may benefit from a price review or drop staging.</div>
+              </div>
+              <div className={styles.flaggedItems}>
+                <div className={styles.flaggedItem}>
+                  <div className={styles.flaggedItemRow}>
+                    <span className={styles.flaggedItemName}>Printed Adire Slip Dress</span>
+                    <span className={styles.flaggedItemProblem}>4 views, 0 sales</span>
+                  </div>
+                  <div className={styles.flaggedActions}>
+                    <button className={styles.actionLink} onClick={() => navigate('/archive?action=stageForDrop&product=product-003')}>
+                      <Package size={10} /> Feature in next drop
+                    </button>
+                    <button className={styles.actionLink} onClick={() => navigate('/archive?action=editPrice&product=product-003')}>
+                      <Zap size={10} /> Review price
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Inventory Health</span>
+              <span className={styles.insightLead}>14 live items · 2 items low stock · 4 stagnant</span>
+              <div className={styles.insightData}>
+                <button className={styles.actionLink} style={{ fontSize: 13, textTransform: 'none', letterSpacing: 0 }} onClick={() => navigate('/archive?tab=stagnant')}>
+                  View stagnant items <ArrowRight size={12} />
+                </button>
+              </div>
+            </m.div>
+          </>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            VENDOR INSIGHTS
+        ═══════════════════════════════════════════════════════════════════ */}
+        {st.isVendor && (
+          <>
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Window Sell-Through</span>
+              <span className={styles.insightLead}>Your last 4 windows averaged 94% sell-through.</span>
+              <div className={styles.insightData}>
+                <div className={styles.dataLine}>3 windows in a row: Jollof Rice sold out.</div>
+                <div className={styles.dataLine}>Consider increasing the cap.</div>
+              </div>
+              <button className={styles.actionLink} onClick={() => navigate('/archive?action=editCap&product=vendor-product-002')}>
+                Update Jollof Rice cap →
+              </button>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Peak Demand</span>
+              <table className={styles.insightTable}>
+                <tbody>
+                  <tr>
+                    <td className={styles.bold}>Jollof Rice</td>
+                    <td>100% sold</td>
+                    <td>Cap: 20</td>
+                    <td>Avg: 20</td>
+                  </tr>
+                  <tr>
+                    <td className={styles.bold}>Peppered Snail</td>
+                    <td>87% sold</td>
+                    <td>Cap: 15</td>
+                    <td>Avg: 13</td>
+                  </tr>
+                  <tr>
+                    <td className={styles.bold}>Small Chops</td>
+                    <td>60% sold</td>
+                    <td>Cap: 20</td>
+                    <td>Avg: 12</td>
+                  </tr>
+                </tbody>
+              </table>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Consistently Unsold</span>
+              <div className={styles.flaggedItems}>
+                <div className={styles.flaggedItem}>
+                  <div className={styles.flaggedItemRow}>
+                    <span className={styles.flaggedItemName}>Rice & Stew</span>
+                    <span className={styles.flaggedItemProblem}>Avg. 6/20 sold (30%)</span>
+                  </div>
+                  <div className={styles.flaggedActions}>
+                    <button className={styles.actionLink} onClick={() => navigate('/archive?action=editCap&product=vendor-product-005')}>
+                      Review cap
+                    </button>
+                    <button className={styles.actionLink} style={{ color: 'var(--color-fg-ghost)' }} onClick={() => navigate('/archive')}>
+                      Remove from menu
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </m.div>
+          </>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            HOST INSIGHTS
+        ═══════════════════════════════════════════════════════════════════ */}
+        {st.isHost && (
+          <>
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Schedule Efficiency</span>
+              <span className={styles.insightLead}>This week: 7/8 available slots confirmed (88% fill rate)</span>
+              <div className={styles.insightData}>
+                <div className={styles.dataLine}>Your 10am–12pm Tue–Thu slots fill first.</div>
+              </div>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>No-Show Analysis</span>
+              <div className={styles.allClear}>
+                <CheckCircle2 size={16} /> No issues detected — 0% no-show rate this month.
+              </div>
+              <div className={styles.flaggedItems} style={{ marginTop: 'var(--space-4)' }}>
+                <div className={styles.flaggedItem}>
+                  <div className={styles.flaggedItemRow}>
+                    <span className={styles.flaggedItemName}>Saturday 5pm slots</span>
+                    <span className={styles.flaggedItemProblem}>Potential risk: 1 cancellation</span>
+                  </div>
+                  <button className={styles.actionLink} onClick={() => navigate('/archive?action=editDeposit&product=svc-001')}>
+                    Require full payment for this slot →
+                  </button>
+                </div>
+              </div>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Revenue by Service — This Month</span>
+              <table className={styles.insightTable}>
+                <tbody>
+                  {FIXTURE_HOST_PRODUCTS.map(p => (
+                    <tr key={p.id}>
+                      <td className={styles.bold}>{p.name}</td>
+                      <td>{formatCurrencyFull(p.price * 5)}</td>
+                      <td>5 bookings</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </m.div>
+          </>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CREATOR INSIGHTS
+        ═══════════════════════════════════════════════════════════════════ */}
+        {st.isDigital && (
+          <>
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Revenue Trend — Last 30 Days</span>
+              <span className={styles.insightLead}>{formatCurrencyFull(stats.creatorRevenue)} total · {stats.downloadCount} downloads</span>
+              <div className={styles.insightData}>
+                <div className={styles.dataLine}>Your Brand Starter Kit drives 68% of revenue.</div>
+                <div className={styles.dataLine}>Your Lightroom Presets: 0 downloads in 14 days.</div>
+              </div>
+              <button className={styles.actionLink} onClick={() => navigate('/catalogue?action=checkLink&product=digital-product-002')}>
+                Check Lightroom Presets →
+              </button>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Delivery Health</span>
+              <div className={styles.flaggedItems}>
+                <div className={styles.flaggedItem}>
+                  <div className={styles.flaggedItemRow}>
+                    <span className={styles.flaggedItemName}>Lightroom Preset Pack</span>
+                    <span className={styles.flaggedItemProblem}>⚠ 0 downloads in 14 days</span>
+                  </div>
+                  <div className={styles.flaggedActions}>
+                    <button className={styles.actionLink} onClick={() => navigate('/catalogue?action=checkLink&product=digital-product-002')}>
+                      Check delivery link
+                    </button>
+                    <button className={styles.actionLink} onClick={() => navigate('/catalogue?action=feature&product=digital-product-002')}>
+                      Feature this product
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.flaggedItem}>
+                  <div className={styles.flaggedItemRow}>
+                    <span className={styles.flaggedItemName}>Social Kit (Free)</span>
+                    <span className={styles.flaggedItemProblem}>⚠ No preview asset</span>
+                  </div>
+                  <button className={styles.actionLink} onClick={() => navigate('/catalogue?action=addPreview&product=digital-product-005')}>
+                    Add preview asset →
+                  </button>
+                </div>
+              </div>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Earnings Split</span>
+              <table className={styles.insightTable}>
+                <tbody>
+                  {FIXTURE_DIGITAL_PRODUCTS.slice(0, 4).map(p => (
+                    <tr key={p.id}>
+                      <td className={styles.bold}>{p.name}</td>
+                      <td>{p.is_free ? 'Free' : formatCurrencyFull(p.price * 10)}</td>
+                      <td>{p.is_free ? '23 claims' : '10 downloads'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </m.div>
+          </>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            STUDIO INSIGHTS
+        ═══════════════════════════════════════════════════════════════════ */}
+        {st.isStudio && (
+          <>
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Pipeline Value</span>
+              <span className={styles.insightLead}>{formatCurrencyFull(stats.pipelineValue)} in active projects</span>
+              <div className={styles.insightData}>
+                <div className={styles.dataLine}>2 projects pending deposit ({formatCurrencyFull(stats.pendingDepositValue)} outstanding)</div>
+              </div>
+              <button className={styles.actionLink} onClick={() => navigate('/ledger?tab=deposits')}>
+                View outstanding deposits →
+              </button>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Enquiry Conversion</span>
+              <table className={styles.insightTable}>
+                <tbody>
+                  <tr>
+                    <td className={styles.bold}>Brand Shoot Starter</td>
+                    <td>2 enquiries → 1 confirmed</td>
+                    <td>50%</td>
+                  </tr>
+                  <tr>
+                    <td className={styles.bold}>Full Brand Identity</td>
+                    <td>3 enquiries → 2 confirmed</td>
+                    <td>67%</td>
+                  </tr>
+                  <tr>
+                    <td className={styles.bold}>Custom Project</td>
+                    <td>1 enquiry → 0 confirmed</td>
+                    <td>0%</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className={styles.flaggedItems} style={{ marginTop: 'var(--space-4)' }}>
+                <div className={styles.flaggedItem}>
+                  <div className={styles.flaggedItemProblem}>Tip: Custom Project has 0 conversions. Consider adding a clearer scope description.</div>
+                  <button className={styles.actionLink} onClick={() => navigate('/archive?action=editScope&product=pkg-004')}>
+                    Edit Custom Project →
+                  </button>
+                </div>
+              </div>
+            </m.div>
+
+            <m.div className={styles.insightCard} variants={cardVariants}>
+              <span className={styles.insightCategory}>Response Performance</span>
+              <span className={styles.insightLead}>Avg. response time: {stats.avgResponse}h this month</span>
+              <div className={styles.flaggedItems}>
+                <div className={styles.flaggedItem}>
+                  <div className={styles.flaggedItemRow}>
+                    <span className={styles.flaggedItemName}>Slowest: 26h (Tunde Ogunwale)</span>
+                    <span className={styles.flaggedItemProblem}>Awaiting reply</span>
+                  </div>
+                  <button className={styles.actionLink} onClick={() => navigate('/bookings?enquiry=enquiry-004')}>
+                    Reply to Tunde Ogunwale →
+                  </button>
+                </div>
+              </div>
+            </m.div>
+          </>
+        )}
       </m.div>
     </div>
   );

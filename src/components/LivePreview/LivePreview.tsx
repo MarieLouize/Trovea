@@ -5,6 +5,7 @@ import { PALETTES } from '@/lib/constants/palettes';
 import { TYPOGRAPHY_STACKS } from '@/lib/constants/typography';
 import { SIGNATURES } from '@/lib/constants/signatures';
 import { useMerchantStore } from '@/lib/store/merchant.store';
+import { useStoreType } from '@/lib/hooks/use-store-type';
 import { FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './LivePreview.module.css';
@@ -14,8 +15,6 @@ interface LivePreviewProps {
 }
 
 // ── Constant lookups ────────────────────────────────────────────────────────
-// PALETTES shape: { id, name, bg, surface, accent, fg } — flat, no .preview
-// TYPOGRAPHY_STACKS shape: { id, name, heading, body, cssVars }
 
 function getPaletteColors(paletteId: string) {
   const match = PALETTES.find((p) => p.id === paletteId) ?? PALETTES[0];
@@ -24,7 +23,6 @@ function getPaletteColors(paletteId: string) {
 
 function getTypoFonts(typographyId: string) {
   const match = TYPOGRAPHY_STACKS.find((t) => t.id === typographyId) ?? TYPOGRAPHY_STACKS[0];
-  // Field names are heading/body (not headingFont/bodyFont)
   return { heading: match.heading, body: match.body };
 }
 
@@ -66,24 +64,10 @@ function PreviewHero({ storeName, handle }: { storeName: string; handle: string 
   );
 }
 
-function PreviewCollections() {
-  return (
-    <div className={styles.previewSection}>
-      <div className={styles.previewSectionLabel}>Collections</div>
-      <div className={styles.previewCollectionRow}>
-        {(FIXTURE_COLLECTIONS as any[]).slice(0, 3).map((c) => (
-          <div key={c.id} className={styles.previewCollectionPill}>{c.name}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function PreviewCard({ product, cardStyle }: { product: any; cardStyle: string }) {
   const price = formatCurrencyFull(product.price ?? 0);
   const name: string = product.name ?? 'Item';
 
-  // CardStyle actual values: clean-square | rounded-float | polaroid | film-strip | minimal-line
   switch (cardStyle) {
     case 'polaroid':
       return (
@@ -109,7 +93,7 @@ function PreviewCard({ product, cardStyle }: { product: any; cardStyle: string }
           <div className={styles.previewCardPrice}>{price}</div>
         </div>
       );
-    default: // clean-square, rounded-float
+    default:
       return (
         <div className={styles.previewCard}>
           <div className={styles.previewCardImg} />
@@ -184,12 +168,55 @@ function PreviewFeatured({ cardStyle, featuredIds }: { cardStyle: string; featur
   );
 }
 
+// ── Collector Preview States ────────────────────────────────────────────────
+
+function PreviewCollectorState({ state }: { state: string }) {
+  if (state === 'pre_drop') {
+    return (
+      <div className={styles.previewDropCountdown}>
+        <p className={styles.previewDropLabel}>Drop 04 — Summer Haul</p>
+        <div className={styles.previewCountdown}>
+          <div className={styles.previewCountdownUnit}><span>02d</span></div>
+          <div className={styles.previewCountdownUnit}><span>14h</span></div>
+          <div className={styles.previewCountdownUnit}><span>33m</span></div>
+        </div>
+        <p className={styles.previewNotify}>Notify Me</p>
+      </div>
+    );
+  }
+
+  if (state === 'live_drop') {
+    return (
+      <div className={styles.previewDropLive}>
+        <m.span 
+          className={styles.previewLiveDot}
+          animate={{ opacity: [1, 0.4, 1] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        >●</m.span>
+        <p>DROP LIVE</p>
+      </div>
+    );
+  }
+
+  if (state === 'all_sold') {
+    return (
+      <div className={styles.previewAllSold}>
+        <p className={styles.previewAllSoldTitle}>Drop 03 — All sold out</p>
+        <p className={styles.previewAllSoldNext}>Next drop: Coming soon</p>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export default function LivePreview({ draftConfig }: LivePreviewProps) {
   const controls = useAnimation();
   const prevConfigRef = useRef(draftConfig);
   const { merchant } = useMerchantStore();
+  const st = useStoreType();
 
   // Pulse animation on config change
   useEffect(() => {
@@ -205,6 +232,7 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
   const colors = getPaletteColors(draftConfig.palette);
   const fonts  = getTypoFonts(draftConfig.typography);
   const ss     = draftConfig.section_states;
+  const tc     = draftConfig.store_type_config;
 
   const storeName   = merchant.store_name;
   const storeHandle = merchant.handle;
@@ -212,6 +240,8 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
 
   const signature: SignatureDefinition | undefined = SIGNATURES.find((s) => s.id === draftConfig.signature);
   const tagline = signature?.tagline ?? '';
+
+  const showStandardContent = !st.isCollector || tc.preview_state === 'static' || tc.preview_state === 'live_drop';
 
   return (
     <div className={styles.wrapper}>
@@ -235,19 +265,25 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
             '--preview-font-body':    fonts.body,
           } as React.CSSProperties}
         >
-          {/* Persistent mini brand bar — always visible */}
           <PreviewMiniBrand storeName={storeName} tagline={tagline} />
 
-          {sectionOn(ss, 'section-hero')     && <PreviewHero storeName={storeName} handle={storeHandle} />}
-          {sectionOn(ss, 'section-featured') && (
-            <PreviewFeatured
-              cardStyle={draftConfig.card_style}
-              featuredIds={draftConfig.featured_item_ids}
-            />
+          {st.isCollector && tc.preview_state !== 'static' && (
+            <PreviewCollectorState state={tc.preview_state} />
           )}
-          {/* Always show product grid as main content */}
-          <PreviewProductGrid cardStyle={draftConfig.card_style} layout={draftConfig.layout} />
-          {sectionOn(ss, 'section-about')    && <PreviewAbout bio={bio} />}
+
+          {showStandardContent && (
+            <>
+              {sectionOn(ss, 'section-hero')     && <PreviewHero storeName={storeName} handle={storeHandle} />}
+              {sectionOn(ss, 'section-featured') && (
+                <PreviewFeatured
+                  cardStyle={draftConfig.card_style}
+                  featuredIds={draftConfig.featured_item_ids}
+                />
+              )}
+              <PreviewProductGrid cardStyle={draftConfig.card_style} layout={draftConfig.layout} />
+              {sectionOn(ss, 'section-about')    && <PreviewAbout bio={bio} />}
+            </>
+          )}
 
           <div style={{ height: '60px' }} />
         </m.div>

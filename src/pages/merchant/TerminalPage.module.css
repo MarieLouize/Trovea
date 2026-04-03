@@ -1435,3 +1435,180 @@
   background: rgba(0,0,0,0.06);
   color: var(--color-error);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PHASE 2.5-F ADAPTIVE FEATURES
+═══════════════════════════════════════════════════════════ */
+
+/* Collector Stage 1 Stock Badges */
+.stockBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 8px;
+  border-radius: var(--r-full);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  z-index: 2;
+  box-shadow: var(--shadow-raise-sm);
+}
+.stockBadgeLow { background: linear-gradient(145deg, #ffcc00, #ff9900); color: #1a1208; }
+.stockBadgeSold { background: rgba(0,0,0,0.4); color: #fff; }
+
+/* Stage 3 WhatsApp Button */
+.whatsappShareBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-4);
+  background: linear-gradient(145deg, #25D366, #128C7E);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  min-height: 52px;
+  margin-top: var(--space-4);
+  box-shadow: 4px 4px 12px rgba(37, 211, 102, 0.3);
+}
+
+/* Vendor/Studio Stage 2 Selectors */
+.selectorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.selectorBtn {
+  padding: var(--space-3) var(--space-2);
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-raise-sm);
+  border: 1px solid rgba(255,255,255,0.14);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  text-align: center;
+  transition: all var(--duration-fast);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.selectorBtn.active {
+  background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
+  color: #fff;
+  border-color: transparent;
+}
+
+/* Host Stage 2 Returning Client */
+.returningBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: rgba(var(--color-accent-rgb), 0.08);
+  border-radius: var(--r-sm);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  margin-top: var(--space-1);
+}
+
+/* Digital Stage 1 Bundle */
+.bundleHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-5);
+  background: rgba(0,0,0,0.03);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.bundleToggle {
+  display: flex;
+  background: rgba(0,0,0,0.06);
+  padding: 3px;
+  border-radius: var(--r-full);
+}
+.bundleToggleBtn {
+  padding: 4px 12px;
+  border-radius: var(--r-full);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.bundleToggleBtn.active {
+  background: #fff;
+  color: var(--color-fg);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Studio Stage 1 Entry Paths */
+.studioEntry {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+.entryCard {
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  border-radius: var(--r-lg);
+  padding: var(--space-4);
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: var(--shadow-raise-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+.entryCard:hover { box-shadow: var(--shadow-raise); transform: translateY(-2px); }
+.entryCardTitle { font-family: var(--font-serif); font-size: 16px; color: var(--color-fg); }
+.entryCardDesc { font-size: 11px; color: var(--color-fg-ghost); line-height: 1.4; }
+.entryCardBtn {
+  margin-top: auto;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Studio Stage 2 Deposit Split */
+.depositCard {
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  border-radius: var(--r-lg);
+  padding: var(--space-4);
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-raise-sm);
+}
+.depositRow {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.depositRowBold { font-weight: 600; color: var(--color-fg); }
+.depositRowMuted { color: var(--color-fg-ghost); font-size: 12px; }
+.depositRowAccent { color: var(--color-accent); font-weight: 600; }
+

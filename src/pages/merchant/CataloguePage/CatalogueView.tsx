@@ -62,7 +62,11 @@ export default function CataloguePage() {
       setEditTarget(product);
       setDrawerOpen(true);
     }
-  }, [searchParams]);
+    if (action === 'checkLink' && product) {
+      const p = rawProducts.find(x => x.id === product);
+      if (p) checkLink(product, p.delivery_url);
+    }
+  }, [searchParams, rawProducts]);
 
   // Derive products with new filters
   const rawProducts = useArchiveStore(s => s.products);
