@@ -647,66 +647,92 @@
 .devContainer {
   position: fixed;
   bottom: var(--space-4);
-  left: var(--space-4);
   right: var(--space-4);
   z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
   pointer-events: none;
 }
 
-.devSwitcher, .devContainer > button {
+.devDropdown {
   pointer-events: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
 }
 
-.devSwitcher {
+.devToggle {
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(12px);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--r-md);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  overflow-x: auto;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.devSwitcher::-webkit-scrollbar { display: none; }
-
-.devLabel {
-  font-family: var(--font-mono);
-  font-size: 9px;
   color: var(--color-gold);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.devBtn {
-  background: rgba(255, 255, 255, 0.1);
-  color: #FFF;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 4px 8px;
-  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 10px;
+  border-radius: var(--r-md);
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 10px;
   white-space: nowrap;
-  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: background 0.2s;
 }
 
-.devBtn:hover { background: rgba(255, 255, 255, 0.2); }
+.devToggle:hover { background: rgba(0, 0, 0, 0.95); }
 
-.devBtnActive {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+.devMenu {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  right: 0;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-md);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.devLabel {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--color-gold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: var(--space-1) var(--space-2);
+  white-space: nowrap;
+}
+
+.devMenuItem {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  border: none;
+  padding: 6px var(--space-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: left;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.devMenuItem:hover { background: rgba(255, 255, 255, 0.1); color: #FFF; }
+
+.devMenuItemActive {
+  color: var(--color-gold);
   font-weight: 600;
 }
 
-.devBtnPaused {
-  background: var(--color-error);
-  border-color: var(--color-error);
+.devMenuItemPaused {
+  color: #ff6b6b;
+}
+
+.devMenuDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: var(--space-1) 0;
 }
 
 .shareDrawerContent {

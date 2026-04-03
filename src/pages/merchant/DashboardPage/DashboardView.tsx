@@ -96,6 +96,7 @@ export default function DashboardPage() {
   const { products } = useArchiveStore();
   const [shareOpen, setShareOpen] = useState(false);
   const [devPaused, setDevPaused] = useState(false);
+  const [devMenuOpen, setDevMenuOpen] = useState(false);
 
   const storeUrl = `trovea.store/${merchant.handle}`;
 
@@ -281,7 +282,7 @@ export default function DashboardPage() {
     ) ?? null;
     const nextWindow = FIXTURE_WINDOWS
       .filter(w => w.merchant_id === merchant.id && w.status === 'scheduled')
-      .sort((a,b) => new Date(a.open_at).getTime() - new Date(b.open_at).getTime())[0] ?? null;
+      .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())[0] ?? null;
     const windowState = activeWindow ? 'open' : nextWindow ? 'closed' : 'dormant';
 
     return (
@@ -731,27 +732,41 @@ export default function DashboardPage() {
       {/* ── Dev Switcher (DEV only) ── */}
       {import.meta.env.DEV && (
         <div className={styles.devContainer}>
-          <div className={styles.devSwitcher}>
-            <span className={styles.devLabel}>Switch Type:</span>
-            {DEV_MERCHANTS.map((m) => (
-              <button
-                key={m.label}
-                className={`${styles.devBtn} ${merchant.id === m.merchant.id ? styles.devBtnActive : ''}`}
-                onClick={() => {
-                  useMerchantStore.getState().setMerchant(m.merchant);
-                  addToast(`Switched to ${m.label} view`, 'info');
-                }}
-              >
-                {m.label}
-              </button>
-            ))}
+          <div className={styles.devDropdown}>
+            {devMenuOpen && (
+              <div className={styles.devMenu}>
+                <span className={styles.devLabel}>Store Type</span>
+                {DEV_MERCHANTS.map((m) => (
+                  <button
+                    key={m.label}
+                    className={`${styles.devMenuItem} ${merchant.id === m.merchant.id ? styles.devMenuItemActive : ''}`}
+                    onClick={() => {
+                      useMerchantStore.getState().setMerchant(m.merchant);
+                      addToast(`Switched to ${m.label}`, 'info');
+                      setDevMenuOpen(false);
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+                <div className={styles.devMenuDivider} />
+                <button
+                  className={`${styles.devMenuItem} ${devPaused ? styles.devMenuItemPaused : ''}`}
+                  onClick={() => setDevPaused((p) => !p)}
+                >
+                  {devPaused ? '● Store PAUSED' : '○ Store Active'}
+                </button>
+              </div>
+            )}
+            <button
+              className={styles.devToggle}
+              onClick={() => setDevMenuOpen((o) => !o)}
+              aria-label="Dev tools"
+            >
+              {DEV_MERCHANTS.find((m) => m.merchant.id === merchant.id)?.label ?? 'DEV'}
+              {' ▾'}
+            </button>
           </div>
-          <button
-            onClick={() => setDevPaused((p) => !p)}
-            className={`${styles.devBtn} ${devPaused ? styles.devBtnPaused : ''}`}
-          >
-            {devPaused ? 'DEV: Store PAUSED' : 'DEV: Store ACTIVE'}
-          </button>
         </div>
       )}
     </div>

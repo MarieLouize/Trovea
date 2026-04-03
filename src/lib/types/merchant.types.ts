@@ -101,7 +101,7 @@ export interface Merchant {
     account_name: string;
   } | null;
   arrival_notes: string | null;
-  response_time_hours: number;
+  response_time_hours: number | null;
   portfolio_images: string[];
 }
 

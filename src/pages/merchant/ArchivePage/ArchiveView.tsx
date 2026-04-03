@@ -31,6 +31,227 @@ import { useUIStore } from '@/lib/store/ui.store';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import styles from './ArchivePage.module.css';
 
+// ─── ProductRow (module-scope to prevent remount on parent renders) ───────────
+
+interface ProductRowProps {
+  product: Product;
+  index: number;
+  merchantId: string;
+  drops: Drop[];
+  fulfilmentMap: Record<string, string>;
+  statusFilter: string;
+  stagePopoverId: string | null;
+  inlineEditId: string | null;
+  onEdit: (id: string) => void;
+  onToggle: (id: string, e: React.MouseEvent) => void;
+  onStage: (productId: string, dropId: string) => void;
+  onDuplicate: (product: Product) => void;
+  onCycleFulfilment: (productId: string, e: React.MouseEvent) => void;
+  onSetStagePopover: (id: string | null) => void;
+  onSetInlineEdit: (id: string | null) => void;
+}
+
+function ProductRow({
+  product, index, merchantId, drops, fulfilmentMap, statusFilter,
+  stagePopoverId, inlineEditId,
+  onEdit, onToggle, onStage, onDuplicate, onCycleFulfilment,
+  onSetStagePopover, onSetInlineEdit,
+}: ProductRowProps) {
+  const st = useStoreType();
+  const isSoldOut  = product.status === 'sold_out' || product.stock_level === 0;
+  const isLowStock = !isSoldOut && product.stock_level != null && product.stock_level > 0 && product.stock_level <= 2;
+
+  const dropBadge = useMemo(() => {
+    if (!st.isCollector) return null;
+    const drop = drops.find(d => d.merchant_id === merchantId && d.status !== 'completed' && d.product_ids.includes(product.id));
+    return drop ? `IN ${drop.label.split('—')[0].trim()}` : null;
+  }, [st.isCollector, drops, merchantId, product.id]);
+
+  const bookingCount = useMemo(() => {
+    if (!st.isHost) return 0;
+    return FIXTURE_BOOKINGS.filter(b => b.service_id === product.id).length;
+  }, [st.isHost, product.id]);
+
+  const conversion = useMemo(() => {
+    if (!st.isStudio) return null;
+    const enqs = FIXTURE_ENQUIRIES.filter(e => e.package_id === product.id);
+    const conf = enqs.filter(e => ['active_project', 'completed'].includes(e.status)).length;
+    return { total: enqs.length, confirmed: conf };
+  }, [st.isStudio, product.id]);
+
+  return (
+    <m.div
+      role="listitem"
+      layout
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 12, height: 0 }}
+      transition={{ duration: 0.22, delay: index * 0.03 }}
+      className={styles.productRow}
+      onClick={() => onEdit(product.id)}
+      tabIndex={0}
+      aria-label={`${product.name}, ${product.price_type === 'custom' ? 'Custom' : formatCurrencyFull(product.price)}, ${product.status}`}
+      onKeyDown={(e) => { if (e.key === 'Enter') onEdit(product.id); }}
+      whileTap={{ scale: 0.995 }}
+    >
+      {/* Thumbnail */}
+      <div className={styles.rowThumb} aria-hidden="true">
+        {product.images[0] ? (
+          <img src={product.images[0]} alt={product.name} className={styles.rowThumbImg} loading="lazy" />
+        ) : (
+          <div className={styles.rowThumbPlaceholder}>
+            <Package size={20} />
+          </div>
+        )}
+        {st.isCollector && isLowStock && (
+          <span className={`${styles.stockBadge} ${styles.low}`}>{product.stock_level}</span>
+        )}
+        {st.isCollector && isSoldOut && (
+          <span className={`${styles.stockBadge} ${styles.out}`}>0</span>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className={styles.rowBody}>
+        <div className={styles.rowName}>
+          {product.name}
+          {dropBadge && <span className={styles.dropBadge}>{dropBadge}</span>}
+          {statusFilter === 'stagnant' && !dropBadge && (
+            <span className={styles.notStagedText}>NOT STAGED</span>
+          )}
+        </div>
+        <div className={styles.rowMeta}>
+          {st.isCollector && (
+            <>
+              {product.collection_id && (
+                <span className={styles.rowCollection}>
+                  {FIXTURE_COLLECTIONS.find((c) => c.id === product.collection_id)?.name ?? ''}
+                </span>
+              )}
+              <span className={`${styles.rowStatusPill} ${styles[product.status]}`}>
+                {product.status.replace('_', ' ')}
+              </span>
+            </>
+          )}
+          {st.isVendor && (
+            <button
+              className={styles.fulfilmentBadge}
+              onClick={(e) => onCycleFulfilment(product.id, e)}
+            >
+              {fulfilmentMap[product.id] || 'Pickup + Delivery'}
+            </button>
+          )}
+          {st.isHost && (
+            <>
+              <span className={styles.durationBadge}>{product.duration || 60} min · {formatCurrencyFull(product.deposit_amount || 5000)} deposit</span>
+              <span className={styles.rowCollection}>{bookingCount} bookings this month</span>
+            </>
+          )}
+          {st.isStudio && (
+            <>
+              <span className={`${styles.priceTypeBadge} ${product.price_type === 'custom' ? styles.priceTypeBadgeCustom : ''}`}>
+                {product.price_type === 'custom' ? 'QUOTE' : `FIXED ${formatCurrencyFull(product.price)}`}
+              </span>
+              {conversion && (
+                <span className={styles.conversionRate}>{conversion.total} enquiries → {conversion.confirmed} confirmed</span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Price / Cap */}
+      <div className={styles.rowPriceArea}>
+        {st.isVendor && (
+          <div className={styles.capPill} onClick={(e) => e.stopPropagation()}>
+            {inlineEditId === product.id ? (
+              <input
+                type="number"
+                autoFocus
+                className={styles.capInput}
+                defaultValue={20}
+                onBlur={() => onSetInlineEdit(null)}
+              />
+            ) : (
+              <span onClick={() => onSetInlineEdit(product.id)}>20 cap</span>
+            )}
+          </div>
+        )}
+        {st.isStudio && product.price_type === 'custom' ? (
+          <span className={styles.rowPriceCustom}>Custom</span>
+        ) : !st.isVendor && !st.isStudio && (
+          <span className={styles.rowPrice}>{formatCurrencyFull(product.price)}</span>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className={styles.rowActions}>
+        {st.isCollector && (
+          <div className={styles.stagePopoverWrapper}>
+            <m.button
+              className={styles.rowActionBtn}
+              onClick={(e) => { e.stopPropagation(); onSetStagePopover(product.id === stagePopoverId ? null : product.id); }}
+              whileTap={{ scale: 0.93 }}
+              aria-label="Stage for drop"
+            >
+              <Layers size={14} />
+            </m.button>
+            <AnimatePresence>
+              {stagePopoverId === product.id && (
+                <m.div
+                  className={styles.stageDropPopover}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                >
+                  <p className={styles.stageDropTitle}>Stage for Drop</p>
+                  {drops.filter(d => d.status === 'scheduled').map(d => {
+                    const isStaged = d.product_ids.includes(product.id);
+                    return (
+                      <div key={d.id} className={styles.stageDropItem} onClick={() => onStage(product.id, d.id)}>
+                        <div className={styles.stageDropCheck}>
+                          {isStaged && <Check size={10} />}
+                        </div>
+                        <span>{d.label.split('—')[0]}</span>
+                      </div>
+                    );
+                  })}
+                </m.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+        {st.isStudio && (
+          <m.button
+            className={styles.rowActionBtn}
+            onClick={(e) => { e.stopPropagation(); onDuplicate(product); }}
+            whileTap={{ scale: 0.93 }}
+            aria-label="Duplicate package"
+          >
+            <Copy size={14} />
+          </m.button>
+        )}
+        <m.button
+          className={styles.rowActionBtn}
+          onClick={(e) => { e.stopPropagation(); onEdit(product.id); }}
+          aria-label={`Edit ${product.name}`}
+          whileTap={{ scale: 0.93 }}
+        >
+          <Edit2 size={14} aria-hidden="true" />
+        </m.button>
+        <m.button
+          className={styles.rowActionBtn}
+          onClick={(e) => onToggle(product.id, e)}
+          aria-label="Toggle status"
+          whileTap={{ scale: 0.93 }}
+        >
+          {product.status === 'live' ? <EyeOff size={14} /> : <Eye size={14} />}
+        </m.button>
+      </div>
+    </m.div>
+  );
+}
+
 // ─── Form state ─────────────────────────────────────────────────────────────
 
 interface FormDraft {
@@ -421,9 +642,20 @@ export default function ArchivePage() {
     setDrawerOpen(false);
   };
 
+  // ── Handlers passed down to ProductRow ─────────────────────────────────────
+
+  const cycleFulfilment = (productId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const current = fulfilmentMap[productId] || 'Pickup + Delivery';
+    const options = ['Pickup + Delivery', 'Pickup only', 'Delivery only'];
+    const next = options[(options.indexOf(current) + 1) % options.length];
+    setFulfilmentMap(prev => ({ ...prev, [productId]: next }));
+    addToast(`Fulfilment: ${next}`, 'info');
+  };
+
   // ── Status tab config ───────────────────────────────────────────────────────
   type TabValue = ProductStatus | 'all' | 'stagnant' | 'in_drop' | 'active_window' | 'sold_out_window';
-  
+
   const statusTabs: { value: TabValue; label: string }[] = useMemo(() => {
     if (st.isCollector) return [
       { value: 'all', label: 'All' },
@@ -444,216 +676,6 @@ export default function ArchivePage() {
       { value: 'hidden', label: st.isHost || st.isStudio ? 'Inactive' : 'Hidden' },
     ];
   }, [st, inDropCount, stagnantCount]);
-
-  // ── Sub-components ─────────────────────────────────────────────────────────
-
-  const ProductRow = ({ product, index }: { product: Product; index: number }) => {
-    const isSoldOut  = product.status === 'sold_out' || product.stock_level === 0;
-    const isLowStock = !isSoldOut && product.stock_level != null && product.stock_level > 0 && product.stock_level <= 2;
-    
-    // Collector drop badge
-    const dropBadge = useMemo(() => {
-      if (!st.isCollector) return null;
-      const drop = drops.find(d => d.merchant_id === merchant.id && d.status !== 'completed' && d.product_ids.includes(product.id));
-      return drop ? `IN ${drop.label.split('—')[0].trim()}` : null;
-    }, [product.id]);
-
-    // Host booking count
-    const bookingCount = useMemo(() => {
-      if (!st.isHost) return 0;
-      return FIXTURE_BOOKINGS.filter(b => b.service_id === product.id).length;
-    }, [product.id]);
-
-    // Studio conversion
-    const conversion = useMemo(() => {
-      if (!st.isStudio) return null;
-      const enqs = FIXTURE_ENQUIRIES.filter(e => e.package_id === product.id);
-      const conf = enqs.filter(e => ['active_project', 'completed'].includes(e.status)).length;
-      return { total: enqs.length, confirmed: conf };
-    }, [product.id]);
-
-    const cycleFulfilment = (productId: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      const current = fulfilmentMap[productId] || 'Pickup + Delivery';
-      const options = ['Pickup + Delivery', 'Pickup only', 'Delivery only'];
-      const next = options[(options.indexOf(current) + 1) % options.length];
-      setFulfilmentMap(prev => ({ ...prev, [productId]: next }));
-      addToast(`Fulfilment: ${next}`, 'info');
-    };
-
-    return (
-      <m.div
-        key={product.id}
-        role="listitem"
-        layout
-        initial={{ opacity: 0, x: -12 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: 12, height: 0 }}
-        transition={{ duration: 0.22, delay: index * 0.03 }}
-        className={styles.productRow}
-        onClick={() => openEdit(product.id, { stopPropagation: () => {} } as React.MouseEvent)}
-        tabIndex={0}
-        aria-label={`${product.name}, ${product.price_type === 'custom' ? 'Custom' : formatCurrencyFull(product.price)}, ${product.status}`}
-        onKeyDown={(e) => { if (e.key === 'Enter') openEdit(product.id, e as unknown as React.MouseEvent); }}
-        whileTap={{ scale: 0.995 }}
-      >
-        {/* Thumbnail */}
-        <div className={styles.rowThumb} aria-hidden="true">
-          {product.images[0] ? (
-            <img src={product.images[0]} alt={product.name} className={styles.rowThumbImg} loading="lazy" />
-          ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-fg-ghost)' }}>
-              <Package size={20} />
-            </div>
-          )}
-          {st.isCollector && isLowStock && (
-            <span className={`${styles.stockBadge} ${styles.low}`}>{product.stock_level}</span>
-          )}
-          {st.isCollector && isSoldOut && (
-            <span className={`${styles.stockBadge} ${styles.out}`}>0</span>
-          )}
-        </div>
-
-        {/* Body */}
-        <div className={styles.rowBody}>
-          <div className={styles.rowName}>
-            {product.name}
-            {dropBadge && <span className={styles.dropBadge} style={{ marginLeft: 8 }}>{dropBadge}</span>}
-            {statusFilter === 'stagnant' && !dropBadge && (
-              <span className={styles.notStagedText} style={{ marginLeft: 8 }}>NOT STAGED</span>
-            )}
-          </div>
-          <div className={styles.rowMeta}>
-            {st.isCollector && (
-              <>
-                {product.collection_id && (
-                  <span className={styles.rowCollection}>
-                    {FIXTURE_COLLECTIONS.find((c) => c.id === product.collection_id)?.name ?? ''}
-                  </span>
-                )}
-                <span className={`${styles.rowStatusPill} ${styles[product.status]}`}>
-                  {product.status.replace('_', ' ')}
-                </span>
-              </>
-            )}
-            {st.isVendor && (
-              <button 
-                className={styles.fulfilmentBadge} 
-                onClick={(e) => cycleFulfilment(product.id, e)}
-              >
-                {fulfilmentMap[product.id] || 'Pickup + Delivery'}
-              </button>
-            )}
-            {st.isHost && (
-              <>
-                <span className={styles.durationBadge}>{product.duration || 60} min · {formatCurrencyFull(product.deposit_amount || 5000)} deposit</span>
-                <span className={styles.rowCollection}>{bookingCount} bookings this month</span>
-              </>
-            )}
-            {st.isStudio && (
-              <>
-                <span className={`${styles.priceTypeBadge} ${product.price_type === 'custom' ? styles.priceTypeBadgeCustom : ''}`}>
-                  {product.price_type === 'custom' ? 'QUOTE' : `FIXED ${formatCurrencyFull(product.price)}`}
-                </span>
-                {conversion && (
-                  <span className={styles.conversionRate}>{conversion.total} enquiries → {conversion.confirmed} confirmed</span>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Price / Cap */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {st.isVendor && (
-            <div className={styles.capPill} onClick={(e) => e.stopPropagation()}>
-              {inlineEditId === product.id ? (
-                <input 
-                  type="number" 
-                  autoFocus 
-                  className={styles.capInput}
-                  defaultValue={20}
-                  onBlur={() => setInlineEditId(null)}
-                />
-              ) : (
-                <span onClick={() => setInlineEditId(product.id)}>20 cap</span>
-              )}
-            </div>
-          )}
-          
-          {st.isStudio && product.price_type === 'custom' ? (
-            <span className={styles.rowPriceCustom}>Custom</span>
-          ) : !st.isVendor && !st.isStudio && (
-            <span className={styles.rowPrice}>{formatCurrencyFull(product.price)}</span>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className={styles.rowActions}>
-          {st.isCollector && (
-            <div style={{ position: 'relative' }}>
-              <m.button
-                className={styles.rowActionBtn}
-                onClick={(e) => { e.stopPropagation(); setStagePopoverId(product.id === stagePopoverId ? null : product.id); }}
-                whileTap={{ scale: 0.93 }}
-              >
-                <Layers size={14} />
-              </m.button>
-              <AnimatePresence>
-                {stagePopoverId === product.id && (
-                  <m.div 
-                    className={styles.stageDropPopover}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 5 }}
-                  >
-                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', marginBottom: 8, color: 'var(--color-fg-ghost)' }}>Stage for Drop</p>
-                    {drops.filter(d => d.status === 'scheduled').map(d => {
-                      const isStaged = d.product_ids.includes(product.id);
-                      return (
-                        <div key={d.id} className={styles.stageDropItem} onClick={() => handleStageProduct(product.id, d.id)}>
-                          <div style={{ width: 14, height: 14, border: '1px solid var(--color-border)', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {isStaged && <Check size={10} />}
-                          </div>
-                          <span>{d.label.split('—')[0]}</span>
-                        </div>
-                      );
-                    })}
-                  </m.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-          {st.isStudio && (
-            <m.button
-              className={styles.rowActionBtn}
-              onClick={(e) => { e.stopPropagation(); handleDuplicatePackage(product); }}
-              whileTap={{ scale: 0.93 }}
-              aria-label="Duplicate package"
-            >
-              <Copy size={14} />
-            </m.button>
-          )}
-          <m.button
-            className={styles.rowActionBtn}
-            onClick={(e) => openEdit(product.id, e)}
-            aria-label={`Edit ${product.name}`}
-            whileTap={{ scale: 0.93 }}
-          >
-            <Edit2 size={14} aria-hidden="true" />
-          </m.button>
-          <m.button
-            className={styles.rowActionBtn}
-            onClick={(e) => handleToggle(product.id, e)}
-            aria-label="Toggle status"
-            whileTap={{ scale: 0.93 }}
-          >
-            {product.status === 'live' ? <EyeOff size={14} /> : <Eye size={14} />}
-          </m.button>
-        </div>
-      </m.div>
-    );
-  };
 
   // ── Drawer content ──
   const drawerTitle = editTarget
@@ -798,6 +820,22 @@ export default function ArchivePage() {
           <div className={styles.productList} role="list">
             <AnimatePresence initial={false}>
               {(() => {
+                const rowProps = {
+                  merchantId: merchant.id,
+                  drops,
+                  fulfilmentMap,
+                  statusFilter,
+                  stagePopoverId,
+                  inlineEditId,
+                  onEdit: (id: string) => { setEditTarget(id); setDrawerOpen(true); },
+                  onToggle: handleToggle,
+                  onStage: handleStageProduct,
+                  onDuplicate: handleDuplicatePackage,
+                  onCycleFulfilment: cycleFulfilment,
+                  onSetStagePopover: setStagePopoverId,
+                  onSetInlineEdit: setInlineEditId,
+                };
+
                 // Specialized Renderers
                 if (st.isVendor) {
                   const categories = Array.from(new Set(products.map(p => p.category || 'General')));
@@ -807,13 +845,13 @@ export default function ArchivePage() {
                     return (
                       <div key={cat} className={styles.categoryGroup}>
                         <div className={styles.categoryGroupHeader} onClick={() => toggleCategory(cat)}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div className={styles.categoryGroupHeaderInner}>
                             {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                             <h3 className={styles.categoryTitle}>{cat} ({catItems.length})</h3>
                           </div>
                         </div>
                         {isExpanded && catItems.map((product, i) => (
-                          <ProductRow key={product.id} product={product} index={i} />
+                          <ProductRow key={product.id} product={product} index={i} {...rowProps} />
                         ))}
                       </div>
                     );
@@ -826,7 +864,7 @@ export default function ArchivePage() {
                   return (
                     <>
                       {activeItems.map((product, i) => (
-                        <ProductRow key={product.id} product={product} index={i} />
+                        <ProductRow key={product.id} product={product} index={i} {...rowProps} />
                       ))}
                       {inactiveItems.length > 0 && (
                         <div className={styles.inactiveSection}>
@@ -835,7 +873,7 @@ export default function ArchivePage() {
                             {expandedInactive ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </div>
                           {expandedInactive && inactiveItems.map((product, i) => (
-                            <ProductRow key={product.id} product={product} index={i} />
+                            <ProductRow key={product.id} product={product} index={i} {...rowProps} />
                           ))}
                         </div>
                       )}
@@ -850,7 +888,7 @@ export default function ArchivePage() {
                       <div className={styles.packagesSection}>
                         <h2 className={styles.sectionHeading}>Packages</h2>
                         {packages.map((product, i) => (
-                          <ProductRow key={product.id} product={product} index={i} />
+                          <ProductRow key={product.id} product={product} index={i} {...rowProps} />
                         ))}
                       </div>
                       <div className={styles.enquiryFormsSection}>
@@ -858,8 +896,8 @@ export default function ArchivePage() {
                         {packages.map(pkg => (
                           <div key={`form-${pkg.id}`} className={styles.enquiryFormCard}>
                             <div>
-                              <p style={{ fontWeight: 500 }}>Form: {pkg.name}</p>
-                              <p style={{ fontSize: 12, color: 'var(--color-fg-ghost)' }}>6 fields configured</p>
+                              <p className={styles.enquiryFormName}>Form: {pkg.name}</p>
+                              <p className={styles.enquiryFormMeta}>6 fields configured</p>
                             </div>
                             <button className={styles.formEditBtn} onClick={() => addToast('Form editing coming in a later update.', 'info')}>Edit Form</button>
                           </div>
@@ -871,7 +909,7 @@ export default function ArchivePage() {
 
                 // Default / Collector
                 return products.map((product, i) => (
-                  <ProductRow key={product.id} product={product} index={i} />
+                  <ProductRow key={product.id} product={product} index={i} {...rowProps} />
                 ));
               })()}
             </AnimatePresence>

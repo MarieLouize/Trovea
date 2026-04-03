@@ -596,3 +596,22 @@
 
 .submitBtn:active:not(:disabled) { transform: scale(0.98); }
 .submitBtn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ── MOBILE RESPONSIVE ── */
+
+@media (max-width: 639px) {
+  .pageTitle { font-size: 24px; }
+
+  .rowPrice,
+  .rowPriceFree { display: none; }
+
+  .rowActionBtn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .statusTab {
+    padding: var(--space-2) var(--space-3);
+    font-size: 8px;
+  }
+}
