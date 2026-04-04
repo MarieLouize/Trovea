@@ -3,10 +3,15 @@
    ============================================================ */
 
 .page {
-  padding: var(--space-6);
-  max-width: 720px;
+  padding: var(--space-4);
+  max-width: 800px;
   margin: 0 auto;
+  overflow-x: hidden;
   padding-bottom: calc(var(--space-20) + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .page { padding: var(--space-8) var(--space-6); }
 }
 
 /* ── HEADER ── */
@@ -57,10 +62,10 @@
 }
 
 .card {
-  background: linear-gradient(145deg, var(--color-surface-raised) 0%, var(--color-surface) 100%);
+  background: var(--color-surface-raised);
   border-radius: var(--r-xl);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
   overflow: hidden;
   position: relative;
 }
@@ -586,9 +591,8 @@
 .modalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(12, 8, 4, 0.55);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(12, 8, 4, 0.72);
+  /* backdrop-filter: blur(4px); — Removed for performance */
   z-index: var(--z-modal);
   display: flex;
   align-items: center;
@@ -648,3 +652,70 @@
   text-transform: uppercase;
   letter-spacing: 2px;
 }
+
+/* ── BADGES ── */
+.openBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.openBadgeOpen { background: rgba(46, 203, 117, 0.1); color: #1aab5e; }
+.openBadgeClosed { background: rgba(0, 0, 0, 0.06); color: var(--color-fg-ghost); }
+
+.openDot { width: 6px; height: 6px; border-radius: 50%; }
+.openDotOpen { background: #2ECB75; box-shadow: 0 0 6px rgba(46,203,117,0.4); }
+.openDotClosed { background: var(--color-fg-ghost); }
+
+/* ── LOCKED FIELD ── */
+.lockedFieldWrap { position: relative; }
+.inputFieldLocked { padding-right: 36px; background: var(--color-surface-inset); color: var(--color-fg-ghost); cursor: not-allowed; }
+.lockIcon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--color-fg-ghost); opacity: 0.5; }
+
+/* ── HOLD DURATIONS ── */
+.holdDurationSection { padding: 0 var(--space-6) var(--space-5); border-top: 1px solid rgba(0, 0, 0, 0.06); padding-top: var(--space-4); }
+.holdDurations { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.holdDuration { flex: 1; height: 40px; border-radius: var(--r-md); border: 1px solid rgba(0,0,0,0.06); background: var(--color-surface-raised); font-family: var(--font-mono); font-size: 11px; cursor: pointer; color: var(--color-fg-muted); transition: all var(--duration-fast); }
+.holdDurationActive { background: var(--color-accent); color: #FFF; border-color: transparent; box-shadow: var(--shadow-raise-sm); }
+.holdNote { font-size: 11px; color: var(--color-fg-ghost); margin-top: var(--space-3); line-height: 1.4; }
+
+/* ── POLICIES ── */
+.policyTextarea { min-height: 120px; resize: vertical; }
+.charCount { font-family: var(--font-mono); font-size: 9px; text-align: right; color: var(--color-fg-ghost); margin-top: var(--space-1); }
+
+/* ── DELIVERY INFO ── */
+.deliveryInfoCard { background: var(--color-surface-inset); padding: var(--space-4); border-radius: var(--r-md); border: 1px solid rgba(0,0,0,0.04); }
+.deliveryInfoText { font-size: 13px; color: var(--color-fg-muted); margin-bottom: var(--space-2); }
+.deliveryInfoLink { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--color-accent); text-decoration: none; text-transform: uppercase; font-weight: 600; }
+
+/* ── VERIFICATION ── */
+.verificationCard { padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); }
+.verificationHeading { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--color-fg-muted); }
+.verificationTiers { display: flex; gap: var(--space-3); }
+.verificationTier { flex: 1; padding: var(--space-3); border-radius: var(--r-md); border: 1px solid rgba(0,0,0,0.06); background: var(--color-surface-inset); display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0.5; filter: grayscale(1); }
+.verificationTierActive { opacity: 1; filter: none; border-color: var(--color-gold); background: rgba(201, 168, 76, 0.05); }
+.tierIcon { font-size: 16px; color: var(--color-gold); }
+.tierLabel { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; color: var(--color-fg); }
+.verificationNote { font-size: 12px; color: var(--color-fg-muted); line-height: 1.5; }
+
+/* ── PAUSE SECTION ── */
+.pauseSection { background: var(--color-surface-raised); border-radius: var(--r-xl); border: 1px solid rgba(0,0,0,0.06); padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-5); }
+.pauseActive { border-color: var(--color-warning); background: rgba(180, 100, 20, 0.03); }
+.pauseStatusRow { display: flex; gap: var(--space-4); align-items: flex-start; }
+.pauseStatusDot { width: 10px; height: 10px; border-radius: 50%; background: var(--color-warning); margin-top: 4px; flex-shrink: 0; }
+.pauseStatusDotActive { background: var(--color-success); }
+.pauseButton, .resumeButton { width: 100%; height: 48px; border-radius: var(--r-md); font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; transition: all var(--duration-fast); }
+.pauseButton { background: transparent; border: 1px solid var(--color-border); color: var(--color-fg-muted); }
+.resumeButton { background: var(--color-success); color: #FFF; border: none; box-shadow: 0 4px 12px rgba(46, 203, 117, 0.3); }
+
+.versionNote { text-align: center; font-family: var(--font-mono); font-size: 9px; color: var(--color-fg-ghost); margin-top: var(--space-10); }
+.saveBarActions { display: flex; gap: var(--space-3); }
+.modalField { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
+.inputFieldError { border-color: var(--color-error); }
+.fieldError { font-size: 11px; color: var(--color-error); margin-top: 4px; }

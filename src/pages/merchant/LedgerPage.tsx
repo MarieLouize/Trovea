@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
-import { Check, ExternalLink, Package, Download, ChevronRight } from 'lucide-react';
+import { Check, ExternalLink, Package, Download, ChevronRight, Search, X, Filter } from 'lucide-react';
 import { useLedgerStore, type LedgerTab } from '@/lib/store/ledger.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
@@ -32,13 +32,15 @@ export default function LedgerPage() {
     activeTab, setActiveTab,
     isMultiSelectMode, selectedIds,
     enterMultiSelectMode, exitMultiSelectMode, toggleSelectId,
-    markAsPaid, markManyAsPaid, markShipped, updateReceiptStatus
+    markAsPaid, markManyAsPaid, markShipped, updateReceiptStatus,
+    selectAll
   } = useLedgerStore();
   const { addToast } = useUIStore();
 
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
   const [markPaidMethod, setMarkPaidMethod] = useState<PaymentMethod | null>(null);
-  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   // Filters
   const [dropFilter, setDropFilter] = useState<string>('all');
@@ -75,70 +77,65 @@ export default function LedgerPage() {
   const filteredReceipts = useMemo(() => {
     let list = [...allReceipts];
 
+    // Search Filter
+    if (searchTerm) {
+      const s = searchTerm.toLowerCase();
+      list = list.filter(r => 
+        r.buyer_name.toLowerCase().includes(s) || 
+        r.seal_id.toLowerCase().includes(s) ||
+        r.line_items.some(li => li.name.toLowerCase().includes(s))
+      );
+    }
+
     // URL Filter
     if (buyerParam) {
       list = list.filter(r => r.buyer_name === buyerParam);
     }
 
-    // Tab Filter
+    // Bucket Logic (Mapped to existing tabs for now to avoid breaking state)
     switch (activeTab) {
-      case 'pending':
-        list = list.filter(r => r.payment_status === 'pending_payment');
+      case 'pending': // "Active" bucket
+        list = list.filter(r => r.payment_status === 'pending_payment' || (r.payment_status === 'paid' && r.shipment_status !== 'received' && r.receipt_type === 'physical'));
         break;
-      case 'dispatch':
-        list = list.filter(r => r.payment_status === 'paid' && (r.shipment_status === 'packed' || r.shipment_status === 'shipped'));
-        break;
+      case 'all': // "History" bucket
       case 'completed':
-        list = list.filter(r => r.payment_status === 'paid' && (r.shipment_status === 'received' || r.receipt_type === 'download' || r.receipt_type === 'project'));
+        // list = list; // Keep all for history unless completed specific is needed
         break;
-      case 'all':
       default:
-        list = list.filter(r => r.payment_status !== 'cancelled');
+        // Other tabs handle their own filtering
     }
 
-    // Drop Filter (Collector)
-    if (st.isCollector && dropFilter !== 'all') {
-      const drop = FIXTURE_DROPS.find(d => d.id === dropFilter);
-      if (drop) {
-        const start = new Date(drop.scheduled_at).getTime() - 3600000;
-        const end = start + 48 * 3600000;
-        list = list.filter(r => {
-          const t = new Date(r.created_at).getTime();
-          return t >= start && t <= end;
-        });
+    // Sub-filters (Drop, Window, etc.) - only applied if activeTab is not Insights/Buyers
+    if (!['buyers', 'clients', 'drops', 'pipeline', 'deposits', 'fulfilment'].includes(activeTab)) {
+      // Drop Filter (Collector)
+      if (st.isCollector && dropFilter !== 'all') {
+        const drop = FIXTURE_DROPS.find(d => d.id === dropFilter);
+        if (drop) {
+          const start = new Date(drop.scheduled_at).getTime() - 3600000;
+          const end = start + 48 * 3600000;
+          list = list.filter(r => {
+            const t = new Date(r.created_at).getTime();
+            return t >= start && t <= end;
+          });
+        }
       }
-    }
 
-    // Window Filter (Vendor)
-    if (st.isVendor && windowFilter !== 'all') {
-      const window = FIXTURE_WINDOWS.find(w => w.id === windowFilter);
-      if (window) {
-        const start = new Date(window.opens_at).getTime();
-        const end = new Date(window.closes_at).getTime();
-        list = list.filter(r => {
-          const t = new Date(r.created_at).getTime();
-          return t >= start && t <= end;
-        });
+      // Window Filter (Vendor)
+      if (st.isVendor && windowFilter !== 'all') {
+        const window = FIXTURE_WINDOWS.find(w => w.id === windowFilter);
+        if (window) {
+          const start = new Date(window.opens_at).getTime();
+          const end = new Date(window.closes_at).getTime();
+          list = list.filter(r => {
+            const t = new Date(r.created_at).getTime();
+            return t >= start && t <= end;
+          });
+        }
       }
-    }
-
-    // Service Filter (Host)
-    if (st.isHost && serviceFilter !== 'all') {
-      list = list.filter(r => r.line_items.some(li => li.name === serviceFilter));
-    }
-
-    // Product Filter (Creator)
-    if (st.isDigital && productFilter !== 'all') {
-      list = list.filter(r => r.line_items.some(li => li.product_id === productFilter));
-    }
-
-    // Package Filter (Studio)
-    if (st.isStudio && packageFilter !== 'all') {
-      list = list.filter(r => r.line_items.some(li => li.name === packageFilter));
     }
 
     return list;
-  }, [allReceipts, activeTab, dropFilter, windowFilter, serviceFilter, productFilter, packageFilter, st, buyerParam]);
+  }, [allReceipts, activeTab, searchTerm, dropFilter, windowFilter, serviceFilter, productFilter, packageFilter, st, buyerParam]);
 
   const handleExportCSV = () => {
     const csv = generateCSV(filteredReceipts);
@@ -162,12 +159,9 @@ export default function LedgerPage() {
   if (st.isStudio)    typeSpecificTabs.push({ value: 'pipeline', label: 'Pipeline' });
 
   const visibleTabs = [
-    { value: 'all' as const, label: 'Stream' },
-    { value: 'pending' as const, label: 'Pending' },
-    ...(st.isHost || st.isDigital || st.isStudio ? [] : [{ value: 'dispatch' as const, label: 'Dispatch' }]),
-    { value: 'completed' as const, label: completedLabel },
-    ...typeSpecificTabs,
-    { value: (st.isStudio ? 'clients' : 'buyers') as LedgerTab, label: st.isStudio ? 'Clients' : 'Buyers' }
+    { value: 'pending' as const, label: 'Active' },
+    { value: 'all' as const, label: 'History' },
+    { value: (st.isStudio ? 'clients' : 'buyers') as LedgerTab, label: 'Insights' }
   ];
 
   const pendingCount = allReceipts.filter(r => r.payment_status === 'pending_payment').length;
@@ -217,16 +211,6 @@ export default function LedgerPage() {
     setSelectedReceipt(receipt);
   };
 
-  const handleLongPressStart = (receipt: Receipt) => {
-    if (receipt.payment_status !== 'pending_payment') return;
-    const timer = setTimeout(() => { enterMultiSelectMode(receipt.id); }, 600);
-    setLongPressTimer(timer);
-  };
-
-  const handleLongPressEnd = () => {
-    if (longPressTimer) { clearTimeout(longPressTimer); setLongPressTimer(null); }
-  };
-
   const handleMarkPaid = () => {
     if (!selectedReceipt || !markPaidMethod) return;
     markAsPaid(selectedReceipt.id, markPaidMethod);
@@ -238,83 +222,102 @@ export default function LedgerPage() {
     <div className={styles.root}>
       {/* Header */}
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>Ledger</h1>
-        <div className={styles.headerActions}>
-          <button className={styles.exportBtn} onClick={handleExportCSV}>
-            <Download size={14} />
-            Export CSV
-          </button>
+        <div className={styles.headerTop}>
+          <h1 className={styles.pageTitle}>Ledger</h1>
+          <div className={styles.headerActions}>
+            <button 
+              className={`${styles.headerBtn} ${isMultiSelectMode ? styles.activeBtn : ''}`}
+              onClick={() => isMultiSelectMode ? exitMultiSelectMode() : selectAll()}
+            >
+              {isMultiSelectMode ? 'Cancel' : 'Select'}
+            </button>
+            <button className={styles.headerBtn} onClick={handleExportCSV}>
+              <Download size={14} />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className={styles.tabs} role="tablist">
-        {visibleTabs.map(tab => (
-          <button
-            key={tab.value}
-            className={`${styles.tab} ${activeTab === tab.value ? styles.active : ''}`}
-            onClick={() => setActiveTab(tab.value)}
-            role="tab"
-          >
-            {tab.label}
-            {tab.value === 'pending' && pendingCount > 0 && (
-              <span className={styles.tabBadge}>{pendingCount}</span>
+        <div className={styles.searchBar}>
+          <div className={styles.searchInputWrap}>
+            <Search size={16} className={styles.searchIcon} />
+            <input 
+              type="text" 
+              className={styles.searchInput}
+              placeholder="Search by buyer, items, or ID…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button className={styles.searchClear} onClick={() => setSearchTerm('')}>
+                <X size={14} />
+              </button>
             )}
+          </div>
+          <button 
+            className={`${styles.filterToggle} ${showFilters ? styles.filterActive : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter size={16} />
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* Filters (Stream Tab Only) */}
-      {activeTab === 'all' && (
-        <div className={styles.filterBar}>
-          {st.isCollector && (
-            <select className={styles.filterSelect} value={dropFilter} onChange={e => setDropFilter(e.target.value)}>
-              <option value="all">All time</option>
-              {FIXTURE_DROPS.map(d => (
-                <option key={d.id} value={d.id}>{d.title}</option>
-              ))}
-            </select>
-          )}
-          {st.isVendor && (
-            <select className={styles.filterSelect} value={windowFilter} onChange={e => setWindowFilter(e.target.value)}>
-              <option value="all">All time</option>
-              {FIXTURE_WINDOWS.map(w => (
-                <option key={w.id} value={w.id}>Window: {new Date(w.opens_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</option>
-              ))}
-            </select>
-          )}
-          {st.isHost && (
-            <select className={styles.filterSelect} value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}>
-              <option value="all">All services</option>
-              {FIXTURE_PRODUCTS.filter(p => p.product_type === 'service').map(p => (
-                <option key={p.id} value={p.name}>{p.name}</option>
-              ))}
-            </select>
-          )}
-          {st.isDigital && (
-            <select className={styles.filterSelect} value={productFilter} onChange={e => setProductFilter(e.target.value)}>
-              <option value="all">All products</option>
-              {FIXTURE_PRODUCTS.filter(p => p.product_type === 'digital').map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          )}
-          {st.isStudio && (
-            <select className={styles.filterSelect} value={packageFilter} onChange={e => setPackageFilter(e.target.value)}>
-              <option value="all">All packages</option>
-              {FIXTURE_STUDIO_PRODUCTS.map(p => (
-                <option key={p.id} value={p.name}>{p.name}</option>
-              ))}
-            </select>
-          )}
+      {/* Tabs (Segmented Control) */}
+      <div className={styles.tabContainer}>
+        <div className={styles.segmentedControl} role="tablist">
+          {visibleTabs.map(tab => (
+            <button
+              key={tab.value}
+              className={`${styles.segment} ${activeTab === tab.value || (activeTab === 'completed' && tab.value === 'all') ? styles.segmentActive : ''}`}
+              onClick={() => setActiveTab(tab.value)}
+              role="tab"
+            >
+              {tab.label}
+              {tab.value === 'pending' && pendingCount > 0 && (
+                <span className={styles.segmentBadge}>{pendingCount}</span>
+              )}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* Filters (Expandable) */}
+      <AnimatePresence>
+        {showFilters && (
+          <m.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className={styles.filterBar}
+          >
+            <div className={styles.filterInner}>
+              {st.isCollector && (
+                <select className={styles.filterSelect} value={dropFilter} onChange={e => setDropFilter(e.target.value)}>
+                  <option value="all">All Drops</option>
+                  {FIXTURE_DROPS.map(d => (
+                    <option key={d.id} value={d.id}>{d.title}</option>
+                  ))}
+                </select>
+              )}
+              {st.isVendor && (
+                <select className={styles.filterSelect} value={windowFilter} onChange={e => setWindowFilter(e.target.value)}>
+                  <option value="all">All Windows</option>
+                  {FIXTURE_WINDOWS.map(w => (
+                    <option key={w.id} value={w.id}>Window: {new Date(w.opens_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</option>
+                  ))}
+                </select>
+              )}
+              {/* Other type specific filters could go here */}
+            </div>
+          </m.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content Area */}
       <div className={styles.mainContent}>
-        {/* Standard List Tabs (Stream, Pending, Dispatch, Completed) */}
-        {['all', 'pending', 'dispatch', 'completed'].includes(activeTab) && (
-          <div className={styles.receiptList}>
+        {/* Active & History Buckets */}
+        {(activeTab === 'pending' || activeTab === 'all' || activeTab === 'completed') && (
+          <div className={activeTab === 'pending' ? styles.activeList : styles.receiptList}>
             {filteredReceipts.length === 0 ? (
               <div className={styles.emptyState}>
                 <span className={styles.emptyIcon}>—</span>
@@ -322,45 +325,54 @@ export default function LedgerPage() {
               </div>
             ) : (
               <AnimatePresence initial={false}>
-                {filteredReceipts.map((receipt, i) => (
-                  <m.div
-                    key={receipt.id}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={styles.receiptRow}
-                    onClick={() => openDrawer(receipt)}
-                    onMouseDown={() => handleLongPressStart(receipt)}
-                    onMouseUp={handleLongPressEnd}
-                    onTouchStart={() => handleLongPressStart(receipt)}
-                    onTouchEnd={handleLongPressEnd}
-                  >
-                    {isMultiSelectMode && receipt.payment_status === 'pending_payment' && (
-                      <div className={`${styles.rowCheckbox} ${selectedIds.includes(receipt.id) ? styles.checked : ''}`}>
-                        {selectedIds.includes(receipt.id) && <Check size={12} />}
+                {filteredReceipts.map((receipt) => {
+                  const isActionRequired = receipt.payment_status === 'pending_payment';
+                  
+                  return (
+                    <m.div
+                      key={receipt.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={activeTab === 'pending' ? styles.actionCard : styles.receiptRow}
+                      onClick={() => openDrawer(receipt)}
+                    >
+                      {isMultiSelectMode && (
+                        <div className={`${styles.rowCheckbox} ${selectedIds.includes(receipt.id) ? styles.checked : ''}`}>
+                          {selectedIds.includes(receipt.id) && <Check size={12} />}
+                        </div>
+                      )}
+                      
+                      <div className={styles.rowStatusIndicator}>
+                        <div className={`${styles.rowStatusDot} ${styles[receipt.payment_status === 'pending_payment' ? 'pending' : receipt.payment_status === 'cancelled' ? 'cancelled' : 'paid']}`} />
                       </div>
-                    )}
-                    <div className={`${styles.rowStatus} ${styles[receipt.payment_status === 'pending_payment' ? 'pending' : receipt.payment_status === 'cancelled' ? 'cancelled' : 'paid']}`} />
-                    <div className={styles.rowBody}>
-                      <div className={styles.rowBuyer}>
-                        {receipt.buyer_name}
-                        {st.isCollector && buyerStats[receipt.buyer_name]?.count >= 3 && (
-                          <span className={styles.regularBadge}>Regular</span>
+
+                      <div className={styles.rowBody}>
+                        <div className={styles.rowBuyer}>
+                          {receipt.buyer_name}
+                          {st.isCollector && buyerStats[receipt.buyer_name]?.count >= 3 && (
+                            <span className={styles.regularBadge}>Regular</span>
+                          )}
+                        </div>
+                        <div className={styles.rowItems}>{receipt.line_items.map(li => li.name).join(', ')}</div>
+                        <div className={styles.rowMeta}>
+                          <span className={styles.rowDate}>{formatDate(receipt.created_at, 'relative')}</span>
+                          {receipt.payment_method && <span className={styles.rowPaymentMethod}>{receipt.payment_method.replace('_', ' ')}</span>}
+                        </div>
+                      </div>
+
+                      <div className={styles.rowRight}>
+                        <span className={styles.rowAmount}>{formatCurrencyFull(receipt.total)}</span>
+                        {activeTab === 'all' ? (
+                           <span className={styles.rowSealId}>{receipt.seal_id}</span>
+                        ) : (
+                          <div className={styles.rowActionLabel}>
+                            {receipt.payment_status === 'pending_payment' ? 'Awaiting Payment' : 'Ready to Ship'}
+                          </div>
                         )}
-                        {st.isDigital && <span className={styles.geoFlag}>{getGeography(receipt.buyer_name)}</span>}
                       </div>
-                      <div className={styles.rowItems}>{receipt.line_items.map(li => li.name).join(', ')}</div>
-                      <div className={styles.rowMeta}>
-                        <span className={styles.rowDate}>{formatDate(receipt.created_at, 'relative')}</span>
-                        {receipt.payment_method && <span className={styles.rowPaymentMethod}>{receipt.payment_method.replace('_', ' ')}</span>}
-                      </div>
-                    </div>
-                    <div className={styles.rowRight}>
-                      <span className={styles.rowAmount}>{formatCurrencyFull(receipt.total)}</span>
-                      <span className={styles.rowSealId}>{receipt.seal_id}</span>
-                    </div>
-                  </m.div>
-                ))}
+                    </m.div>
+                  );
+                })}
               </AnimatePresence>
             )}
           </div>

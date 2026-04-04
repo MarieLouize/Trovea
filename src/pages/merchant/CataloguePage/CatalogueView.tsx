@@ -42,6 +42,10 @@ export default function CataloguePage() {
   const merchant = useMerchantStore((s) => s.merchant);
   const [searchParams] = useSearchParams();
 
+  // Derive products with new filters
+  const rawProducts = useArchiveStore(s => s.products);
+  const searchQuery = useArchiveStore(s => s.searchQuery);
+
   const {
     statusFilter, setStatusFilter,
     updateProduct, addProduct, setProducts,
@@ -67,10 +71,6 @@ export default function CataloguePage() {
       if (p) checkLink(product, p.delivery_url);
     }
   }, [searchParams, rawProducts]);
-
-  // Derive products with new filters
-  const rawProducts = useArchiveStore(s => s.products);
-  const searchQuery = useArchiveStore(s => s.searchQuery);
 
   const products = useMemo(() => {
     let list = [...rawProducts];

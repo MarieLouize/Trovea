@@ -77,27 +77,26 @@
   font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* backdrop-filter: blur(8px); — Removed for performance */
 }
 
 .sf-card-status-sold {
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.72);
   color: rgba(240,237,232,0.9);
 }
 
 .sf-card-status-claim {
-  background: rgba(201,168,76,0.85);
+  background: rgba(201,168,76,0.92);
   color: #1A1000;
 }
 
 .sf-card-status-low {
-  background: rgba(57,0,7,0.8);
+  background: rgba(57,0,7,0.88);
   color: #F5ECD8;
 }
 
 .sf-card-status-last {
-  background: rgba(180, 100, 20, 0.9);
+  background: rgba(180, 100, 20, 0.94);
   color: #FFF;
 }
 
@@ -109,8 +108,7 @@
   width: 30px;
   height: 30px;
   border-radius: var(--r-sm);
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(255,255,255,0.95); /* More opaque since blur is gone */
   border: none;
   cursor: pointer;
   display: flex;

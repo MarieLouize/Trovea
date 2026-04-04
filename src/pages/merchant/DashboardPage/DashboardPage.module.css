@@ -3,17 +3,17 @@
    ============================================================ */
 
 .root {
-  padding: var(--space-6);
-  max-width: 1200px;
+  padding: var(--space-4);
+  max-width: 800px;
   margin: 0 auto;
-  position: relative;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
 }
 
 @media (min-width: 768px) {
-  .root { padding: var(--space-8) var(--space-10); }
+  .root { padding: var(--space-8) var(--space-6); }
 }
 
 /* ── TOP BAR ── */
@@ -457,45 +457,67 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
 }
 
 .pipelineValue {
   font-family: var(--font-serif);
   font-size: 28px;
   color: var(--color-fg);
+  line-height: 1.2;
 }
 
 .outstandingText {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-fg-muted);
 }
 
 .pipeline {
   display: flex;
-  gap: var(--space-4);
-  overflow-x: auto;
-  padding-bottom: var(--space-4);
-  scrollbar-width: none;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
-.pipeline::-webkit-scrollbar { display: none; }
-
 .pipelineColumn {
-  flex: 0 0 280px;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
+@media (min-width: 640px) {
+  .pipeline {
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 calc(var(--space-4) * -1);
+    padding: 0 var(--space-4) var(--space-4);
+  }
+  .pipeline::-webkit-scrollbar { display: none; }
+  .pipelineColumn {
+    flex: 0 0 280px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pipeline {
+    margin: 0;
+    padding: 0 0 var(--space-4);
+  }
+  .pipelineColumn {
+    flex: 1;
+  }
+}
+
 .pipelineColumnTitle {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--color-fg-ghost);
   padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
 }
 
 .pipelineCard {
@@ -503,15 +525,16 @@
   padding: var(--space-4);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-raise-sm);
+  border: 1px solid rgba(255,255,255,0.1);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   cursor: pointer;
 }
 
-.pipelineClient { font-weight: 600; font-size: 14px; }
+.pipelineClient { font-weight: 600; font-size: 14px; color: var(--color-fg); }
 .pipelineProject { font-size: 12px; color: var(--color-fg-muted); }
-.pipelinePrice { font-family: var(--font-mono); font-size: 13px; }
+.pipelinePrice { font-family: var(--font-mono); font-size: 13px; color: var(--color-fg); }
 .pipelineMeta {
   display: flex;
   justify-content: space-between;
@@ -524,19 +547,23 @@
   align-items: center;
   gap: 8px;
   padding: var(--space-3) var(--space-4);
-  background: rgba(180, 100, 20, 0.1);
+  background: rgba(180, 100, 20, 0.08);
   color: var(--color-warning);
   border-radius: var(--r-md);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   margin-bottom: var(--space-4);
 }
 
 /* ── VITALS (Collector/Vendor/Host/Digital) ── */
 .vitalsGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: var(--space-3);
+}
+
+@media (min-width: 480px) {
+  .vitalsGrid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (min-width: 768px) {
@@ -548,6 +575,7 @@
   padding: var(--space-4);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-raise-sm);
+  border: 1px solid rgba(255,255,255,0.1);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -558,6 +586,7 @@
   font-size: 9px;
   text-transform: uppercase;
   color: var(--color-fg-ghost);
+  letter-spacing: 1px;
 }
 
 .vitalValue {
@@ -574,8 +603,15 @@
 /* ── ACTION DESK ── */
 .actionDesk {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+@media (min-width: 480px) {
+  .actionDesk {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
 }
 
 .actionBtn {
@@ -662,8 +698,8 @@
 }
 
 .devToggle {
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.92);
+  /* backdrop-filter: blur(12px); — Removed for performance */
   color: var(--color-gold);
   border: 1px solid rgba(255, 255, 255, 0.15);
   padding: 6px 10px;
@@ -682,8 +718,8 @@
   position: absolute;
   bottom: calc(100% + var(--space-2));
   right: 0;
-  background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(16px);
+  background: rgba(0, 0, 0, 0.95);
+  /* backdrop-filter: blur(16px); — Removed for performance */
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--r-md);
   padding: var(--space-2);

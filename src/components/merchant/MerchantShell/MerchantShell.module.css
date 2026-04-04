@@ -204,7 +204,9 @@
 
 .main {
   flex: 1;
+  min-width: 0;
   min-height: 100dvh;
+  overflow-x: hidden;
   /* Mobile: reserve space for bottom nav + top bar */
   padding-top: var(--mobile-topbar-height, 56px);
   padding-bottom: calc(var(--mobile-nav-height, 72px) + env(safe-area-inset-bottom));

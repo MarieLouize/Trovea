@@ -99,7 +99,7 @@ export default function InsightsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <div>
+        <div className={styles.headerText}>
           <span className={styles.eyebrow}>Insights</span>
           <h1 className={styles.headline}>Your numbers.</h1>
         </div>

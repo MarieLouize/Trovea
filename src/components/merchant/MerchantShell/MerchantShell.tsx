@@ -36,14 +36,6 @@ const ACCOUNT_NAV = [
   { path: '/settings',      label: 'Settings',       icon: <Settings size={16} /> },
 ];
 
-// Primary mobile nav — 4 items + FAB (unchanged in Phase 2A)
-const MOBILE_PRIMARY = [
-  { path: '/dashboard', label: 'Home',    icon: <LayoutDashboard size={18} /> },
-  { path: '/ledger',    label: 'Ledger',  icon: <BookOpen size={18} />, badge: true },
-  { path: '/archive',   label: 'Archive', icon: <Archive size={18} /> },
-  { path: '/store/tolasarchive', label: 'Store', icon: <Store size={18} /> },
-];
-
 // More dropdown groups
 const MORE_MANAGE = [
   { path: '/dispatch', label: 'Dispatch', icon: <Package size={14} /> },
@@ -96,7 +88,7 @@ export default function MerchantShell() {
   const storeHandle = merchant.handle;
 
   const moreStore = [
-    { path: '/ledger', label: 'Receipts', icon: <Receipt size={14} /> },
+    { path: '/receipts', label: 'Receipts', icon: <Receipt size={14} /> },
     { path: `/store/${storeHandle}/customize`, label: 'Customize', icon: <Palette size={14} /> },
     { path: `/store/${storeHandle}`, label: 'View Store', icon: <ExternalLink size={14} /> },
   ];
@@ -110,10 +102,10 @@ export default function MerchantShell() {
   const badge = (hasBadge?: boolean) =>
     hasBadge && pendingCount > 0 ? pendingCount : undefined;
 
-  // ── Core nav items — store-type-conditional ──
   const coreNavItems = [
     { path: '/dashboard', label: 'Home',   icon: <LayoutDashboard size={16} /> },
     { path: '/ledger',    label: 'Ledger', icon: <BookOpen size={16} />, badge: true },
+    { path: '/receipts',  label: 'Receipts', icon: <Receipt size={16} /> },
     // Archive vs Catalogue — Digital Creator gets /catalogue, everyone else gets /archive
     ...(!st.isDigital
       ? [{ path: '/archive', label: st.archiveLabel, icon: <Archive size={16} /> }]
@@ -134,6 +126,17 @@ export default function MerchantShell() {
   const storeNavItems = [
     { path: `/store/${storeHandle}`, label: 'View Store', icon: <Store size={16} /> },
     { path: `/store/${storeHandle}/customize`, label: 'Customize', icon: <Palette size={16} /> },
+  ];
+
+  const mobileNavItems = [
+    { path: '/dashboard', label: 'Home',    icon: <LayoutDashboard size={18} /> },
+    { path: '/ledger',    label: 'Ledger',  icon: <BookOpen size={18} />, badge: true },
+    { 
+      path: st.isDigital ? '/catalogue' : '/archive', 
+      label: st.isDigital ? 'Catalogue' : st.archiveLabel, 
+      icon: st.isDigital ? <BookOpen size={18} /> : <Archive size={18} /> 
+    },
+    { path: `/store/${storeHandle}`, label: 'Store', icon: <Store size={18} /> },
   ];
 
   return (
@@ -358,6 +361,28 @@ export default function MerchantShell() {
                       Sign out
                     </button>
                   </div>
+
+                  {/* Dev type switcher */}
+                  {isDev && (
+                    <div className={styles.dropdownGroup}>
+                      <p className={styles.dropdownGroupLabel}>Dev — {st.type}</p>
+                      <div className={styles.devSwitcherItems}>
+                        {DEV_STORE_TYPES.map((entry) => (
+                          <button
+                            key={entry.type}
+                            className={`${styles.devSwitcherBtn} ${st.type === entry.type ? styles.devSwitcherBtnActive : ''}`}
+                            onClick={() => {
+                              const m = DEV_MERCHANTS.find((d) => d.store_type === entry.type);
+                              if (m) setMerchant(m);
+                              setMoreOpen(false);
+                            }}
+                          >
+                            {entry.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -372,9 +397,9 @@ export default function MerchantShell() {
         </ErrorBoundary>
       </main>
 
-      {/* ══ MOBILE BOTTOM PILL NAV — unchanged in Phase 2A ══ */}
+      {/* ══ MOBILE BOTTOM PILL NAV ══ */}
       <nav className={styles.bottomNav} aria-label="Mobile navigation">
-        {MOBILE_PRIMARY.slice(0, 2).map((item) => {
+        {mobileNavItems.slice(0, 2).map((item) => {
           const b = badge((item as { badge?: boolean }).badge);
           return (
             <Link
@@ -395,7 +420,7 @@ export default function MerchantShell() {
           <Plus size={22} />
         </Link>
 
-        {MOBILE_PRIMARY.slice(2, 4).map((item) => (
+        {mobileNavItems.slice(2, 4).map((item) => (
           <Link
             key={item.path}
             to={item.path}
