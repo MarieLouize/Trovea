@@ -21,6 +21,7 @@ import ArchivePage from '@/pages/merchant/ArchivePage';
 // ── Phase 1C (cont.) ──
 import TerminalPage from '@/pages/merchant/TerminalPage';
 import LedgerPage from '@/pages/merchant/LedgerPage';
+import ReceiptsPage from '@/pages/merchant/ReceiptsPage';
 
 // ── Phase 2D ──
 import CataloguePage from '@/pages/merchant/CataloguePage';
@@ -125,26 +126,25 @@ export default function App() {
 
           {/* ── Merchant — nested under MerchantShell (uses <Outlet />) ── */}
           <Route element={<MerchantShell />}>
-            {/* Phase 1C — Updated */}
-            <Route path="/dashboard"     element={<DashboardPage />} />
-
-            {/* Phase 1C + 2D + 2F */}
-            <Route path="/archive"       element={<ArchivePage />} />
-            <Route path="/terminal"      element={<TerminalPage />} />
-            <Route path="/ledger"        element={<LedgerPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/terminal"  element={<TerminalPage />} />
+            <Route path="/ledger"    element={<LedgerPage />} />
+            <Route path="/receipts"  element={<ReceiptsPage />} />
 
             {/* Phase 2G */}
             <Route path="/insights"      element={<InsightsPage />} />
-            {/* <Route path="/dispatch"      element={<DispatchPage />} /> */}
+            <Route path="/dispatch"      element={<DispatchPage />} />
             <Route path="/settings"      element={<SettingsPage />} />
-            {/* <Route path="/notifications" element={<NotificationsPage />} /> */}
+            <Route path="/notifications" element={<NotificationsPage />} />
 
             {/* Phase 2D — Digital Creator only */}
             <Route path="/catalogue" element={<CataloguePage />} />
 
             {/* Phase 2E — Vendor + Host */}
-            <Route path="/schedule"  element={<SchedulePage />} />
-            <Route path="/bookings"  element={<BookingsPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
+
+            {/* Phase 2F — Host + Studio */}
+            <Route path="/bookings" element={<BookingsPage />} />
           </Route>
 
           {/* ── Public — Phase 1E (Pending Updates) ── */}

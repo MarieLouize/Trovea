@@ -3,9 +3,14 @@
    ============================================================ */
 
 .root {
-  padding: var(--space-8) var(--space-6);
-  max-width: 680px;
+  padding: var(--space-4);
+  max-width: 800px;
   margin: 0 auto;
+  overflow-x: hidden;
+}
+
+@media (min-width: 768px) {
+  .root { padding: var(--space-8) var(--space-6); }
 }
 
 .pageHeader {
@@ -105,15 +110,15 @@
 
 .notifCard {
   position: relative;
-  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  background: var(--color-surface-raised);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-raise-sm);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   overflow: hidden;
   cursor: pointer;
   transition: box-shadow var(--duration-fast) var(--ease-standard),
     transform var(--duration-fast);
-  margin: 1rem; 
+  margin-bottom: var(--space-3);
 }
 
 .notifCard::before {

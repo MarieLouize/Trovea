@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Product, ProductVariant, Receipt } from '../types';
+import type { Product, ProductVariant, Receipt, ReceiptType } from '../types';
 
 export type TerminalStage = 'composition' | 'attribution' | 'issuance';
 
@@ -19,6 +19,12 @@ interface DiscountState {
   value: number;
 }
 
+interface DepositSplit {
+  totalAmount: number;
+  depositDue: number;
+  balanceDue: number;
+}
+
 interface TerminalState {
   stage: TerminalStage;
   visorItems: VisorLineItem[];
@@ -29,6 +35,12 @@ interface TerminalState {
   deliveryFee: number;
   deliveryFeeExpanded: boolean;
   issuedReceipt: Receipt | null;
+
+  // New fields from Phase 2.5-F
+  saleNote: string;
+  orderType: 'preorder' | 'walkin' | null;
+  fulfilmentType: 'pickup' | 'delivery' | null;
+  depositSplit: DepositSplit | null;
 
   // Stage navigation
   setStage: (stage: TerminalStage) => void;
@@ -46,6 +58,12 @@ interface TerminalState {
   setBuyerPhone: (phone: string) => void;
   setBuyerEmail: (email: string) => void;
 
+  // New actions from Phase 2.5-F
+  setSaleNote: (note: string) => void;
+  setOrderType: (type: 'preorder' | 'walkin' | null) => void;
+  setFulfilmentType: (type: 'pickup' | 'delivery' | null) => void;
+  setDepositSplit: (split: DepositSplit | null) => void;
+
   // Discount
   setDiscountExpanded: (expanded: boolean) => void;
   setDiscountType: (type: 'flat' | 'percent') => void;
@@ -62,7 +80,7 @@ interface TerminalState {
 
   // Reset
   reset: () => void;
-  setIssuedReceipt: (receipt: Receipt) => void;
+  setIssuedReceipt: (receipt: Receipt, storeType: ReceiptType) => void;
 }
 
 const STAGE_ORDER: TerminalStage[] = ['composition', 'attribution', 'issuance'];
@@ -77,6 +95,12 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   deliveryFee: 0,
   deliveryFeeExpanded: false,
   issuedReceipt: null,
+
+  // New initial state
+  saleNote: '',
+  orderType: null,
+  fulfilmentType: null,
+  depositSplit: null,
 
   setStage: (stage) => set({ stage }),
   nextStage: () => {
@@ -96,7 +120,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   addItem: (product, variant = null) => {
     const variantLabel = variant?.label ?? null;
-    const price = product.price;
+    const price = variant?.price_override ?? product.price;
 
     set((state) => {
       const existingIdx = state.visorItems.findIndex(
@@ -158,6 +182,11 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   setBuyerPhone: (phone) => set({ buyerPhone: phone }),
   setBuyerEmail: (email) => set({ buyerEmail: email }),
 
+  setSaleNote: (note) => set({ saleNote: note }),
+  setOrderType: (type) => set({ orderType: type }),
+  setFulfilmentType: (type) => set({ fulfilmentType: type }),
+  setDepositSplit: (split) => set({ depositSplit: split }),
+
   setDiscountExpanded: (expanded) =>
     set((state) => ({ discount: { ...state.discount, expanded } })),
   setDiscountType: (type) =>
@@ -192,7 +221,22 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       deliveryFee: 0,
       deliveryFeeExpanded: false,
       issuedReceipt: null,
+      saleNote: '',
+      orderType: null,
+      fulfilmentType: null,
+      depositSplit: null,
     }),
 
-  setIssuedReceipt: (receipt) => set({ issuedReceipt: receipt }),
+  setIssuedReceipt: (receipt, storeType) => {
+    const state = get();
+    const enrichedReceipt: Receipt = {
+      ...receipt,
+      receipt_type: storeType,
+      sale_note: state.saleNote || null,
+      order_type: state.orderType || null,
+      fulfilment_type: state.fulfilmentType || null,
+      delivery_status: state.buyerEmail ? 'pending' : (receipt.delivery_status || null),
+    };
+    set({ issuedReceipt: enrichedReceipt });
+  },
 }));

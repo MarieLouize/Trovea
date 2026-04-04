@@ -161,7 +161,6 @@ export default function DispatchPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.97 }}
                   transition={{ duration: 0.25, delay: i * 0.06 }}
-                  layout
                 >
                   {/* Main */}
                   <div className={styles.cardMain}>

@@ -19,7 +19,10 @@ import {
 import { SIGNATURES } from '@/lib/constants/signatures';
 import { formatCurrencyFull, formatLastActive, formatDate, truncate } from '@/lib/utils/format';
 import { buildStoreContactLink } from '@/lib/utils/whatsapp';
-import { m, AnimatePresence, staggerContainer, staggerChild, slideUp, SPRING_UI } from '@/lib/motion';
+import {
+  m, AnimatePresence, staggerContainer, staggerChild, slideUp, SPRING_UI,
+  useScroll, useTransform
+} from '@/lib/motion';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
 import { useBasketStore, buildBasketWhatsApp } from '@/lib/store/basket.store';
 import { useUIStore } from '@/lib/store/ui.store';
@@ -178,7 +181,7 @@ function ProductCard({
   };
 
   return (
-    <m.div variants={staggerChild} layout>
+    <m.div variants={staggerChild}>
       <Link
         to={`/store/${handle}/item/${product.id}`}
         className={`sf-card sf-card-${cardStyle}`}
@@ -216,7 +219,7 @@ function ProductCard({
           )}
         </div>
         <div className="sf-card-body">
-          <p className="sf-card-name">{product.name}</p>
+          <h3 className="sf-card-name">{product.name}</h3>
           <p className="sf-card-price">{formatCurrencyFull(product.price)}</p>
         </div>
       </Link>
@@ -400,17 +403,8 @@ function StoreHero({
 }) {
   const cfg    = merchant.store_config;
   const hasImg = !!cfg.hero_image_url;
-  const parallaxRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = parallaxRef.current;
-    if (!el || !hasImg) return;
-    const handleScroll = () => {
-      el.style.transform = `translateY(${window.scrollY * 0.28}px)`;
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasImg]);
+  const { scrollY } = useScroll();
+  const y = useTransform(scrollY, [0, 600], [0, 160]);
 
   const liveCount = products.filter((p) => p.status !== 'hidden').length;
 
@@ -423,9 +417,9 @@ function StoreHero({
 
       {hasImg && (
         <div className={sfStyles.heroImgWrap}>
-          <div ref={parallaxRef} className={sfStyles.heroImgInner}>
+          <m.div style={{ y }} className={sfStyles.heroImgInner}>
             <img src={cfg.hero_image_url!} alt="Store hero" className={sfStyles.heroImg} />
-          </div>
+          </m.div>
         </div>
       )}
 
@@ -1098,16 +1092,22 @@ function DigitalProductCard({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <m.div variants={staggerChild} layout className={sfStyles.digitalCard}>
-      <Link to={`/store/${handle}/item/${product.id}`} className={`sf-card sf-card-${cardStyle}`}>
+    <m.div variants={staggerChild} className={sfStyles.digitalCard}>
+      <Link 
+        to={`/store/${handle}/item/${product.id}`} 
+        className={`sf-card sf-card-${cardStyle}`}
+        aria-label={product.name}
+      >
         <div className="sf-card-image">
           <img src={product.images[0] ?? `https://picsum.photos/seed/${product.id}/400/500`} alt={product.name} loading="lazy" />
           {fileType && <span className={sfStyles.fileTypeBadge}>{fileType}</span>}
           {isFree && <span className={sfStyles.freeBadge}>FREE</span>}
         </div>
         <div className="sf-card-body">
-          <p className="sf-card-name">{product.name}</p>
-          <p className="sf-card-price">{isFree ? 'Free' : formatCurrencyFull(product.price)}</p>
+          <h3 className="sf-card-name">{product.name}</h3>
+          <p className="sf-card-price">
+            {isFree ? 'Free' : formatCurrencyFull(product.price)}
+          </p>
         </div>
       </Link>
       

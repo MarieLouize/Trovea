@@ -42,6 +42,10 @@ export default function CataloguePage() {
   const merchant = useMerchantStore((s) => s.merchant);
   const [searchParams] = useSearchParams();
 
+  // Derive products with new filters
+  const rawProducts = useArchiveStore(s => s.products);
+  const searchQuery = useArchiveStore(s => s.searchQuery);
+
   const {
     statusFilter, setStatusFilter,
     updateProduct, addProduct, setProducts,
@@ -62,11 +66,11 @@ export default function CataloguePage() {
       setEditTarget(product);
       setDrawerOpen(true);
     }
-  }, [searchParams]);
-
-  // Derive products with new filters
-  const rawProducts = useArchiveStore(s => s.products);
-  const searchQuery = useArchiveStore(s => s.searchQuery);
+    if (action === 'checkLink' && product) {
+      const p = rawProducts.find(x => x.id === product);
+      if (p) checkLink(product, p.delivery_url);
+    }
+  }, [searchParams, rawProducts]);
 
   const products = useMemo(() => {
     let list = [...rawProducts];
