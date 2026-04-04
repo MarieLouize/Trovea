@@ -1,1 +1,1 @@
-export { default } from './BookingsPage';
+export { default } from './BookingsView';

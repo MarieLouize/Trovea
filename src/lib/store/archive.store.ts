@@ -11,7 +11,7 @@ export interface GhostCard extends ParsedItem {
 
 interface ArchiveState {
   products: Product[];
-  statusFilter: ProductStatus | 'all';
+  statusFilter: ProductStatus | 'all' | 'stagnant' | 'in_drop' | 'active_window' | 'sold_out_window';
   collectionFilter: string | null;
   searchQuery: string;
 
@@ -23,7 +23,7 @@ interface ArchiveState {
   clearGhostCards: () => void;
 
   // Filters
-  setStatusFilter: (status: ProductStatus | 'all') => void;
+  setStatusFilter: (status: ProductStatus | 'all' | 'stagnant' | 'in_drop' | 'active_window' | 'sold_out_window') => void;
   setCollectionFilter: (collectionId: string | null) => void;
   setSearchQuery: (query: string) => void;
 
@@ -146,8 +146,9 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
 
   filteredProducts: () => {
     const { products, statusFilter, collectionFilter, searchQuery } = get();
+    const simpleStatuses: string[] = ['live', 'hidden', 'sold_out'];
     return products.filter((p) => {
-      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (simpleStatuses.includes(statusFilter) && p.status !== statusFilter) return false;
       if (collectionFilter !== null && p.collection_id !== collectionFilter) return false;
       if (
         searchQuery &&

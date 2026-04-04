@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import { Store, ShoppingBag, ArrowRight } from 'lucide-react';
 import styles from './SelectRolePage.module.css';
 
@@ -35,7 +35,7 @@ export default function SelectRolePage() {
   return (
     <div className={styles.root}>
       {/* Header */}
-      <motion.div
+      <m.div
         className={styles.header}
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -44,12 +44,12 @@ export default function SelectRolePage() {
         <span className={styles.step}>Step 1 of 5</span>
         <h1 className={styles.headline}>How will you use<br />Trove'a?</h1>
         <p className={styles.subheadline}>Choose the path that fits your role.</p>
-      </motion.div>
+      </m.div>
 
       {/* Portal Cards */}
       <div className={styles.cardsRow}>
         {/* Curator */}
-        <motion.div
+        <m.div
           custom={0}
           variants={cardVariants}
           initial="initial"
@@ -69,7 +69,7 @@ export default function SelectRolePage() {
         >
           <AnimatePresence>
             {selected === 'curator' && (
-              <motion.div
+              <m.div
                 className={`${styles.selectedRing} ${styles.curator}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -81,13 +81,13 @@ export default function SelectRolePage() {
           </AnimatePresence>
 
           <div className={`${styles.cardImageArea} ${styles.curator}`}>
-            <motion.div
+            <m.div
               className={`${styles.cardIconRing} ${styles.curator}`}
               animate={selected === 'curator' ? { scale: [1, 1.08, 1] } : {}}
               transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               <Store size={36} aria-hidden="true" />
-            </motion.div>
+            </m.div>
           </div>
 
           <div className={styles.cardBody}>
@@ -100,10 +100,10 @@ export default function SelectRolePage() {
               <ArrowRight size={12} aria-hidden="true" />
             </span>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Buyer */}
-        <motion.div
+        <m.div
           custom={1}
           variants={cardVariants}
           initial="initial"
@@ -123,7 +123,7 @@ export default function SelectRolePage() {
         >
           <AnimatePresence>
             {selected === 'buyer' && (
-              <motion.div
+              <m.div
                 className={`${styles.selectedRing} ${styles.buyer}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -135,13 +135,13 @@ export default function SelectRolePage() {
           </AnimatePresence>
 
           <div className={`${styles.cardImageArea} ${styles.buyer}`}>
-            <motion.div
+            <m.div
               className={`${styles.cardIconRing} ${styles.buyer}`}
               animate={selected === 'buyer' ? { scale: [1, 1.08, 1] } : {}}
               transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               <ShoppingBag size={36} aria-hidden="true" />
-            </motion.div>
+            </m.div>
           </div>
 
           <div className={styles.cardBody}>
@@ -154,12 +154,12 @@ export default function SelectRolePage() {
               <ArrowRight size={12} aria-hidden="true" />
             </span>
           </div>
-        </motion.div>
+        </m.div>
       </div>
 
       {/* Continue */}
       <AnimatePresence mode="wait">
-        <motion.div
+        <m.div
           key={selected ?? 'none'}
           className={styles.continueWrap}
           initial={{ opacity: 0, y: 12 }}
@@ -179,7 +179,7 @@ export default function SelectRolePage() {
               <ArrowRight size={14} aria-hidden="true" />
             </button>
           )}
-        </motion.div>
+        </m.div>
       </AnimatePresence>
     </div>
   );

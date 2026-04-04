@@ -47,6 +47,10 @@ export interface Receipt {
   notes: string | null;
   log: ReceiptLogEntry[];
   is_quick_item: boolean;
+  sale_note: string | null;
+  fulfilment_type: 'pickup' | 'delivery' | null;
+  order_type: 'preorder' | 'walkin' | null;
+  delivery_status: 'pending' | 'sent' | 'failed' | 'manual_pending' | null;
   created_at: string;
   updated_at: string;
 }

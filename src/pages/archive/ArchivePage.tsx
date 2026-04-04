@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import { Plus, Package, Edit2, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useArchiveStore } from '@/lib/store/archive.store';
 import { FIXTURE_COLLECTIONS } from '@/lib/fixtures';
@@ -165,7 +165,7 @@ export default function ArchivePage() {
         <div className={styles.productList} role="list">
           <AnimatePresence initial={false}>
             {products.map((product, i) => (
-              <motion.div
+              <m.div
                 key={product.id}
                 role="listitem"
                 layout
@@ -244,7 +244,7 @@ export default function ArchivePage() {
                     }
                   </button>
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </AnimatePresence>
         </div>
@@ -280,14 +280,14 @@ export default function ArchivePage() {
               {/* Ghost Cards */}
               <AnimatePresence>
                 {ghostCards.length > 0 && (
-                  <motion.div
+                  <m.div
                     className={styles.ghostCards}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
                     {ghostCards.map((card, i) => (
-                      <motion.div
+                      <m.div
                         key={card.tempId}
                         className={styles.ghostCard}
                         initial={{ opacity: 0, y: 10 }}
@@ -310,9 +310,9 @@ export default function ArchivePage() {
                             : <span className={styles.ghostCardPriceError}>No price</span>
                           }
                         </div>
-                      </motion.div>
+                      </m.div>
                     ))}
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
 

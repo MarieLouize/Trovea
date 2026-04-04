@@ -96,6 +96,11 @@
   color: #F5ECD8;
 }
 
+.sf-card-status-last {
+  background: rgba(180, 100, 20, 0.9);
+  color: #FFF;
+}
+
 /* Basket button */
 .sf-card-basket-btn {
   position: absolute;

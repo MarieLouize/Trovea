@@ -1,1 +1,1 @@
-export { default } from './CataloguePage';
+export { default } from './CatalogueView';

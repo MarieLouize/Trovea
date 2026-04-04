@@ -1,6 +1,6 @@
 # Trove'a — Phase Plan
 
-## What's Already Built
+## Completed Phases
 
 | Phase | Pages / Scope | Status |
 |---|---|---|
@@ -10,6 +10,22 @@
 | 1D | InsightsPage, DispatchPage, SettingsPage, NotificationsPage | ✅ Complete |
 | 1E | StorefrontPage, ItemDetailPage, CollectionPage, ReceiptPage, SubmitReceiptPage | ✅ Complete |
 | 1F | CustomizePage (The Architect) — all 5 layers, LivePreview, ArchitectShell | ✅ Complete |
+| 2A | `store_type` primitive, 5 fixture merchants, fixture products per type, `useStoreType()` hook, FIXTURE_WINDOWS, FIXTURE_BOOKINGS, FIXTURE_SLOTS | ✅ Complete |
+| 2B | `/onboarding/store-type` (StoreTypePage), 5 visual selection cards, SetupStorePage pre-fill, initialization ceremony | ✅ Complete |
+| 2C | MerchantShell per-type nav, DashboardPage full rebuild (Share Layer, Activation Checklist, Vitals, Action Desk, Activity Log, type switcher) | ✅ Complete |
+| 2D | ArchivePage per-type adaptive (5 item models, tabs, creation), CataloguePage (Digital Creator), Smart Paste integration | ✅ Complete |
+| 2E | SchedulePage (Host week calendar + Vendor window management), BookingsPage (Pending/Confirmed/Completed/Cancelled + Claims tab) | ✅ Complete |
+| 2F | TerminalPage per-type Stage 1 (Collector/Vendor/Host/Creator/Studio), delivery fee, buyer email, receipt_type adaptive | ✅ Complete |
+| 2G | LedgerPage adaptive (tabs, status chips, Cash hiding for Digital), InsightsPage adaptive (KPI labels, type cards, activity subtitle) | ✅ Complete |
+| 2H | SettingsPage expanded (Checkout, Hold System, Cancellation Policy, Location, Digital Delivery, Verification, Store Pause, dirty-state save bar) | ✅ Complete |
+| 2I | ReceiptPage per-type adaptive labels + 4 new fixture receipts; StorefrontPage store-type adaptive (Vendor/Host/Creator/Studio basic sections) | ✅ Complete |
+| 2J | The Architect 6th layer (StoreLayer), useMerchantStore wiring, publish ceremony, drag-to-dismiss, LivePreview mini brand bar | ✅ Complete |
+| 2K | Buyer Bag (StickyBag, basket.store.ts, per-type ItemDetailPage CTAs, WhatsApp bag message), urgency signals | ✅ Complete |
+| 2L | Trovéa Checkout Claim System (ClaimSheet buyer flow, ItemDetailPage CTA, ArchivePage claim review for Collector) | ✅ Complete |
+| 2M | Hold System + Payment Proof (HoldSheet, On Hold badge, PaymentProofModal) | ✅ Complete |
+| 2N | Trust Layer (verification badges global CSS, pause enforcement, store reporting ReportModal) | ✅ Complete |
+| 2O | Drop Card Generator (Canvas API, Share Drawer, Square/Story formats, per-type smart defaults) | ✅ Complete |
+| 2P | Admin Panel (AdminShell, 6 pages, admin.store.ts, reports fixture, audit log) | ✅ Complete |
 
 ---
 

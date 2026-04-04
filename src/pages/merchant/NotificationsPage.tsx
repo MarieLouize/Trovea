@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import {
   Receipt, Star, CheckCircle, Truck, Bell, Check
 } from 'lucide-react';
@@ -165,7 +165,7 @@ export default function NotificationsPage() {
   return (
     <div className={styles.root}>
       {/* Header */}
-      <motion.div
+      <m.div
         className={styles.pageHeader}
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -194,10 +194,10 @@ export default function NotificationsPage() {
             Mark all read
           </button>
         )}
-      </motion.div>
+      </m.div>
 
       {/* Filter tabs */}
-      <motion.div
+      <m.div
         className={styles.filterRow}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -213,12 +213,12 @@ export default function NotificationsPage() {
             {f.label}
           </button>
         ))}
-      </motion.div>
+      </m.div>
 
       {/* Notification list */}
       <AnimatePresence mode="wait">
         {grouped.length === 0 ? (
-          <motion.div
+          <m.div
             key="empty"
             className={styles.empty}
             initial={{ opacity: 0 }}
@@ -232,9 +232,9 @@ export default function NotificationsPage() {
             <p className={styles.emptyBody}>
               {filter === 'unread' ? 'No unread notifications.' : 'No notifications yet.'}
             </p>
-          </motion.div>
+          </m.div>
         ) : (
-          <motion.div
+          <m.div
             key="list"
             className={styles.notifList}
             initial={{ opacity: 0 }}
@@ -249,7 +249,7 @@ export default function NotificationsPage() {
                   const { icon, cls } = ICON_MAP[notif.type];
 
                   return (
-                    <motion.div
+                    <m.div
                       key={notif.id}
                       className={styles.notifCard}
                       data-unread={isUnread}
@@ -277,12 +277,12 @@ export default function NotificationsPage() {
                         )}
                         {isUnread && <div className={styles.notifUnreadDot} aria-label="Unread" />}
                       </div>
-                    </motion.div>
+                    </m.div>
                   );
                 })}
               </div>
             ))}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

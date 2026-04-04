@@ -10,3 +10,5 @@ export { FIXTURE_WINDOWS } from './windows';
 export { FIXTURE_BOOKINGS } from './bookings';
 export { FIXTURE_HOLDS } from './holds';
 export { FIXTURE_REPORTS, FIXTURE_ADMIN_LOG } from './reports';
+export { FIXTURE_DROPS } from './drops';
+export { FIXTURE_ENQUIRIES } from './enquiries';

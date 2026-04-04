@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from '@/lib/motion';
 import { ArrowLeft, Package, Sparkles } from 'lucide-react';
 import { parseSmartPaste } from '@/lib/utils/smart-paste';
 import { formatCurrencyFull } from '@/lib/utils/format';
@@ -66,7 +66,7 @@ export default function FirstItemPage() {
 
   return (
     <div className={styles.root}>
-      <motion.div
+      <m.div
         className={styles.card}
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
@@ -80,7 +80,7 @@ export default function FirstItemPage() {
               <span className={styles.progressStep}>First Item</span>
             </div>
             <div className={styles.progressTrack} role="progressbar" aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}>
-              <motion.div
+              <m.div
                 className={styles.progressFill}
                 initial={{ width: '80%' }}
                 animate={{ width: '100%' }}
@@ -123,14 +123,14 @@ export default function FirstItemPage() {
           {/* Parsed ghost cards */}
           <AnimatePresence>
             {parsedItems.length > 0 && !useManual && (
-              <motion.div
+              <m.div
                 className={styles.ghostCards}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
                 {parsedItems.map((item, i) => (
-                  <motion.div
+                  <m.div
                     key={`${item.name}-${i}`}
                     className={styles.ghostCard}
                     custom={i}
@@ -153,9 +153,9 @@ export default function FirstItemPage() {
                     <div className={styles.ghostCardPrice}>
                       {item.price > 0 ? formatCurrencyFull(item.price) : '—'}
                     </div>
-                  </motion.div>
+                  </m.div>
                 ))}
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
 
@@ -250,7 +250,7 @@ export default function FirstItemPage() {
             </Link>
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

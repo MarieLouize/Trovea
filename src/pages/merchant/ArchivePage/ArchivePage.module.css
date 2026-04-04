@@ -365,7 +365,7 @@
   border-radius: var(--r-full);
 }
 
-.rowStatusPill.live { background: rgba(46,203,117,0.15); color: #1aab5e; }
+.rowStatusPill.live { background: rgba(46,203,117,0.15); color: var(--color-success); }
 .rowStatusPill.hidden { background: rgba(0,0,0,0.08); color: var(--color-fg-ghost); }
 .rowStatusPill.sold_out { background: rgba(57,0,7,0.1); color: var(--color-accent); }
 
@@ -1101,8 +1101,102 @@
 
 .claimActionWhatsapp {
   background: linear-gradient(145deg, #25D366, #128C7E);
-  color: #FFFFFF;
+  color: #F0EDE8;
   box-shadow: 2px 2px 6px rgba(37, 211, 102, 0.25);
+}
+
+/* ── UTILITY CLASSES (extracted from inline styles) ── */
+
+.rowThumbPlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-fg-ghost);
+}
+
+.rowPriceArea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.stagePopoverWrapper {
+  position: relative;
+}
+
+.stageDropTitle {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  color: var(--color-fg-ghost);
+}
+
+.stageDropCheck {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.categoryGroupHeaderInner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.enquiryFormName {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--color-fg);
+}
+
+.enquiryFormMeta {
+  font-size: 12px;
+  color: var(--color-fg-ghost);
+}
+
+.dropBadge {
+  margin-left: 8px;
+}
+
+.notStagedText {
+  margin-left: 8px;
+}
+
+/* ── MOBILE RESPONSIVE ── */
+
+@media (max-width: 639px) {
+  .pageTitle { font-size: 24px; }
+
+  .rowThumb {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Hide price column — visible in item detail */
+  .rowPrice,
+  .rowPriceCustom,
+  .rowPriceArea { display: none; }
+
+  .rowActionBtn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .statusTab {
+    padding: var(--space-2) var(--space-3);
+    font-size: 8px;
+  }
 }
 
 .claimActionWhatsapp:hover { opacity: 0.88; }
