@@ -19,9 +19,9 @@ export const generateCSV = (receipts: Receipt[]): string => {
     new Date(r.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }),
     r.payment_status,
     r.payment_method ?? '',
-    r.subtotal.toString(),
-    r.discount_amount.toString(),
-    r.total.toString(),
+    r.subtotal,
+    r.discount_amount,
+    r.total,
     r.shipment_status,
     r.notes ?? '',
     r.sale_note ?? ''

@@ -127,6 +127,7 @@ export default function App() {
           {/* ── Merchant — nested under MerchantShell (uses <Outlet />) ── */}
           <Route element={<MerchantShell />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/archive"   element={<ArchivePage />} />
             <Route path="/terminal"  element={<TerminalPage />} />
             <Route path="/ledger"    element={<LedgerPage />} />
             <Route path="/receipts"  element={<ReceiptsPage />} />

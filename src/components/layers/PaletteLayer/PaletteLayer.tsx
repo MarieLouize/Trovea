@@ -3,9 +3,10 @@
  * 1st Architect layer: per-type default ordering.
  */
 
+import { m } from '@/lib/motion';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { PALETTES } from '@/lib/constants/palettes';
-import type { StoreConfig, StorePalette, StoreType } from '@/lib/types';
+import type { StoreConfig, StorePalette, StoreType, PaletteDefinition } from '@/lib/types';
 import styles from './PaletteLayer.module.css';
 
 interface PaletteLayerProps {
@@ -25,8 +26,8 @@ export default function PaletteLayer({ draftConfig, onUpdate }: PaletteLayerProp
   const { type } = useStoreType();
 
   const orderedPalettes = (PALETTE_ORDER_BY_TYPE[type] || ['parchment', 'maroon', 'onyx', 'velvet', 'slate'])
-    .map(id => PALETTES.find(p => p.id === id)!)
-    .filter(Boolean);
+    .map(id => PALETTES.find(p => p.id === id))
+    .filter((p): p is PaletteDefinition => !!p);
 
   return (
     <section className={styles.section}>
@@ -37,20 +38,27 @@ export default function PaletteLayer({ draftConfig, onUpdate }: PaletteLayerProp
         </p>
       </div>
 
-      <div className={styles.grid}>
-        {orderedPalettes.map((palette) => (
-          <button
-            key={palette.id}
-            className={`${styles.paletteBtn} ${draftConfig.palette === palette.id ? styles.active : ''}`}
-            onClick={() => onUpdate({ palette: palette.id })}
-          >
-            <div className={styles.preview} style={{ background: palette.bg }}>
-              <div className={styles.surface} style={{ background: palette.surface }} />
-              <div className={styles.accent} style={{ background: palette.accent }} />
-            </div>
-            <span className={styles.name}>{palette.name}</span>
-          </button>
-        ))}
+      <div className={styles.grid} role="list" aria-label="Color palettes">
+        {orderedPalettes.map((palette) => {
+          const isActive = draftConfig.palette === palette.id;
+          return (
+            <m.button
+              key={palette.id}
+              role="listitem"
+              className={`${styles.paletteBtn} ${isActive ? styles.active : ''}`}
+              onClick={() => onUpdate({ palette: palette.id })}
+              aria-label={`Select ${palette.name} palette`}
+              aria-pressed={isActive}
+              whileTap={{ scale: 0.97 }}
+            >
+              <div className={styles.preview} style={{ background: palette.bg }}>
+                <div className={styles.surface} style={{ background: palette.surface }} />
+                <div className={styles.accent} style={{ background: palette.accent }} />
+              </div>
+              <span className={styles.name}>{palette.name}</span>
+            </m.button>
+          );
+        })}
       </div>
     </section>
   );

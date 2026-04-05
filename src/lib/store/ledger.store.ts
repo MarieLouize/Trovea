@@ -62,11 +62,12 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   },
 
   setReceipts: (receipts) => set({ receipts }),
+  // TODO: Phase 2.D integration bridge; receipts are domain-distinct from products.
   setProducts: (receipts) => set({ receipts }),
 
   markAsPaid: (receiptId, method) => {
     const logEntry = {
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       event: `Payment confirmed — ${formatMethodName(method)}`,
       timestamp: new Date().toISOString(),
       actor: 'merchant' as const,
@@ -89,7 +90,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   markManyAsPaid: (ids, method) => {
     const now = new Date().toISOString();
     const logEntry = {
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       event: `Payment confirmed — ${formatMethodName(method)} (bulk)`,
       timestamp: now,
       actor: 'merchant' as const,
@@ -119,7 +120,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
               ...r,
               shipment_status: 'packed',
               log: [...(r.log ?? []), { 
-                id: `log-${Date.now()}`,
+                id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                 event: 'Marked as packed', 
                 actor: 'merchant', 
                 timestamp: new Date().toISOString() 
@@ -131,7 +132,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
 
   markShipped: (receiptId) => {
     const logEntry = {
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       event: 'Marked as shipped',
       timestamp: new Date().toISOString(),
       actor: 'merchant' as const,
@@ -152,7 +153,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
 
   markReceived: (receiptId) => {
     const logEntry = {
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       event: 'Buyer confirmed receipt',
       timestamp: new Date().toISOString(),
       actor: 'buyer' as const,
