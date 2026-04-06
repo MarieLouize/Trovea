@@ -21,6 +21,7 @@ export const FIXTURE_MERCHANT: Merchant = {
   whatsapp_template: null,
   verification_tier: 'verified',
   is_paused: false,
+  is_suspended: false,
   pause_message: null,
   pause_return_date: null,
   checkout_enabled: false,

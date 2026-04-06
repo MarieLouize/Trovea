@@ -18,12 +18,31 @@
 .pageHeader {
   margin-bottom: var(--space-8);
   display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.headerTop {
+  display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--space-4);
 }
 
 .headerText { flex: 1; }
+
+.headline {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--color-fg);
+  line-height: 1.1;
+}
+
+.rangePicker {
+  width: 140px;
+  flex-shrink: 0;
+}
 
 .avgResponse {
   font-family: var(--font-mono);

@@ -10,7 +10,7 @@ import { MessageCircle, X, Clock } from 'lucide-react';
 import { m, AnimatePresence, SPRING_UI } from '@/lib/motion';
 import type { Product } from '@/lib/types/product.types';
 import type { Merchant } from '@/lib/types/merchant.types';
-import type { HoldRequest } from '@/lib/types/store-config.types';
+import type { HoldRequest } from '@/lib/types';
 import { buildStoreContactLink } from '@/lib/utils/whatsapp';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './HoldSheet.module.css';
@@ -167,7 +167,7 @@ export default function HoldSheet({
                       <p className={styles.conflictBody}>
                         Another buyer has reserved this item. If their hold expires without
                         payment, it'll be available again.
-                        Holds expire after {merchant.hold_duration_hours} hour{merchant.hold_duration_hours !== 1 ? 's' : ''}.
+                        Holds expire after {merchant.hold_duration_hours} hours.
                       </p>
                       <a
                         href={contactLink}
@@ -210,7 +210,7 @@ export default function HoldSheet({
 
                       <div className={styles.holdDuration}>
                         This item will be reserved for you for{' '}
-                        <strong>{merchant.hold_duration_hours} hour{merchant.hold_duration_hours !== 1 ? 's' : ''}</strong>.
+                        <strong>{merchant.hold_duration_hours} hours</strong>.
                         After that, it's released back to the store if payment isn't confirmed.
                       </div>
 
@@ -299,7 +299,7 @@ export default function HoldSheet({
                   <h2 className={styles.confirmTitle}>Item reserved!</h2>
                   <p className={styles.confirmBody}>
                     <strong>{product.name}</strong> is held for you for{' '}
-                    {merchant.hold_duration_hours} hour{merchant.hold_duration_hours !== 1 ? 's' : ''}.
+                    {merchant.hold_duration_hours} hours.
                   </p>
 
                   <div className={styles.expiresAt}>

@@ -105,7 +105,7 @@ export default function AdminSuspensionsPage() {
               <div key={entry.id} className={styles.logTableRow} role="row">
                 <span className={styles.logAction}>{entry.action}</span>
                 <span className={styles.logStore}>{merchantName(entry.target_merchant_id)}</span>
-                <span className={styles.logTime}>{formatRelativeDate(entry.timestamp)}</span>
+                <span className={styles.logTime}>{formatRelativeDate(entry.created_at)}</span>
                 <span className={styles.logNote}>{entry.note ?? '—'}</span>
               </div>
             ))}

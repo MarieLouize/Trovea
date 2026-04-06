@@ -21,6 +21,7 @@ import {
   FIXTURE_BOOKINGS,
 } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
+import { buildOrderConfirmedLink } from '@/lib/utils/whatsapp';
 import { useUIStore } from '@/lib/store/ui.store';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import styles from './TerminalPage.module.css';
@@ -123,7 +124,7 @@ export default function TerminalPage() {
     setSaleNote, setOrderType, setFulfilmentType, setDepositSplit,
     setDiscountExpanded, setDiscountType, setDiscountValue,
     setDeliveryFee, setDeliveryFeeExpanded,
-    setIssuedReceipt, reset,
+    issuedReceipt, setIssuedReceipt, reset,
   } = useTerminalStore();
   const { addToast } = useUIStore();
 
@@ -412,9 +413,16 @@ export default function TerminalPage() {
                       {st.isDigital && isBundleMode && <Zap size={10} style={{ marginRight: 4, color: 'var(--color-gold-light)' }} />}
                       {item.name}
                     </div>
-                    {item.variantLabel && (
-                      <div className={styles.visorItemVariant}>{item.variantLabel}</div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {item.variantLabel && (
+                        <div className={styles.visorItemVariant}>{item.variantLabel}</div>
+                      )}
+                      {item.quantity > 1 && (
+                        <div className={styles.visorItemVariant} style={{ opacity: 0.5 }}>
+                          ({formatCurrencyFull(item.unitPrice)})
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <span className={styles.visorItemQty}>×{item.quantity}</span>
                   <span className={styles.visorItemPrice}>{formatCurrencyFull(item.totalPrice)}</span>
@@ -1364,7 +1372,21 @@ export default function TerminalPage() {
             </div>
             <p className={styles.ceremonyText}>Issuing {st.isHost ? 'Booking' : st.isStudio ? 'Project Brief' : 'Seal'}…</p>
             {st.isCollector && (
-               <button className={styles.whatsappShareBtn} style={{ position: 'fixed', bottom: 40, width: 'calc(100% - 40px)', zIndex: 100 }}>
+               <button 
+                className={styles.whatsappShareBtn} 
+                style={{ position: 'fixed', bottom: 40, width: 'calc(100% - 40px)', zIndex: 100 }}
+                onClick={() => {
+                  if (!issuedReceipt || !merchant) return;
+                  const url = buildOrderConfirmedLink({
+                    phone: issuedReceipt.buyer_phone ?? '',
+                    buyerName: issuedReceipt.buyer_name,
+                    sealId: issuedReceipt.seal_id,
+                    storeName: merchant.store_name,
+                    total: issuedReceipt.total,
+                  });
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                }}
+               >
                   <MessageSquare size={16} /> Share Receipt on WhatsApp →
                </button>
             )}

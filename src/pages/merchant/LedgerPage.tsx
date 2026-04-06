@@ -1,14 +1,21 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
-import { Check, ExternalLink, Package, Download, ChevronRight, Search, X, Filter } from 'lucide-react';
+import { Check, ExternalLink, Download, Search, X, Filter } from 'lucide-react';
 import { useLedgerStore, type LedgerTab } from '@/lib/store/ledger.store';
 import { useUIStore } from '@/lib/store/ui.store';
+import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
 import { generateCSV, downloadCSV } from '@/lib/utils/csv';
-import { FIXTURE_DROPS, FIXTURE_ENQUIRIES, FIXTURE_WINDOWS, FIXTURE_PRODUCTS, FIXTURE_STUDIO_PRODUCTS } from '@/lib/fixtures';
+import { 
+  buildOrderConfirmedLink, 
+  buildItemShippedLink, 
+  buildCustomMessageLink 
+} from '@/lib/utils/whatsapp';
+import { FIXTURE_DROPS, FIXTURE_ENQUIRIES, FIXTURE_WINDOWS } from '@/lib/fixtures';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
+import PopupModal from '@/components/primitives/PopupModal/PopupModal';
 import type { PaymentMethod, Receipt } from '@/lib/types';
 import styles from './LedgerPage.module.css';
 
@@ -23,6 +30,7 @@ const ALL_PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 
 export default function LedgerPage() {
   const st = useStoreType();
+  const merchant = useMerchantStore(s => s.merchant);
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const buyerParam = searchParams.get('buyer');
@@ -31,8 +39,8 @@ export default function LedgerPage() {
     receipts: allReceipts,
     activeTab, setActiveTab,
     isMultiSelectMode, selectedIds,
-    enterMultiSelectMode, exitMultiSelectMode, toggleSelectId,
-    markAsPaid, markManyAsPaid, markShipped, updateReceiptStatus,
+    exitMultiSelectMode, toggleSelectId,
+    markAsPaid, markManyAsPaid, markShipped,
     selectAll
   } = useLedgerStore();
   const { addToast } = useUIStore();
@@ -42,17 +50,16 @@ export default function LedgerPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
+  // Custom message modal
+  const [customMsgOpen, setCustomMsgOpen] = useState(false);
+  const [customMsgBody, setCustomMsgBody] = useState('');
+
   // Filters
   const [dropFilter, setDropFilter] = useState<string>('all');
   const [windowFilter, setWindowFilter] = useState<string>('all');
-  const [serviceFilter, setServiceFilter] = useState<string>('all');
-  const [productFilter, setProductFilter] = useState<string>('all');
-  const [packageFilter, setPackageFilter] = useState<string>('all');
 
   // Local state for toggles in new tabs
   const [fulfilmentStatus, setFulfilmentStatus] = useState<Record<string, 'pending' | 'done'>>({});
-  const [depositStatus, setDepositStatus] = useState<Record<string, 'pending' | 'done'>>({});
-  const [deliveryStatus, setDeliveryStatus] = useState<Record<string, 'pending' | 'done'>>({});
 
   useEffect(() => {
     if (tabParam) {
@@ -95,7 +102,10 @@ export default function LedgerPage() {
     // Bucket Logic (Mapped to existing tabs for now to avoid breaking state)
     switch (activeTab) {
       case 'pending': // "Active" bucket
-        list = list.filter(r => r.payment_status === 'pending_payment' || (r.payment_status === 'paid' && r.shipment_status !== 'received' && r.receipt_type === 'physical'));
+        list = list.filter(r => r.payment_status === 'pending_payment');
+        break;
+      case 'dispatch':
+        list = list.filter(r => r.payment_status === 'paid' && (r.shipment_status === 'packed' || r.shipment_status === 'shipped'));
         break;
       case 'all': // "History" bucket
       case 'completed':
@@ -135,21 +145,13 @@ export default function LedgerPage() {
     }
 
     return list;
-  }, [allReceipts, activeTab, searchTerm, dropFilter, windowFilter, serviceFilter, productFilter, packageFilter, st, buyerParam]);
+  }, [allReceipts, activeTab, searchTerm, dropFilter, windowFilter, st, buyerParam]);
 
   const handleExportCSV = () => {
     const csv = generateCSV(filteredReceipts);
     downloadCSV(csv, `trovea-ledger-${new Date().toISOString().split('T')[0]}.csv`);
     addToast('Ledger exported to CSV.', 'success');
   };
-
-  // ── Adaptive tabs ──
-  const completedLabel =
-    st.isVendor  ? 'Fulfilled' :
-    st.isHost    ? 'Confirmed' :
-    st.isDigital ? 'Delivered' :
-    st.isStudio  ? 'Active'    :
-    'Completed';
 
   const typeSpecificTabs: { value: LedgerTab; label: string }[] = [];
   if (st.isCollector) typeSpecificTabs.push({ value: 'drops', label: 'Drops' });
@@ -158,11 +160,16 @@ export default function LedgerPage() {
   if (st.isDigital)   typeSpecificTabs.push({ value: 'delivery', label: 'Delivery' });
   if (st.isStudio)    typeSpecificTabs.push({ value: 'pipeline', label: 'Pipeline' });
 
-  const visibleTabs = [
-    { value: 'pending' as const, label: 'Active' },
-    { value: 'all' as const, label: 'History' },
-    { value: (st.isStudio ? 'clients' : 'buyers') as LedgerTab, label: 'Insights' }
+  const visibleTabs: { value: LedgerTab; label: string }[] = [
+    { value: 'pending', label: 'Active' },
   ];
+
+  if (st.isCollector || st.isVendor) {
+    visibleTabs.push({ value: 'dispatch', label: 'Dispatch' });
+  }
+
+  visibleTabs.push({ value: 'all', label: 'History' });
+  visibleTabs.push({ value: (st.isStudio ? 'clients' : 'buyers') as LedgerTab, label: 'Insights' });
 
   const pendingCount = allReceipts.filter(r => r.payment_status === 'pending_payment').length;
 
@@ -173,25 +180,8 @@ export default function LedgerPage() {
     }));
   };
 
-  const handleToggleDeposit = (receiptId: string) => {
-    setDepositStatus(prev => ({
-      ...prev,
-      [receiptId]: prev[receiptId] === 'done' ? 'pending' : 'done'
-    }));
-  };
-
-  const handleResendDelivery = (receiptId: string) => {
+  const handleResendDelivery = (_receiptId: string) => {
     addToast('Delivery link resent to buyer.', 'success');
-    setDeliveryStatus(prev => ({ ...prev, [receiptId]: 'done' }));
-  };
-
-  const getGeography = (buyerName: string): string => {
-    const intl: Record<string, string> = {
-      'David Chen': '🇬🇧 UK',
-      'Sarah O\'Brien': '🇺🇸 US',
-      'Marie Dupont': '🇫🇷 France',
-    };
-    return intl[buyerName] ?? '🇳🇬 Nigeria';
   };
 
   // ── Rendering helpers ──
@@ -216,6 +206,40 @@ export default function LedgerPage() {
     markAsPaid(selectedReceipt.id, markPaidMethod);
     setSelectedReceipt(null);
     addToast('Payment confirmed.', 'success');
+  };
+
+  const handleMarkShipped = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    markShipped(id);
+    addToast('Marked as shipped', 'success');
+  };
+
+  const handleNotifyBuyer = (receipt: Receipt, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!merchant) return;
+    const url = buildItemShippedLink({
+      phone: receipt.buyer_phone ?? '',
+      buyerName: receipt.buyer_name,
+      sealId: receipt.seal_id,
+      storeName: merchant.store_name,
+    });
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openCustomMsg = () => {
+    if (!selectedReceipt) return;
+    setCustomMsgBody(`Hi ${selectedReceipt.buyer_name}! `);
+    setCustomMsgOpen(true);
+  };
+
+  const sendCustomMsg = () => {
+    if (!selectedReceipt || !merchant) return;
+    const url = buildCustomMessageLink({
+      phone: selectedReceipt.buyer_phone ?? '',
+      messageBody: customMsgBody,
+    });
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setCustomMsgOpen(false);
   };
 
   return (
@@ -295,7 +319,7 @@ export default function LedgerPage() {
                 <select className={styles.filterSelect} value={dropFilter} onChange={e => setDropFilter(e.target.value)}>
                   <option value="all">All Drops</option>
                   {FIXTURE_DROPS.map(d => (
-                    <option key={d.id} value={d.id}>{d.title}</option>
+                    <option key={d.id} value={d.id}>{d.label}</option>
                   ))}
                 </select>
               )}
@@ -316,7 +340,7 @@ export default function LedgerPage() {
       {/* Main Content Area */}
       <div className={styles.mainContent}>
         {/* Active & History Buckets */}
-        {(activeTab === 'pending' || activeTab === 'all' || activeTab === 'completed') && (
+        {(activeTab === 'pending' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'dispatch') && (
           <div className={activeTab === 'pending' ? styles.activeList : styles.receiptList}>
             {filteredReceipts.length === 0 ? (
               <div className={styles.emptyState}>
@@ -326,8 +350,6 @@ export default function LedgerPage() {
             ) : (
               <AnimatePresence initial={false}>
                 {filteredReceipts.map((receipt) => {
-                  const isActionRequired = receipt.payment_status === 'pending_payment';
-                  
                   return (
                     <m.div
                       key={receipt.id}
@@ -364,6 +386,23 @@ export default function LedgerPage() {
                         <span className={styles.rowAmount}>{formatCurrencyFull(receipt.total)}</span>
                         {activeTab === 'all' ? (
                            <span className={styles.rowSealId}>{receipt.seal_id}</span>
+                        ) : activeTab === 'dispatch' ? (
+                          <div className={styles.rowActionsInline}>
+                            {receipt.shipment_status === 'packed' && (
+                              <button 
+                                className={styles.inlineActionBtn}
+                                onClick={(e) => handleMarkShipped(receipt.id, e)}
+                              >
+                                Mark Shipped
+                              </button>
+                            )}
+                            <button 
+                              className={styles.inlineNotifyBtn}
+                              onClick={(e) => handleNotifyBuyer(receipt, e)}
+                            >
+                              Notify Buyer ↗
+                            </button>
+                          </div>
                         ) : (
                           <div className={styles.rowActionLabel}>
                             {receipt.payment_status === 'pending_payment' ? 'Awaiting Payment' : 'Ready to Ship'}
@@ -391,7 +430,7 @@ export default function LedgerPage() {
               return (
                 <div key={drop.id} className={styles.dropSummaryCard}>
                   <div className={styles.dropCardHeader}>
-                    <h3 className={styles.dropCardTitle}>{drop.title}</h3>
+                    <h3 className={styles.dropCardTitle}>{drop.label}</h3>
                     <span className={styles.dropCardStatus}>Completed · {new Date(drop.scheduled_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</span>
                   </div>
                   <div className={styles.dropCardStats}>
@@ -462,7 +501,7 @@ export default function LedgerPage() {
                 </div>
                 <div className={styles.depositAction}>
                   <span className={`${styles.depositAmount} ${styles.depositPending}`}>{formatCurrencyFull(receipt.total)} awaited</span>
-                  <button className={styles.dispatchBtn} onClick={() => handleToggleDeposit(receipt.id)}>Mark Received</button>
+                  <button className={styles.dispatchBtn} onClick={() => addToast('Deposit tracking will be wired in Phase 4.', 'info')}>Mark Received</button>
                 </div>
               </div>
             ))}
@@ -515,12 +554,12 @@ export default function LedgerPage() {
               </div>
               
               <h4 className={styles.logTitle}>In Discussion</h4>
-              {FIXTURE_ENQUIRIES.filter(e => e.status === 'open').map(enquiry => (
+              {FIXTURE_ENQUIRIES.filter(e => e.status === 'in_discussion').map(enquiry => (
                 <div key={enquiry.id} className={styles.pipelineCard}>
                   <div className={styles.pipelineHeader}>
                     <div>
-                      <div className={styles.pipelineClient}>{enquiry.buyer_name}</div>
-                      <div className={styles.pipelineProject}>{enquiry.subject}</div>
+                      <div className={styles.pipelineClient}>{enquiry.client_name}</div>
+                      <div className={styles.pipelineProject}>{enquiry.project_type}</div>
                     </div>
                     <div className={styles.pipelineTotal}>{formatCurrencyFull(80000)}</div>
                   </div>
@@ -620,6 +659,50 @@ export default function LedgerPage() {
               <span className={styles.drawerTotalAmount}>{formatCurrencyFull(selectedReceipt.total)}</span>
             </div>
             
+            <div className={styles.waTemplateSection}>
+              <span className={styles.waSectionTitle}>Send via WhatsApp:</span>
+              <div className={styles.waTemplateGrid}>
+                {selectedReceipt.payment_status === 'pending_payment' && (
+                  <button 
+                    className={styles.waTemplateBtn}
+                    onClick={() => {
+                      if (!merchant) return;
+                      const url = buildOrderConfirmedLink({
+                        phone: selectedReceipt.buyer_phone ?? '',
+                        buyerName: selectedReceipt.buyer_name,
+                        sealId: selectedReceipt.seal_id,
+                        storeName: merchant.store_name,
+                        total: selectedReceipt.total
+                      });
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
+                  >
+                    Order Confirmed ↗
+                  </button>
+                )}
+                {(selectedReceipt.shipment_status === 'packed' || selectedReceipt.shipment_status === 'shipped') && (
+                  <button 
+                    className={styles.waTemplateBtn}
+                    onClick={() => {
+                      if (!merchant) return;
+                      const url = buildItemShippedLink({
+                        phone: selectedReceipt.buyer_phone ?? '',
+                        buyerName: selectedReceipt.buyer_name,
+                        sealId: selectedReceipt.seal_id,
+                        storeName: merchant.store_name,
+                      });
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
+                  >
+                    Item Shipped ↗
+                  </button>
+                )}
+                <button className={styles.waTemplateBtn} onClick={openCustomMsg}>
+                  Custom ↗
+                </button>
+              </div>
+            </div>
+
             {selectedReceipt.payment_status === 'pending_payment' && (
               <>
                 <div className={styles.paymentMethodGrid}>
@@ -645,6 +728,26 @@ export default function LedgerPage() {
           </div>
         )}
       </BaseDrawer>
+
+      <PopupModal
+        open={customMsgOpen}
+        onClose={() => setCustomMsgOpen(false)}
+        title="Custom Message"
+      >
+        <div className={styles.customMsgForm}>
+          <p className={styles.customMsgHint}>Send a custom message to {selectedReceipt?.buyer_name}:</p>
+          <textarea
+            className={styles.customMsgTextarea}
+            rows={4}
+            value={customMsgBody}
+            onChange={(e) => setCustomMsgBody(e.target.value)}
+            autoFocus
+          />
+          <button className={styles.sendMsgBtn} onClick={sendCustomMsg}>
+            Open WhatsApp
+          </button>
+        </div>
+      </PopupModal>
     </div>
   );
 }

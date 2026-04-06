@@ -1,315 +1,71 @@
-# Trove'a — Phase Plan
+# Trovéa — Refinement Phase: "The Bespoke Instrument"
 
-## Completed Phases
-
-| Phase | Pages / Scope | Status |
-|---|---|---|
-| 1A | Design tokens, global CSS, all TS types, fixtures, utils, Zustand stores, all primitives, MerchantShell | ✅ Complete |
-| 1B | AuthPage, SelectRolePage, IdentityPage, SetupStorePage, FirstItemPage | ✅ Complete |
-| 1C | DashboardPage, ArchivePage, TerminalPage, LedgerPage | ✅ Complete |
-| 1D | InsightsPage, DispatchPage, SettingsPage, NotificationsPage | ✅ Complete |
-| 1E | StorefrontPage, ItemDetailPage, CollectionPage, ReceiptPage, SubmitReceiptPage | ✅ Complete |
-| 1F | CustomizePage (The Architect) — all 5 layers, LivePreview, ArchitectShell | ✅ Complete |
-| 2A | `store_type` primitive, 5 fixture merchants, fixture products per type, `useStoreType()` hook, FIXTURE_WINDOWS, FIXTURE_BOOKINGS, FIXTURE_SLOTS | ✅ Complete |
-| 2B | `/onboarding/store-type` (StoreTypePage), 5 visual selection cards, SetupStorePage pre-fill, initialization ceremony | ✅ Complete |
-| 2C | MerchantShell per-type nav, DashboardPage full rebuild (Share Layer, Activation Checklist, Vitals, Action Desk, Activity Log, type switcher) | ✅ Complete |
-| 2D | ArchivePage per-type adaptive (5 item models, tabs, creation), CataloguePage (Digital Creator), Smart Paste integration | ✅ Complete |
-| 2E | SchedulePage (Host week calendar + Vendor window management), BookingsPage (Pending/Confirmed/Completed/Cancelled + Claims tab) | ✅ Complete |
-| 2F | TerminalPage per-type Stage 1 (Collector/Vendor/Host/Creator/Studio), delivery fee, buyer email, receipt_type adaptive | ✅ Complete |
-| 2G | LedgerPage adaptive (tabs, status chips, Cash hiding for Digital), InsightsPage adaptive (KPI labels, type cards, activity subtitle) | ✅ Complete |
-| 2H | SettingsPage expanded (Checkout, Hold System, Cancellation Policy, Location, Digital Delivery, Verification, Store Pause, dirty-state save bar) | ✅ Complete |
-| 2I | ReceiptPage per-type adaptive labels + 4 new fixture receipts; StorefrontPage store-type adaptive (Vendor/Host/Creator/Studio basic sections) | ✅ Complete |
-| 2J | The Architect 6th layer (StoreLayer), useMerchantStore wiring, publish ceremony, drag-to-dismiss, LivePreview mini brand bar | ✅ Complete |
-| 2K | Buyer Bag (StickyBag, basket.store.ts, per-type ItemDetailPage CTAs, WhatsApp bag message), urgency signals | ✅ Complete |
-| 2L | Trovéa Checkout Claim System (ClaimSheet buyer flow, ItemDetailPage CTA, ArchivePage claim review for Collector) | ✅ Complete |
-| 2M | Hold System + Payment Proof (HoldSheet, On Hold badge, PaymentProofModal) | ✅ Complete |
-| 2N | Trust Layer (verification badges global CSS, pause enforcement, store reporting ReportModal) | ✅ Complete |
-| 2O | Drop Card Generator (Canvas API, Share Drawer, Square/Story formats, per-type smart defaults) | ✅ Complete |
-| 2P | Admin Panel (AdminShell, 6 pages, admin.store.ts, reports fixture, audit log) | ✅ Complete |
+This phase transforms Trovéa from a "SaaS Mockup" into a **heavy, tactile digital instrument**. We are moving away from "web boxes" and toward **carved materials** (Parchment, Velvet, Gold Foil).
 
 ---
 
-## Upcoming Phases
+## Phase R1: Material & Environmental Integrity
+**Goal:** Ensure every surface feels like a physical slab with consistent lighting and mass.
 
-### Phase 2A — Foundation: Store Type Primitive + Fixtures
-**Goal:** Add `store_type` to the data model. Everything else depends on this.
+### Actionable Tasks:
+- [ ] **Dynamic Lighting System:** Update `.neu-surface` and `.neu-inset` to automatically pull shadow colors from the parent `[data-palette]`. No more "gray shadows on maroon backgrounds."
+- [ ] **Surface Topography:** Audit every page (Ledger, Terminal, Archive) and replace flat `<div>` containers with `.neu-surface` or `.neu-inset`.
+- [ ] **Tactile Feedback:** Implement the "Mechanical Switch" rule: every button and interactive chip MUST transition from `raised` to `inset` on `:active` or `is-active` states.
+- [ ] **Texture Grain:** Standardize the `--noise` overlay across all surfaces to ensure a consistent "paper-tooth" feel.
 
-**Deliverables:**
-- Add `store_type: StoreType` to `Merchant` interface (already in ARCHITECTURE.md)
-- Add all new fields to `Product` interface (duration, deposit_amount, has_variants, etc.)
-- Add `StoreTypeConfig` to `StoreConfig`
-- Create 5 fixture merchants (one per store type)
-- Create fixture products for each store type (services, packages, digital products, menu items)
-- New fixtures: `FIXTURE_WINDOWS`, `FIXTURE_BOOKINGS`, `FIXTURE_SLOTS`, `FIXTURE_DROPS`
-- `useStoreType()` hook at `src/lib/hooks/use-store-type.ts`
-- Update `App.tsx` — add new routes as placeholders
-- Update `MerchantShell` nav — conditional items per store_type
-
-**Files modified:** `merchant.types.ts`, `product.types.ts`, `receipt.types.ts`, `store-config.types.ts`, all fixture files, `App.tsx`, `MerchantShell.tsx`
-
-**New files:** `src/lib/hooks/use-store-type.ts`, `src/lib/fixtures/vendor.ts`, `src/lib/fixtures/host.ts`, `src/lib/fixtures/digital.ts`, `src/lib/fixtures/studio.ts`
+### Success Metrics:
+- 100% of interactive elements use the `raised -> inset` physical state change.
+- Zero "flat" backgrounds remaining in the Merchant OS.
+- Shadow highlights (`--sh-light`) are context-aware (white on parchment, faint rose on velvet).
 
 ---
 
-### Phase 2B — Onboarding: Store Type Selection Step
-**Goal:** Add the missing `/onboarding/store-type` step and update adjacent onboarding pages.
+## Phase R2: Professional Motion & Inertia
+**Goal:** Replace "digital pops" with "physical momentum."
 
-**Deliverables:**
-- New page: `/onboarding/store-type` — five visual selection cards (one per store type), each showing the type's identity line from the blueprint
-- Update `SetupStorePage` — store type field pre-filled (read-only), initialization ceremony (700ms fade-to-black + wordmark pulse → `/dashboard`)
-- Update onboarding progress bar to reflect 4 steps instead of 3
-- Store type selection persists in local state between steps
+### Actionable Tasks:
+- [ ] **The "Heavy" Spring:** Update `@/lib/motion` to use high-stiffness, high-damping springs (`stiffness: 380, damping: 35`) for all drawers and modals.
+- [ ] **Staggered Reveals:** Implement a mandatory `entrance-stagger` on all list views (Ledger entries, Product grids). Items must slide up with a slight overshoot.
+- [ ] **Micro-Inertia:** Add a subtle "parallax tilt" or "lift" to cards when hovered (physical mass responding to focus).
+- [ ] **State Transitions:** All layout changes (switching tabs, opening filters) must use `layout` prop in Framer Motion to animate the movement of surrounding elements smoothly.
 
-**Files modified:** `SetupStorePage.tsx`, `IdentityPage.tsx`
-**New files:** `StoreTypePage.tsx`, `StoreTypePage.module.css`
-
----
-
-### Phase 2C — Dashboard + Shell Adaptive
-**Goal:** Dashboard and MerchantShell fully branch on store_type.
-
-**Deliverables:**
-- `MerchantShell`: hide/show nav items per store_type; adapt nav labels; dev type switcher toggle
-- `DashboardPage` full rebuild:
-  - Module 1: Share Layer — copy link, QR download, share drawer
-  - Module 2: Activation Checklist — 5 different checklists per type, dismisses on completion
-  - Module 3: Vitals — different metrics per type
-  - Module 4: Action Desk — 3 shortcuts per type
-  - Module 5: Activity Log — event language per type
-- Drop Announcements from Share Drawer: Canvas API card generation, copy caption / download PNG
-
-**Per-type Vitals:**
-- Collector: sales volume today + store traffic
-- Vendor: pre-orders taken + remaining capacity
-- Host: bookings confirmed + next available slot
-- Digital Creator: downloads + top product
-- Studio: enquiries received + pending packages
-
-**Files modified:** `MerchantShell.tsx`, `MerchantShell.module.css`, `DashboardPage.tsx`, `DashboardPage.module.css`
+### Success Metrics:
+- Zero "instant" visibility toggles (all use `AnimatePresence`).
+- Page transitions feel "weighted" (600ms+ duration with spring decay).
 
 ---
 
-### Phase 2D — Archive Adaptive + Digital Creator Catalogue
-**Goal:** Archive branches into 5 different item models; new `/catalogue` route for Digital Creator.
+## Phase R3: Ceremonial Events (The Seal)
+**Goal:** Elevate transactional moments into "events of authority."
 
-**Deliverables:**
-- `ArchivePage` restructured to branch on store_type:
-  - **Collector**: existing flow + "Drops" tab (drop name, scheduled_at, select items)
-  - **Vendor**: "Menu Items" with per-window cap field, categories
-  - **Host**: Service list with duration + deposit fields, inactive toggle
-  - **Studio**: Packages with price_type (fixed/custom), scope fields, per-package intake form builder
-- New page: `/catalogue` (Digital Creator only) — preview asset + delivery asset, is_free toggle, early_access_price/cap, delivery method selector
-- Item creation drawer/modal adapts per type
+### Actionable Tasks:
+- [ ] **The Seal Drop:** Implement the canonical Receipt Issuance. The Maroon Seal must rotate 15deg and "drop" with a 900ms spring, accompanied by a heavy shadow expand.
+- [ ] **Foil Treatments:** Apply `.text-foil` and `.text-foil-maroon` to prestige data points (Total amounts, Verified IDs, Trusted badges).
+- [ ] **The Morning Brief:** Redesign the dashboard header as a "Handwritten Brief." Use `.t-subtitle` (Cormorant Garamond) for contextual summaries to create an editorial feel.
+- [ ] **Empty State "Stationery":** Implement the `—` dash empty state in Cormorant Italic, ensuring empty views feel like "awaiting inscription" rather than "missing data."
 
-**Files modified:** `ArchivePage.tsx`, `ArchivePage.module.css`, `App.tsx`
-**New files:** `CataloguePage.tsx`, `CataloguePage.module.css`
+### Success Metrics:
+- The Receipt page feels like the most "expensive" screen in the app.
+- Critical data (Naira) looks "stamped" (debossed) or "minted" (foil).
 
 ---
 
-### Phase 2E — New Curator Surfaces: Schedule + Bookings
-**Goal:** Two entirely new pages for Vendor and Host.
+## Phase R4: Android Performance Audit
+**Goal:** Ensure "heavy" design doesn't mean "sluggish" performance.
 
-**Deliverables:**
-- New page: `/schedule` — dual render:
-  - Host view: week calendar, working days/hours config, break times, date blocking, slot preview
-  - Vendor view: availability window management, create window (open_at, close_at, per-item caps), window status list
-- New page: `/bookings` — Host + Studio:
-  - Four tabs: Pending / Confirmed / Completed / Cancelled
-  - Claims tab: proof image viewer, Accept (pre-fills Terminal), Reject (WhatsApp message), 24h countdown
+### Actionable Tasks:
+- [ ] **GPU Acceleration:** Audit all animations to ensure they only touch `transform` and `opacity`. Remove `filter: blur` and `box-shadow` animations on low-end devices if they cause jank.
+- [ ] **Touch Target Rigor:** Enforce 44px minimum on every single icon and link.
+- [ ] **Image Loading:** Add "Material Skeletons" (shimmering inset wells) for all product images to maintain layout stability.
 
-**New files:** `SchedulePage.tsx`, `SchedulePage.module.css`, `BookingsPage.tsx`, `BookingsPage.module.css`
-
----
-
-### Phase 2F — Terminal Adaptive
-**Goal:** Terminal Stage 1 branches per store_type while the 3-stage shell remains.
-
-**Deliverables:**
-- Stage 1 per type:
-  - Collector: existing inventory select
-  - Vendor: menu items (window must be open)
-  - Host: service + slot from calendar
-  - Digital Creator: catalogue select + buyer email
-  - Studio: package select or custom line
-- Stage 2 Attribution: Delivery Fee field (collapsible, hidden for Digital Creator), proper "Add Discount" collapsible UX
-- Draft receipt auto-save every 30s, resume prompt on load
-
-**Files modified:** `TerminalPage.tsx`, `TerminalPage.module.css`, `terminal.store.ts`
+### Success Metrics:
+- 60fps scrolling on mid-range Android (Tecno/Infinix/Samsung A-series).
+- Zero layout shifts during image load.
 
 ---
 
-### Phase 2G — Ledger + Insights Adaptive
-**Goal:** Existing pages get store-type labels and new metric cards.
-
-**Deliverables:**
-- `LedgerPage`: tab labels, status labels, amount column label all adapt per type; "Buyers" tab; bulk payment method tagging
-- `InsightsPage`: universal Pulse + Log Preview cards; store-type specific cards (2 per type per blueprint)
-
-**Files modified:** `LedgerPage.tsx`, `LedgerPage.module.css`, `InsightsPage.tsx`, `InsightsPage.module.css`
-
----
-
-### Phase 2H — Settings Expanded
-**Goal:** Settings gets all new feature toggle panels.
-
-**Deliverables:**
-- Trovéa Checkout toggle + bank account setup (account number, bank name dropdown with major Nigerian banks, account name)
-- Hold System toggle + configuration (duration selector, auto-confirm toggle, max concurrent holds)
-- Lightweight Payment Proof (always available when Checkout is OFF — no config needed, just enable section)
-- Store Pause — pause/resume with optional return date + message
-- Cancellation Policy (Host/Studio)
-- Location/Address (Host/Studio — shown on Booking Seal)
-- Verification Tier display (current tier + progress toward next)
-- Store-type-specific Architect controls config
-
-**Files modified:** `SettingsPage.tsx`, `SettingsPage.module.css`
-
----
-
-### Phase 2I — Public Storefront: All Enhancements + All Store Types
-**Goal:** The largest phase. All 90+ UI enhancements + 4 new store-type render modes across public pages.
-
-**Sub-phases (can be split if needed):**
-
-**2I-a: StorefrontPage enhancements (Collector)**
-All items from `TROVEA_ENHANCEMENT_SPEC.md` Sections 1 and 7.
-
-**2I-b: StorefrontPage store-type adaptive**
-- Vendor: Window Status + Menu section, 4 store states (Open/Post-Window/Dormant/Upcoming)
-- Host: Service Menu + Booking CTA, Calendar Availability Preview, Portfolio Gallery
-- Digital Creator: Digital Catalogue section, Featured section
-- Studio: Service Packages section, Portfolio Gallery (masonry/grid/editorial), Enquiry Form
-- Universal: Store Pause banner, Verification badge, "Report this store" footer link
-
-**2I-c: ItemDetailPage + CollectionPage enhancements**
-All items from `TROVEA_ENHANCEMENT_SPEC.md` Sections 2 and 3.
-
-**2I-d: ReceiptPage + SubmitReceiptPage enhancements**
-All items from `TROVEA_ENHANCEMENT_SPEC.md` Sections 4 and 5. ReceiptPage gets store-type label adaptation (5 label sets).
-
-**New files:** `BookingFlowPage.tsx` (`/store/:handle/book` — Host slot booking)
-
----
-
-### Phase 2J — The Architect Enhanced + Adaptive
-**Goal:** All 1F enhancements + per-type additional controls.
-
-**Deliverables:**
-- All items from `TROVEA_ENHANCEMENT_SPEC.md` Section 6 (LivePreview, layer improvements, Publish ceremony)
-- New 6th layer "Store Settings" per type:
-  - Collector: featured picker, drop banner text, sold-out overlay style
-  - Vendor: window banner text, category order, pre-order CTA text
-  - Host: booking CTA text, calendar format, portfolio density
-  - Digital Creator: catalogue display, preview style, free badge style
-  - Studio: portfolio layout, enquiry form fields, package card style
-- Section visibility list reflects store-type-specific sections
-
-**Files modified:** All 1F files, `architect.types.ts`
-
----
-
-### Phase 2K — Buyer Features: The Bag + Urgency Signals
-**Goal:** Multi-item buyer experience.
-
-**Deliverables:**
-- `bagStore` at `src/lib/store/bag.store.ts` (localStorage-backed, per-store key)
-- "Add to Bag" primary CTA (replaces "Chat to Buy" on Collector/Vendor/Digital Creator storefronts)
-- Sticky Bag bar (bottom fixed) + Bag drawer (bottom sheet)
-- "Send to Curator" generates WhatsApp message with full bag contents
-- Urgency signals: "Only X left", "X of Y remaining", "X slots left this week", "Selling fast", "Closes in X hours"
-
----
-
-### Phase 2L — Trovéa Checkout (Claim System)
-**Goal:** Full bank-transfer-proof claim flow.
-
-**Deliverables:**
-- Public: Claim Sheet (item details + bank account + upload proof + submit)
-- Item → "Pending Confirmation" state after submission
-- Claim review in Archive/Bookings: proof image viewer, Accept → pre-fills Terminal, Reject → WhatsApp
-- 24h auto-expiry
-- CTA adapts per type: "Claim" / "Claim Pre-order" / "Book & Pay Deposit"
-
----
-
-### Phase 2M — Hold System + Payment Proof
-**Goal:** Lightweight reservation and informal payment proof.
-
-**Deliverables:**
-- "Hold for me" secondary CTA (when `merchant.holds_enabled = true`)
-- Hold modal: name + WhatsApp + optional note
-- "On Hold" storefront status
-- Auto-expiry + WhatsApp notifications
-- "I've paid" proof upload flow (when Checkout is OFF)
-
----
-
-### Phase 2N — Trust Layer
-**Goal:** Verification badges, store reporting, pause storefront rendering.
-
-**Deliverables:**
-- Verification badges on storefront header and Seal page (copper/gold tiers)
-- "Report this store" flow (category → description → evidence → submit)
-- Store Pause: quiet banner, all CTAs disabled, WhatsApp contact remains active
-
----
-
-### Phase 2O — Drop Announcements
-**Goal:** Canvas-generated shareable announcement card.
-
-**Deliverables:**
-- Announcement builder in Dashboard Share Drawer / Archive
-- Canvas API: store palette + typography + headline + store link
-- 1080×1080 and 1080×1920 PNG output
-- "Copy caption" and "Download card" independently
-
----
-
-### Phase 2P — Admin Panel
-**Goal:** Internal `/admin` surface for platform accountability.
-
-**Routes:** `/admin`, `/admin/stores`, `/admin/reports`, `/admin/verification`, `/admin/suspensions`, `/admin/receipts`
-
-**Deliverables:**
-- Platform health overview (new stores, receipts, pending reports, active claims)
-- Store search + management (grant/revoke tier, suspend, unsuspend)
-- Report review with priority queue (Critical/High/Medium/Low)
-- Verification tier management
-- Append-only admin action log
-
----
-
-## Enhancement Spec Reference
-
-The 90+ UI/UX enhancements for Phase 1E and 1F pages are documented in `TROVEA_ENHANCEMENT_SPEC.md`. This file is the authoritative checklist for Phase 2I and 2J.
-
-Sections in the enhancement spec:
-1. StorefrontPage (sections 1.1–1.9)
-2. ItemDetailPage (sections 2.1–2.8)
-3. CollectionPage (sections 3.1–3.4)
-4. ReceiptPage (sections 4.1–4.7)
-5. SubmitReceiptPage (sections 5.1–5.3)
-6. The Architect (sections 6.1–6.9)
-7. Cross-cutting (section 7 — whileInView, whileTap, data-palette, safe areas)
-
-Implementation batch order:
-- **Batch 1 (structural):** data-palette propagation, stagger grid animation, image aspect ratio 3:4, sticky CTA bar, about section redesign
-- **Batch 2 (visual richness):** cinematic header background, Ken Burns + vignette, featured horizontal strip, receipt line item thumbnails, PaletteLayer mini-grid
-- **Batch 3 (micro-details):** price symbol in accent colour, collection accent bar, success ceremony animation, signature type chips, LivePreview store header, universal whileTap/whileInView
-
----
-
-## What NOT to Build in Phase 1
-
-These belong to Phase 2+ (real Supabase wiring, not yet):
-- Real authentication (Supabase auth)
-- Real database reads/writes
-- File uploads to Supabase Storage
-- Real-time inventory updates
-- Email delivery for digital products
-- Payment processing (Paystack)
-- Cron jobs for expiry
-- Server-side rendering / ISR
-- SEO meta tags (defer to SSR phase)
-
-In Phase 1, all of the above are simulated with local state and fixtures.
+## Final Vision Checklist
+1. **Does it feel heavy?** (Shadows + Spring Motion)
+2. **Does it feel smooth?** (Staggered Entrances + Inertia)
+3. **Does it feel professional?** (Foil + Editorial Typography)
+4. **Does it feel Nigerian?** (Naira Formatting + Curator Personas)

@@ -2,22 +2,15 @@ import { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { m } from '@/lib/motion';
 import { ArrowLeft, ArrowRight, Check, X, Loader } from 'lucide-react';
+import { useOnboardingStore } from '@/lib/store/onboarding.store';
+import { db } from '@/lib/db';
 import styles from './SetupStorePage.module.css';
-
-// Handles that are "taken" in the mockup
-const TAKEN_HANDLES = new Set(['tola', 'tolasarchive', 'chidinma', 'bimpe', 'store', 'admin']);
 
 type HandleState = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
-function validateHandle(handle: string): HandleState {
-  if (!handle) return 'idle';
-  if (handle.length < 3) return 'invalid';
-  if (!/^[a-z0-9_]+$/.test(handle)) return 'invalid';
-  return 'idle'; // further async check needed
-}
-
 export default function SetupStorePage() {
   const navigate = useNavigate();
+  const { setStoreDetails } = useOnboardingStore();
   const [storeName, setStoreName] = useState('');
   const [handle, setHandle] = useState('');
   const [handleState, setHandleState] = useState<HandleState>('idle');
@@ -26,7 +19,7 @@ export default function SetupStorePage() {
   const [checkTimer, setCheckTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const checkHandle = useCallback((value: string) => {
-    const cleaned = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const cleaned = value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
     setHandle(cleaned);
 
     if (cleaned.length < 3) {
@@ -34,12 +27,29 @@ export default function SetupStorePage() {
       return;
     }
 
+    if (!/^[a-z0-9_-]+$/.test(cleaned)) {
+      setHandleState('invalid');
+      return;
+    }
+
     setHandleState('checking');
     if (checkTimer) clearTimeout(checkTimer);
 
-    const timer = setTimeout(() => {
-      setHandleState(TAKEN_HANDLES.has(cleaned) ? 'taken' : 'available');
-    }, 600);
+    const timer = setTimeout(async () => {
+      try {
+        const { data, error } = await db
+          .from('merchants')
+          .select('id')
+          .eq('handle', cleaned)
+          .maybeSingle();
+
+        if (error) throw error;
+        setHandleState(data ? 'taken' : 'available');
+      } catch (err) {
+        console.error('Handle check failed:', err);
+        setHandleState('available');
+      }
+    }, 500);
     setCheckTimer(timer);
   }, [checkTimer]);
 
@@ -50,6 +60,7 @@ export default function SetupStorePage() {
 
   const handleContinue = () => {
     if (!isValid) return;
+    setStoreDetails(storeName, handle, bio);
     navigate('/onboarding/first-item');
   };
 
@@ -72,7 +83,7 @@ export default function SetupStorePage() {
     switch (handleState) {
       case 'available': return { text: `trovea.store/${handle} is yours!`, error: false };
       case 'taken': return { text: 'This handle is already taken.', error: true };
-      case 'invalid': return { text: 'Lowercase letters, numbers, and underscores only. Min 3 chars.', error: true };
+      case 'invalid': return { text: 'Lowercase letters, numbers, hyphens, and underscores only. Min 3 chars.', error: true };
       default: return { text: 'Your public store URL: trovea.store/yourhandle', error: false };
     }
   };

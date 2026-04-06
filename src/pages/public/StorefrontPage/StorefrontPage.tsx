@@ -3,7 +3,7 @@
  * Verification badges, pause enforcement, store reporting.
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   MessageCircle, Instagram, ShoppingBag, X, Trash2, Moon, Send, AlertTriangle,
@@ -27,7 +27,7 @@ import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
 import { useBasketStore, buildBasketWhatsApp } from '@/lib/store/basket.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import type { Product, StoreLayout, CardStyle, AvailabilityWindow, Merchant, Drop } from '@/lib/types';
-import type { HoldRequest } from '@/lib/types/store-config.types';
+import type { HoldRequest } from '@/lib/types';
 import PopupModal from '@/components/primitives/PopupModal/PopupModal';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import sfStyles from './StorefrontPage.module.css';
@@ -1006,7 +1006,7 @@ function CalendarPreview({ merchantId, handle }: { merchantId: string, handle: s
 
 // ─── Enquiry Form (Studio) ──────────────────────────────────────────────────
 
-function EnquiryForm({ storeName, responseTime }: { storeName: string, responseTime: number }) {
+function EnquiryForm({ storeName, responseTime }: { storeName: string, responseTime: number | null }) {
   const [form, setForm] = useState({ client_name: '', company: '', project_type: '', budget_range: '', timeline: '', message: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -1033,7 +1033,9 @@ function EnquiryForm({ storeName, responseTime }: { storeName: string, responseT
           <CheckCircle size={48} className={sfStyles.enquiryConfirmIcon} />
           <h2 className={sfStyles.enquiryConfirmTitle}>Thank you, {form.client_name}.</h2>
           <p className={sfStyles.enquiryConfirmText}>Your enquiry has been received.</p>
-          <p className={sfStyles.enquiryConfirmSub}>{storeName} usually responds within {responseTime} hours.</p>
+          {responseTime && (
+            <p className={sfStyles.enquiryConfirmSub}>{storeName} usually responds within {responseTime} hours.</p>
+          )}
         </div>
       </section>
     );
@@ -1154,6 +1156,14 @@ export default function StorefrontPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [devPaused, setDevPaused] = useState(false);
 
+  // Part 2 — Host Slot Picker State
+  const [slotDrawerOpen, setSlotDrawerOpen] = useState(false);
+  const [slotDrawerService, setSlotDrawerService] = useState<Product | null>(null);
+  const [slotStep, setSlotStep] = useState<'date' | 'time' | 'confirm'>('date');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [bookingForm, setBookingForm] = useState({ name: '', phone: '' });
+
   // Derive merchant and products based on handle
   const { merchant, products } = useMemo(() => {
     if (handle === 'chisombeauty') return { merchant: FIXTURE_HOST_MERCHANT, products: FIXTURE_HOST_PRODUCTS };
@@ -1171,6 +1181,8 @@ export default function StorefrontPage() {
   const storeType   = merchant.store_type;
   const bagEligible = ['collector', 'vendor', 'digital_creator'].includes(storeType);
   const isPaused    = devPaused || merchant.is_paused;
+
+  const { addToast } = useUIStore();
 
   // ─── Collector: Drop Logic ───
   const activeDrop = useMemo(() => {
@@ -1246,7 +1258,18 @@ export default function StorefrontPage() {
     [products]
   );
 
+  const merchantCollections = useMemo(() => 
+    FIXTURE_COLLECTIONS.filter(c => c.merchant_id === merchant.id),
+  [merchant.id]);
+
+  const hasUncollected = useMemo(() => 
+    liveProducts.some(p => p.collection_id === null),
+  [liveProducts]);
+
   const displayProducts = useMemo(() => {
+    if (activeCollection === 'uncollected') {
+      return liveProducts.filter(p => p.collection_id === null);
+    }
     if (!activeCollection) return liveProducts;
     return liveProducts.filter((p) => p.collection_id === activeCollection);
   }, [liveProducts, activeCollection]);
@@ -1261,6 +1284,44 @@ export default function StorefrontPage() {
 
   const whatsappLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
   const gridClass    = GRID_CLASS[layout];
+
+  // Host Slot Picker Helpers
+  const openSlotPicker = (product: Product) => {
+    setSlotDrawerService(product);
+    setSlotStep('date');
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setSlotDrawerOpen(true);
+  };
+
+  const handleBookingRequest = () => {
+    if (!bookingForm.name || !bookingForm.phone) {
+      addToast('Please provide your name and phone', 'error');
+      return;
+    }
+    setSlotDrawerOpen(false);
+    addToast(`${merchant.store_name} will confirm your booking shortly`, 'success');
+  };
+
+  const availableDays = useMemo(() => getAvailableDays(merchant.id), [merchant.id]);
+  const calendarDays = useMemo(() => {
+    const arr = [];
+    const start = new Date();
+    for (let i = 0; i < 28; i++) { // 4 weeks
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      arr.push(d);
+    }
+    return arr;
+  }, []);
+
+  const timeSlots = [9, 11, 13, 15];
+  const bookedSlots = useMemo(() => {
+    if (!selectedDate) return [];
+    return FIXTURE_BOOKINGS
+      .filter(b => b.merchant_id === merchant.id && b.scheduled_at.startsWith(selectedDate) && b.status !== 'cancelled')
+      .map(b => new Date(b.scheduled_at).getHours());
+  }, [selectedDate, merchant.id]);
 
   if (!merchant.store_open) {
     return (
@@ -1345,29 +1406,37 @@ export default function StorefrontPage() {
           )}
 
           {/* Collection Nav */}
-          {FIXTURE_COLLECTIONS.length > 0 && (
+          {(merchantCollections.length > 0 || hasUncollected) && (
             <m.nav
-              className={sfStyles.collectionNav}
+              className={`${sfStyles.collectionNav} scrollbar-hide`}
               aria-label="Collections"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0, transition: { delay: 0.35, duration: 0.4 } }}
             >
               <button
-                className={`${sfStyles.collectionNavItem} ${!activeCollection ? sfStyles.collectionNavItemActive : ''}`}
+                className={`${sfStyles.collectionChip} ${!activeCollection ? sfStyles.collectionChipActive : ''}`}
                 onClick={() => setActiveCollection(null)}
               >
                 All
               </button>
-              {FIXTURE_COLLECTIONS.map((col) => (
+              {merchantCollections.map((col) => (
                 <button
                   key={col.id}
-                  className={`${sfStyles.collectionNavItem} ${activeCollection === col.id ? sfStyles.collectionNavItemActive : ''}`}
+                  className={`${sfStyles.collectionChip} ${activeCollection === col.id ? sfStyles.collectionChipActive : ''}`}
                   onClick={() => setActiveCollection(col.id)}
                 >
                   <span className={sfStyles.collectionDot} style={{ background: col.color_accent }} />
                   {col.name}
                 </button>
               ))}
+              {hasUncollected && (
+                <button
+                  className={`${sfStyles.collectionChip} ${activeCollection === 'uncollected' ? sfStyles.collectionChipActive : ''}`}
+                  onClick={() => setActiveCollection('uncollected')}
+                >
+                  Uncollected
+                </button>
+              )}
             </m.nav>
           )}
 
@@ -1477,9 +1546,9 @@ export default function StorefrontPage() {
                     {p.deposit_required && <span> · </span>}
                     {p.deposit_required && <span>{formatCurrencyFull(p.deposit_amount || 0)} deposit required</span>}
                   </div>
-                  <Link to={`/store/${handle}/book`} className={sfStyles.serviceBookBtn}>
+                  <button onClick={() => openSlotPicker(p)} className={sfStyles.serviceBookBtn}>
                     Book a Slot →
-                  </Link>
+                  </button>
                 </div>
               ))}
             </div>
@@ -1659,6 +1728,127 @@ export default function StorefrontPage() {
         onClose={() => setReportOpen(false)}
         storeName={merchant.store_name}
       />
+
+      {/* ── Slot Picker Drawer (Host) ── */}
+      <BaseDrawer
+        open={slotDrawerOpen}
+        onClose={() => setSlotDrawerOpen(false)}
+        title={slotDrawerService?.name || 'Book a Slot'}
+      >
+        <div className={sfStyles.slotPickerDrawer}>
+          {slotStep === 'date' && (
+            <div className={sfStyles.slotStep}>
+              <p className={sfStyles.slotPickerTitle}>Select a date</p>
+              <div className={sfStyles.slotPickerCalendar}>
+                <div className={sfStyles.calendarHeader}>
+                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <span key={i}>{d}</span>)}
+                </div>
+                <div className={sfStyles.calendarGrid}>
+                  {calendarDays.map((d, i) => {
+                    const dateStr = d.toISOString().split('T')[0];
+                    const isAvailable = availableDays.has(dateStr);
+                    return (
+                      <button
+                        key={i}
+                        className={`${sfStyles.slotPickerDay} ${isAvailable ? sfStyles.slotPickerDayAvailable : ''} ${selectedDate === dateStr ? sfStyles.slotPickerDaySelected : ''}`}
+                        disabled={!isAvailable}
+                        onClick={() => {
+                          setSelectedDate(dateStr);
+                          setSlotStep('time');
+                        }}
+                      >
+                        <span className={sfStyles.calendarDayNum}>{d.getDate()}</span>
+                        {isAvailable && <span className={sfStyles.calendarDot} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {slotStep === 'time' && (
+            <div className={sfStyles.slotStep}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <button onClick={() => setSlotStep('date')} className={sfStyles.backIconBtn}><ChevronLeft size={16} /></button>
+                <p className={sfStyles.slotPickerTitle}>{selectedDate ? formatDate(selectedDate, 'long') : ''}</p>
+              </div>
+              <p className={sfStyles.slotPickerSub}>Available times for {slotDrawerService?.name} ({slotDrawerService?.duration} min)</p>
+              <div className={sfStyles.slotPickerTimeGrid}>
+                {timeSlots.map(h => {
+                  const isTaken = bookedSlots.includes(h);
+                  const timeLabel = h > 12 ? `${h - 12}:00 pm` : `${h}:00 am`;
+                  return (
+                    <button
+                      key={h}
+                      className={`${sfStyles.slotPickerTimeBtn} ${isTaken ? sfStyles.slotPickerTimeTaken : ''}`}
+                      disabled={isTaken}
+                      onClick={() => {
+                        setSelectedTime(timeLabel);
+                        setSlotStep('confirm');
+                      }}
+                    >
+                      {timeLabel}
+                      {isTaken && <span style={{ fontSize: 9, opacity: 0.6 }}>(booked)</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {slotStep === 'confirm' && slotDrawerService && (
+            <div className={sfStyles.slotStep}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <button onClick={() => setSlotStep('time')} className={sfStyles.backIconBtn}><ChevronLeft size={16} /></button>
+                <p className={sfStyles.slotPickerTitle}>Confirm Booking</p>
+              </div>
+              <div className={sfStyles.slotConfirmCard}>
+                <p className={sfStyles.slotConfirmName}>{slotDrawerService.name}</p>
+                <p className={sfStyles.slotConfirmMeta}>
+                  {selectedDate ? formatDate(selectedDate, 'long') : ''} · {selectedTime} · {slotDrawerService.duration} min
+                </p>
+                <div className={sfStyles.slotConfirmPrices}>
+                  <div className={sfStyles.slotConfirmPriceRow}>
+                    <span>Deposit required</span>
+                    <span>{formatCurrencyFull(slotDrawerService.deposit_amount || 0)}</span>
+                  </div>
+                  <div className={`${sfStyles.slotConfirmPriceRow} ${sfStyles.slotConfirmPriceTotal}`}>
+                    <span>Total</span>
+                    <span>{formatCurrencyFull(slotDrawerService.price)}</span>
+                  </div>
+                  <p className={sfStyles.slotConfirmNotice}>(balance due at appointment)</p>
+                </div>
+              </div>
+
+              <div className={sfStyles.slotConfirmFields}>
+                <div className={sfStyles.slotConfirmField}>
+                  <label>Your name</label>
+                  <input 
+                    type="text" 
+                    placeholder="Adaeze Okonkwo" 
+                    value={bookingForm.name}
+                    onChange={e => setBookingForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div className={sfStyles.slotConfirmField}>
+                  <label>WhatsApp</label>
+                  <input 
+                    type="tel" 
+                    placeholder="080 1234 5678"
+                    value={bookingForm.phone}
+                    onChange={e => setBookingForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <button className={sfStyles.slotRequestBtn} onClick={handleBookingRequest}>
+                Request Booking
+              </button>
+            </div>
+          )}
+        </div>
+      </BaseDrawer>
 
       {/* ── Dev Pause Toggle (DEV only) ── */}
       {import.meta.env.DEV && (

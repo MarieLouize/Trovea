@@ -90,6 +90,7 @@ export interface Merchant {
   store_config: StoreConfig;
   verification_tier: 'unverified' | 'verified' | 'trusted';
   is_paused: boolean;
+  is_suspended: boolean;
   pause_message: string | null;
   pause_return_date: string | null;
   checkout_enabled: boolean;
@@ -134,8 +135,8 @@ export interface AdminLogEntry {
   id: string;
   action: string;
   target_merchant_id: string | null;
-  actor: 'admin';
-  timestamp: string;
+  admin_id: string;
+  created_at: string;
   note: string | null;
 }
 

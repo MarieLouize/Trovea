@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import type { StoreConfig } from '@/lib/types/store-config.types';
+import type { StoreConfig } from '@/lib/types';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import ArchitectShell from '../../components/ArchitectShell/ArchitectShell';

@@ -25,7 +25,7 @@ export default function AdminOverviewPage() {
   );
 
   const recentLog = [...adminLog]
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5);
 
   const statCards = [
@@ -111,7 +111,7 @@ export default function AdminOverviewPage() {
                       <p className={styles.logAction}>{entry.action}</p>
                       <p className={styles.logMeta}>
                         {merchantName(entry.target_merchant_id)}
-                        <span className={styles.logTime}>{formatRelativeDate(entry.timestamp)}</span>
+                        <span className={styles.logTime}>{formatRelativeDate(entry.created_at)}</span>
                       </p>
                     </div>
                   </li>

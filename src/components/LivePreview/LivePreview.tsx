@@ -1,12 +1,12 @@
 import { useRef, useEffect } from 'react';
 import { m, useAnimation } from '@/lib/motion';
-import type { StoreConfig, SignatureDefinition } from '@/lib/types/store-config.types';
+import type { StoreConfig, SignatureDefinition } from '@/lib/types';
 import { PALETTES } from '@/lib/constants/palettes';
 import { TYPOGRAPHY_STACKS } from '@/lib/constants/typography';
 import { SIGNATURES } from '@/lib/constants/signatures';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
-import { FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS } from '@/lib/fixtures';
+import { FIXTURE_PRODUCTS } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './LivePreview.module.css';
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Product, ProductStatus, ProductType } from '../types';
 import type { ParsedItem } from '../utils/smart-paste';
 import { FIXTURE_PRODUCTS } from '../fixtures';
+import { getProductsByMerchant } from '../db/queries';
 
 export interface GhostCard extends ParsedItem {
   tempId: string;
@@ -11,9 +12,11 @@ export interface GhostCard extends ParsedItem {
 
 interface ArchiveState {
   products: Product[];
-  statusFilter: ProductStatus | 'all' | 'stagnant' | 'in_drop' | 'active_window' | 'sold_out_window';
+  statusFilter: ProductStatus | 'all' | 'stagnant' | 'in_drop' | 'active_window' | 'sold_out_window' | 'no_preview' | 'zero_downloads';
   collectionFilter: string | null;
   searchQuery: string;
+  isLoading: boolean;
+  error: string | null;
 
   // Smart paste
   ghostCards: GhostCard[];
@@ -23,7 +26,7 @@ interface ArchiveState {
   clearGhostCards: () => void;
 
   // Filters
-  setStatusFilter: (status: ProductStatus | 'all' | 'stagnant' | 'in_drop' | 'active_window' | 'sold_out_window') => void;
+  setStatusFilter: (status: ProductStatus | 'all' | 'stagnant' | 'in_drop' | 'active_window' | 'sold_out_window' | 'no_preview' | 'zero_downloads') => void;
   setCollectionFilter: (collectionId: string | null) => void;
   setSearchQuery: (query: string) => void;
 
@@ -33,6 +36,9 @@ interface ArchiveState {
   mintProducts: (cards: GhostCard[], productType?: ProductType) => void;
   toggleProductStatus: (productId: string) => void;
   updateProduct: (productId: string, updates: Partial<Product>) => void;
+
+  // Initialization
+  initFromDB: (merchantId: string) => Promise<void>;
 
   // Derived
   filteredProducts: () => Product[];
@@ -45,6 +51,8 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
   statusFilter: 'all',
   collectionFilter: null,
   searchQuery: '',
+  isLoading: false,
+  error: null,
 
   ghostCards: [],
   setGhostCards: (cards) => set({ ghostCards: cards }),
@@ -82,6 +90,7 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
         product_type: productType,
         stock_level: hasVariants ? null : card.quantity,
         collection_id: null,
+        category: null,
         tags: card.tags,
         status: 'live' as ProductStatus,
         images: [],
@@ -143,6 +152,21 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
           : p
       ),
     })),
+
+  initFromDB: async (merchantId) => {
+    set({ isLoading: true, error: null });
+    try {
+      const products = await getProductsByMerchant(merchantId);
+      // We don't overwrite if empty to allow fixtures during dev
+      if (products.length > 0) {
+        set({ products, isLoading: false });
+      } else {
+        set({ isLoading: false });
+      }
+    } catch (err) {
+      set({ error: (err as Error).message, isLoading: false });
+    }
+  },
 
   filteredProducts: () => {
     const { products, statusFilter, collectionFilter, searchQuery } = get();

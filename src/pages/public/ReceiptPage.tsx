@@ -11,12 +11,12 @@
  * - Studio: Financial summary, Deliverables checklist, Download as PDF
  */
 
-import { useState, useMemo, type ElementType } from 'react';
+import { useState, useMemo, useEffect, type ElementType } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { 
   Share2, Check, Package, Calendar, Download, 
-  Briefcase, Bell, ArrowRight, ExternalLink,
-  ChevronRight, Printer, Clock
+  Briefcase, Bell, ExternalLink,
+  Printer, Clock
 } from 'lucide-react';
 import { m } from '@/lib/motion';
 import { 
@@ -36,8 +36,9 @@ import {
 } from '@/lib/fixtures';
 import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
 import { buildStoreContactLink } from '@/lib/utils/whatsapp';
-import type { ReceiptType, ShipmentStatus, Product } from '@/lib/types';
+import type { ReceiptType, ShipmentStatus, Product, Receipt } from '@/lib/types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
+import { getReceiptBySealId } from '@/lib/db/queries';
 import styles from './ReceiptPage.module.css';
 
 // ─── Per-type metadata ─────────────────────────────────────────────────────
@@ -256,10 +257,37 @@ export default function ReceiptPage() {
   const { receipt_id } = useParams<{ receipt_id: string }>();
   const navigate = useNavigate();
   const [notified, setNotified] = useState(false);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const receipt = FIXTURE_RECEIPTS.find(
-    (r) => r.id === receipt_id || r.seal_id.toLowerCase() === receipt_id?.toLowerCase()
-  );
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true);
+      const hasEnv = !!import.meta.env.VITE_SUPABASE_URL && !!import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (hasEnv && receipt_id) {
+        try {
+          const r = await getReceiptBySealId(receipt_id);
+          if (r) {
+            setReceipt(r);
+            setIsLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error('DB Receipt load failed:', err);
+        }
+      }
+
+      // Fallback: fixture data
+      const r = FIXTURE_RECEIPTS.find(
+        (r) => r.id === receipt_id || r.seal_id.toLowerCase() === receipt_id?.toLowerCase()
+      );
+      setReceipt(r ?? null);
+      setIsLoading(false);
+    };
+
+    load();
+  }, [receipt_id]);
 
   const merchant = receipt ? getMerchantById(receipt.merchant_id) : FIXTURE_MERCHANT;
   const { paletteId, isDark } = usePaletteTheme(merchant.store_config?.palette);
@@ -299,6 +327,21 @@ export default function ReceiptPage() {
     window.print();
   };
 
+  if (isLoading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.brandBar}>
+          <Link to="/" className={styles.brandLogo}>
+            Trove<span className={styles.brandLogoApos}>'</span>a
+          </Link>
+        </div>
+        <div className={styles.notFound}>
+          <p className={styles.notFoundTitle}>Retrieving Seal...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!receipt) {
     return (
       <div className={`sf-themed ${styles.page}`} data-palette={paletteId} data-dark={isDark}>
@@ -332,8 +375,8 @@ export default function ReceiptPage() {
   );
 
   const nextWindow = FIXTURE_WINDOWS
-    .filter(w => w.merchant_id === receipt.merchant_id && w.status === 'scheduled')
-    .sort((a, b) => new Date(a.open_at).getTime() - new Date(b.open_at).getTime())[0] ?? null;
+    .filter(w => w.merchant_id === receipt.merchant_id && w.status === 'upcoming')
+    .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())[0] ?? null;
 
   const bundleSavings = useMemo(() => {
     if (receiptType !== 'download' || receipt.line_items.length <= 1) return 0;
@@ -669,7 +712,7 @@ export default function ReceiptPage() {
             <div className={styles.dropCta}>
               <p className={styles.dropCtaLabel}>Next Window</p>
               <p className={styles.dropCtaTitle}>
-                {formatDate(nextWindow.open_at, 'short')} · {new Date(nextWindow.open_at).getHours() % 12 || 12}{new Date(nextWindow.open_at).getHours() >= 12 ? 'pm' : 'am'}–{new Date(nextWindow.closes_at).getHours() % 12 || 12}{new Date(nextWindow.closes_at).getHours() >= 12 ? 'pm' : 'am'}
+                {formatDate(nextWindow.opens_at, 'short')} · {new Date(nextWindow.opens_at).getHours() % 12 || 12}{new Date(nextWindow.opens_at).getHours() >= 12 ? 'pm' : 'am'}–{new Date(nextWindow.closes_at).getHours() % 12 || 12}{new Date(nextWindow.closes_at).getHours() >= 12 ? 'pm' : 'am'}
               </p>
               <button className={styles.ctaBtn} style={{ width: '100%', marginTop: 8 }} onClick={() => navigate(`/store/${merchant.handle}`)}>
                 View Menu

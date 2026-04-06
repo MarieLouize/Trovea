@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { m, Reorder, useDragControls } from '@/lib/motion';
 import { GripVertical } from 'lucide-react';
-import type { StoreConfig, StoreSignature, SectionStates } from '@/lib/types/store-config.types';
+import type { StoreConfig, StoreSignature, SectionStates } from '@/lib/types';
 import { SIGNATURES } from '@/lib/constants/signatures';
 import styles from './SignatureLayer.module.css';
 

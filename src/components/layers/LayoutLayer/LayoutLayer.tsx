@@ -1,5 +1,5 @@
 import { m } from '@/lib/motion';
-import type { StoreConfig, StoreLayout } from '@/lib/types/store-config.types';
+import type { StoreConfig, StoreLayout } from '@/lib/types';
 import { LAYOUTS } from '@/lib/constants/layouts';
 import styles from './LayoutLayer.module.css';
 
@@ -93,7 +93,7 @@ export default function LayoutLayer({ draftConfig, onUpdate }: LayoutLayerProps)
               role="listitem"
               className={`${styles.card} ${isActive ? styles.cardActive : ''}`}
               onClick={() => handleSelect(layout.id)}
-              aria-label={`Select ${layout.label} layout`}
+              aria-label={`Select ${layout.name} layout`}
               aria-pressed={isActive}
               whileTap={{ scale: 0.985 }}
             >
@@ -107,7 +107,7 @@ export default function LayoutLayer({ draftConfig, onUpdate }: LayoutLayerProps)
               {/* Info */}
               <div className={styles.info}>
                 <div className={styles.infoTop}>
-                  <span className={`${styles.layoutName} t-title`}>{layout.label}</span>
+                  <span className={`${styles.layoutName} t-title`}>{layout.name}</span>
                   {isActive && (
                     <m.span
                       className={`${styles.activeBadge} t-caps`}

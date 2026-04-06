@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, Calendar, Clock, Lock } from 'lucide-react';
-import { m, AnimatePresence } from '@/lib/motion';
+import { Plus, Calendar, Clock, Lock, Edit2 } from 'lucide-react';
 import type { AvailabilityWindow, Booking } from '@/lib/types';
 import { FIXTURE_WINDOWS, FIXTURE_BOOKINGS } from '@/lib/fixtures';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { useUIStore } from '@/lib/store/ui.store';
+import { useMerchantStore } from '@/lib/store/merchant.store';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
+import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './SchedulePage.module.css';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -37,6 +38,13 @@ function formatTime(iso: string): string {
     minute: '2-digit',
     hour12: true,
   });
+}
+
+function formatScheduledAt(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${date} at ${time}`;
 }
 
 function formatWindowRange(opensAt: string, closesAt: string): string {
@@ -89,14 +97,30 @@ const DEFAULT_HOURS: WorkingHours = {
 export default function SchedulePage() {
   const st = useStoreType();
   const { addToast } = useUIStore();
+  const merchant = useMerchantStore((s) => s.merchant);
 
   // ── State ──
   const [windows, setWindows] = useState<AvailabilityWindow[]>(FIXTURE_WINDOWS);
   const [workingHours, setWorkingHours] = useState<WorkingHours>(DEFAULT_HOURS);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  
+  // Drawers
   const [hoursDrawerOpen, setHoursDrawerOpen] = useState(false);
   const [hoursForm, setHoursForm] = useState<WorkingHours>(DEFAULT_HOURS);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  
+  // Bug 1 Fix: New Window State
+  const [newWindowOpen, setNewWindowOpen] = useState(false);
+  const [editingWindow, setEditingWindow] = useState<AvailabilityWindow | null>(null);
+  const [windowForm, setWindowForm] = useState({
+    label: '',
+    opens_date: '',
+    opens_time: '09:00',
+    closes_date: '',
+    closes_time: '23:00',
+    notes: '',
+  });
+  const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
 
   // ── Computed ──
   const weekDays = getWeekDays();
@@ -130,11 +154,88 @@ export default function SchedulePage() {
           : w
       )
     );
-    addToast('Window closed.', 'info');
+    addToast('Window closed', 'info');
   };
 
   const handleBookingClick = (booking: Booking) => {
     setSelectedBooking(booking);
+  };
+
+  // Bug 1 Fix: Window Handlers
+  const openNewWindow = () => {
+    setEditingWindow(null);
+    setWindowForm({
+      label: '',
+      opens_date: '',
+      opens_time: '09:00',
+      closes_date: '',
+      closes_time: '23:00',
+      notes: '',
+    });
+    setFormErrors({});
+    setNewWindowOpen(true);
+  };
+
+  const openEditWindow = (w: AvailabilityWindow) => {
+    const openD = new Date(w.opens_at);
+    const closeD = new Date(w.closes_at);
+    
+    setEditingWindow(w);
+    setWindowForm({
+      label: w.label,
+      opens_date: openD.toISOString().split('T')[0],
+      opens_time: openD.toTimeString().slice(0, 5),
+      closes_date: closeD.toISOString().split('T')[0],
+      closes_time: closeD.toTimeString().slice(0, 5),
+      notes: w.notes || '',
+    });
+    setFormErrors({});
+    setNewWindowOpen(true);
+  };
+
+  const handleWindowSubmit = () => {
+    // Validation
+    const errors: Record<string, boolean> = {};
+    if (!windowForm.label) errors.label = true;
+    if (!windowForm.opens_date) errors.opens_date = true;
+    if (!windowForm.opens_time) errors.opens_time = true;
+    if (!windowForm.closes_date) errors.closes_date = true;
+    if (!windowForm.closes_time) errors.closes_time = true;
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      addToast('Please fill all required fields', 'error');
+      return;
+    }
+
+    if (!merchant) return;
+
+    const opensAt = new Date(`${windowForm.opens_date}T${windowForm.opens_time}`).toISOString();
+    const closesAt = new Date(`${windowForm.closes_date}T${windowForm.closes_time}`).toISOString();
+
+    if (editingWindow) {
+      setWindows(prev => prev.map(w => 
+        w.id === editingWindow.id 
+          ? { ...w, label: windowForm.label, opens_at: opensAt, closes_at: closesAt, notes: windowForm.notes || null }
+          : w
+      ));
+      addToast('Window updated', 'success');
+    } else {
+      const newWindow: AvailabilityWindow = {
+        id: `window-${Date.now()}`,
+        merchant_id: merchant.id,
+        label: windowForm.label,
+        opens_at: opensAt,
+        closes_at: closesAt,
+        status: 'upcoming',
+        total_orders: 0,
+        notes: windowForm.notes || null,
+      };
+      setWindows(prev => [newWindow, ...prev]);
+      addToast('Window created', 'success');
+    }
+
+    setNewWindowOpen(false);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -151,7 +252,7 @@ export default function SchedulePage() {
       <div className={styles.page}>
         <div className={styles.header}>
           <h1 className={styles.pageTitle}>Order Windows</h1>
-          <button className={styles.primaryBtn}>
+          <button className={styles.primaryBtn} onClick={openNewWindow}>
             <Plus size={14} /> New Window
           </button>
         </div>
@@ -184,11 +285,22 @@ export default function SchedulePage() {
                 }`}>
                   {w.status.toUpperCase()}
                 </span>
-                {w.status === 'open' && (
-                  <button className={styles.secondaryBtn} style={{ fontSize: 9, padding: '2px 8px' }} onClick={() => handleCloseEarly(w.id)}>
-                    Close Early
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {w.status === 'upcoming' && (
+                    <button 
+                      className={styles.secondaryBtn} 
+                      style={{ fontSize: 9, padding: '2px 8px' }}
+                      onClick={() => openEditWindow(w)}
+                    >
+                      <Edit2 size={10} /> Edit
+                    </button>
+                  )}
+                  {w.status === 'open' && (
+                    <button className={styles.secondaryBtn} style={{ fontSize: 9, padding: '2px 8px' }} onClick={() => handleCloseEarly(w.id)}>
+                      Close Early
+                    </button>
+                  )}
+                </div>
               </div>
               <p className={styles.windowLabel} style={{ marginTop: 8, fontWeight: 600 }}>{w.label}</p>
               <p className={styles.windowRange} style={{ fontSize: 12, color: 'var(--color-fg-ghost)', marginTop: 2 }}>
@@ -200,6 +312,83 @@ export default function SchedulePage() {
             </div>
           ))}
         </div>
+
+        {/* New/Edit Window Drawer */}
+        <BaseDrawer
+          open={newWindowOpen}
+          onClose={() => setNewWindowOpen(false)}
+          title={editingWindow ? 'Edit Window' : 'New Window'}
+        >
+          <div className={styles.drawerForm}>
+            <div className={styles.drawerSection}>
+              <label className={styles.drawerLabel}>Window Label *</label>
+              <input
+                className={`${styles.drawerInput} ${formErrors.label ? styles.error : ''}`}
+                placeholder="e.g. Weekend Drop — 28 Jun"
+                value={windowForm.label}
+                onChange={(e) => setWindowForm(f => ({ ...f, label: e.target.value }))}
+              />
+              {formErrors.label && <span className={styles.errorText}>Required</span>}
+            </div>
+
+            <div className={styles.drawerRow} style={{ display: 'flex', gap: 'var(--space-4)' }}>
+              <div className={styles.drawerSection} style={{ flex: 1 }}>
+                <label className={styles.drawerLabel}>Opens Date *</label>
+                <input
+                  className={`${styles.drawerInput} ${formErrors.opens_date ? styles.error : ''}`}
+                  type="date"
+                  value={windowForm.opens_date}
+                  onChange={(e) => setWindowForm(f => ({ ...f, opens_date: e.target.value }))}
+                />
+              </div>
+              <div className={styles.drawerSection} style={{ flex: 1 }}>
+                <label className={styles.drawerLabel}>Opens Time *</label>
+                <input
+                  className={`${styles.drawerInput} ${formErrors.opens_time ? styles.error : ''}`}
+                  type="time"
+                  value={windowForm.opens_time}
+                  onChange={(e) => setWindowForm(f => ({ ...f, opens_time: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className={styles.drawerRow} style={{ display: 'flex', gap: 'var(--space-4)' }}>
+              <div className={styles.drawerSection} style={{ flex: 1 }}>
+                <label className={styles.drawerLabel}>Closes Date *</label>
+                <input
+                  className={`${styles.drawerInput} ${formErrors.closes_date ? styles.error : ''}`}
+                  type="date"
+                  value={windowForm.closes_date}
+                  onChange={(e) => setWindowForm(f => ({ ...f, closes_date: e.target.value }))}
+                />
+              </div>
+              <div className={styles.drawerSection} style={{ flex: 1 }}>
+                <label className={styles.drawerLabel}>Closes Time *</label>
+                <input
+                  className={`${styles.drawerInput} ${formErrors.closes_time ? styles.error : ''}`}
+                  type="time"
+                  value={windowForm.closes_time}
+                  onChange={(e) => setWindowForm(f => ({ ...f, closes_time: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className={styles.drawerSection}>
+              <label className={styles.drawerLabel}>Notes (optional)</label>
+              <textarea
+                className={styles.drawerTextarea}
+                rows={2}
+                placeholder="Internal notes about this window..."
+                value={windowForm.notes}
+                onChange={(e) => setWindowForm(f => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+
+            <button className={styles.submitBtn} onClick={handleWindowSubmit}>
+              {editingWindow ? 'Save Changes' : 'Create Window'}
+            </button>
+          </div>
+        </BaseDrawer>
       </div>
     );
   }

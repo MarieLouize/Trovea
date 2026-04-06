@@ -949,3 +949,166 @@
 }
 
 .previewLink:hover { opacity: 0.7; }
+
+/* ── STUDIO PROPOSAL VIEW ── */
+.proposalLayout {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-5) var(--space-20);
+}
+
+.proposalHeader {
+  margin-bottom: var(--space-10);
+}
+
+.proposalTitle {
+  font-family: var(--font-serif);
+  font-size: clamp(32px, 6vw, 56px);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--sf-fg);
+  margin-bottom: var(--space-4);
+}
+
+.proposalPrice {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  color: var(--sf-fg);
+  margin-bottom: var(--space-2);
+}
+
+.proposalBrief {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--sf-fg-ghost);
+}
+
+.proposalSection {
+  margin-bottom: var(--space-12);
+}
+
+.proposalSectionTitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--sf-fg-ghost);
+  border-bottom: 1px solid var(--sf-divider);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.proposalDescription {
+  font-family: var(--font-serif-alt);
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.8;
+  color: var(--sf-fg-muted);
+}
+
+.enquiryForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.enquiryRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.enquiryField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.enquiryField label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--sf-fg-ghost);
+}
+
+.enquiryField input,
+.enquiryField textarea {
+  background: var(--sf-surface-raised);
+  border: 1px solid var(--sf-divider);
+  border-radius: var(--r-sm);
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--sf-fg);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.enquiryField input:focus,
+.enquiryField textarea:focus {
+  border-color: var(--sf-accent);
+}
+
+.readOnlyInput {
+  background: var(--sf-surface-inset) !important;
+  color: var(--sf-fg-muted) !important;
+  cursor: default;
+}
+
+.proposalSubmitBtn {
+  margin-top: var(--space-2);
+  padding: var(--space-4);
+  background: var(--sf-fg);
+  color: var(--sf-bg);
+  border: none;
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.proposalSubmitBtn:hover { opacity: 0.9; }
+
+.proposalWaBtn {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--sf-fg-ghost);
+  text-decoration: none;
+}
+
+.enquirySuccess {
+  text-align: center;
+  padding: var(--space-10) var(--space-6);
+  background: var(--sf-surface-raised);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.successIcon {
+  color: var(--color-success);
+}
+
+.proposalGallery {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+  margin-top: var(--space-12);
+}
+
+.proposalGalleryImg {
+  width: 100%;
+  border-radius: var(--r-lg);
+  box-shadow: var(--sf-card-shadow);
+}

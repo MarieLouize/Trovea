@@ -123,7 +123,7 @@ When `merchant.is_paused = true`:
 ## Data Model Invariants
 
 - `product.price` is stored in **naira integers** (NOT kobo) — do not convert on read
-- `receipt.delivery_fee` is stored in **kobo** (if used) — be explicit about units
+- `receipt.delivery_fee` is stored in **naira integers**, consistent with all other monetary fields
 - `product.stock_level` is `null` when `has_variants = true` — stock lives on variants only
 - `section_states` only has 4 keys — `'section-hero'`, `'section-about'`, `'section-slots'`, `'section-featured'`
 - `section_order` can have 7 different keys including the 4 above plus `'section-header'`, `'section-grid'`, `'section-contact'`

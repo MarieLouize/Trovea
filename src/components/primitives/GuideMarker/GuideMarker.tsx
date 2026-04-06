@@ -12,7 +12,7 @@ interface GuideMarkerProps {
 
 export default function GuideMarker({ id, prompt, reward, xp = 10 }: GuideMarkerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { completeGuide, isComplete, completedGuides } = useGuideStore();
+  const { completeGuide, isComplete } = useGuideStore();
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // Only one tooltip open at a time

@@ -9,7 +9,7 @@ import { Copy, MessageCircle, Check, X } from 'lucide-react';
 import { m, AnimatePresence, SPRING_UI } from '@/lib/motion';
 import type { Product } from '@/lib/types/product.types';
 import type { Merchant } from '@/lib/types/merchant.types';
-import type { ClaimRequest } from '@/lib/types/store-config.types';
+import type { ClaimRequest } from '@/lib/types';
 import { buildClaimConfirmLink } from '@/lib/utils/whatsapp';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import { useUIStore } from '@/lib/store/ui.store';
@@ -152,13 +152,6 @@ export default function ClaimSheet({
     setIssuedClaimId(claimId);
     setStep(3);
   };
-
-  // Determine CTA label per store type
-  const ctaLabel = (() => {
-    if (merchant.store_type === 'vendor') return 'Claim Pre-order';
-    if (merchant.store_type === 'host' || merchant.store_type === 'studio') return 'Book & Pay Deposit';
-    return 'Claim This Piece';
-  })();
 
   const displayPrice = variantLabel
     ? formatCurrencyFull(product.price)

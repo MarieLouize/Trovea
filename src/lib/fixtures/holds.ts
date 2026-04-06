@@ -1,4 +1,4 @@
-import type { HoldRequest } from '@/lib/types/store-config.types';
+import type { HoldRequest } from '@/lib/types';
 
 const hoursAgo = (h: number) =>
   new Date(Date.now() - h * 3_600_000).toISOString();

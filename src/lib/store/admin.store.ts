@@ -30,7 +30,7 @@ function nextLogId(): string {
 }
 
 export const useAdminStore = create<AdminState>((set) => ({
-  suspendedMerchantIds: [],
+  suspendedMerchantIds: DEV_MERCHANTS.filter((m) => m.is_suspended).map((m) => m.id),
   adminLog: [...FIXTURE_ADMIN_LOG],
   merchantTiers: { ...initialTiers },
   reportStatuses: {},
@@ -40,8 +40,8 @@ export const useAdminStore = create<AdminState>((set) => ({
       id: nextLogId(),
       action: 'Store suspended',
       target_merchant_id: merchantId,
-      actor: 'admin',
-      timestamp: new Date().toISOString(),
+      admin_id: 'admin-001',
+      created_at: new Date().toISOString(),
       note: note ?? `${storeName} suspended by admin.`,
     };
     set((s) => ({
@@ -57,8 +57,8 @@ export const useAdminStore = create<AdminState>((set) => ({
       id: nextLogId(),
       action: 'Store unsuspended',
       target_merchant_id: merchantId,
-      actor: 'admin',
-      timestamp: new Date().toISOString(),
+      admin_id: 'admin-001',
+      created_at: new Date().toISOString(),
       note: `${storeName} unsuspended by admin.`,
     };
     set((s) => ({
@@ -72,8 +72,8 @@ export const useAdminStore = create<AdminState>((set) => ({
       id: nextLogId(),
       action: `Verification tier set to ${tier}`,
       target_merchant_id: merchantId,
-      actor: 'admin',
-      timestamp: new Date().toISOString(),
+      admin_id: 'admin-001',
+      created_at: new Date().toISOString(),
       note: `${storeName} tier changed to ${tier}.`,
     };
     set((s) => ({
@@ -87,8 +87,8 @@ export const useAdminStore = create<AdminState>((set) => ({
       id: nextLogId(),
       action: `Report ${status}`,
       target_merchant_id: null,
-      actor: 'admin',
-      timestamp: new Date().toISOString(),
+      admin_id: 'admin-001',
+      created_at: new Date().toISOString(),
       note: note ?? `Report on ${storeName} marked as ${status}.`,
     };
     set((s) => ({

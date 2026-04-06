@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { m } from '@/lib/motion';
 import { ArrowLeft, ArrowRight, Camera } from 'lucide-react';
+import { useOnboardingStore } from '@/lib/store/onboarding.store';
 import styles from './IdentityPage.module.css';
 
 export default function IdentityPage() {
   const navigate = useNavigate();
+  const { setIdentity } = useOnboardingStore();
   const [displayName, setDisplayName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
 
@@ -13,6 +15,7 @@ export default function IdentityPage() {
 
   const handleContinue = () => {
     if (!isValid) return;
+    setIdentity(displayName, whatsapp);
     navigate('/onboarding/store-type');
   };
 

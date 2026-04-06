@@ -1,5 +1,5 @@
 import { m } from '@/lib/motion';
-import type { StoreConfig, CardStyle } from '@/lib/types/store-config.types';
+import type { StoreConfig, CardStyle } from '@/lib/types';
 import { FIXTURE_PRODUCTS } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './CardStyleLayer.module.css';

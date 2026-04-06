@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
-  CheckCircle, MessageCircle, Package, Clock, XCircle, 
-  ArrowRight, UserCheck, UserMinus, ExternalLink 
+  MessageCircle, Package, Clock, 
+  UserCheck, UserMinus 
 } from 'lucide-react';
 import { m, AnimatePresence } from '@/lib/motion';
 import type { Booking, Enquiry } from '@/lib/types';
@@ -10,8 +10,12 @@ import { FIXTURE_BOOKINGS, FIXTURE_ENQUIRIES, FIXTURE_STUDIO_PRODUCTS } from '@/
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useUIStore } from '@/lib/store/ui.store';
-import { formatCurrencyFull, formatPhone } from '@/lib/utils/format';
-import { buildStoreContactLink } from '@/lib/utils/whatsapp';
+import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
+import { 
+  buildStoreContactLink, 
+  buildAppointmentReminderLink, 
+  buildBalanceDueLink
+} from '@/lib/utils/whatsapp';
 import styles from './BookingsPage.module.css';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -215,7 +219,7 @@ export default function BookingsPage() {
                   {enquiry.status === 'active_project' && enquiry.package_value && (
                     <div className={styles.packageValue}>
                       {formatCurrencyFull(enquiry.package_value)}
-                      {enquiry.deposit_paid && (
+                      {enquiry.deposit_paid !== null && (
                         <div className={styles.depositStatus}>
                           <span className={styles.depositPaid}>✓ {formatCurrencyFull(enquiry.deposit_paid)} received</span>
                           <span> · Balance: {formatCurrencyFull(enquiry.package_value - enquiry.deposit_paid)} pending</span>
@@ -252,9 +256,28 @@ export default function BookingsPage() {
                       </>
                     )}
                     {enquiry.status === 'active_project' && (
-                      <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => updateEnquiryStatus(enquiry.id, 'completed')}>
-                        Mark Completed
-                      </button>
+                      <>
+                        <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => updateEnquiryStatus(enquiry.id, 'completed')}>
+                          Mark Completed
+                        </button>
+                        {enquiry.package_value !== null && enquiry.deposit_paid !== null && enquiry.deposit_paid < enquiry.package_value && (
+                          <button 
+                            className={styles.actionBtn}
+                            onClick={() => {
+                              const url = buildBalanceDueLink({
+                                phone: '', // Enquiry doesn't have phone yet
+                                buyerName: enquiry.client_name,
+                                projectName: enquiry.project_type,
+                                balanceAmount: (enquiry.package_value ?? 0) - (enquiry.deposit_paid ?? 0),
+                                storeName: merchant.store_name,
+                              });
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                          >
+                            Request Balance ↗
+                          </button>
+                        )}
+                      </>
                     )}
                     {enquiry.status === 'declined' && (
                       <button className={styles.actionBtn} onClick={() => updateEnquiryStatus(enquiry.id, 'new')}>
@@ -381,6 +404,22 @@ export default function BookingsPage() {
                       <>
                         <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => updateBookingStatus(booking.id, 'completed')}>
                           Mark Completed
+                        </button>
+                        <button 
+                          className={styles.actionBtn}
+                          onClick={() => {
+                            const url = buildAppointmentReminderLink({
+                              phone: booking.buyer_phone ?? '',
+                              buyerName: booking.buyer_name,
+                              serviceName: booking.service_name,
+                              appointmentTime: formatDate(booking.scheduled_at, 'long'),
+                              storeName: merchant.store_name,
+                              arrivalNote: merchant.arrival_notes,
+                            });
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          }}
+                        >
+                          Send Reminder ↗
                         </button>
                         <button className={styles.actionBtn} onClick={() => updateBookingStatus(booking.id, 'cancelled')}>
                           Cancel

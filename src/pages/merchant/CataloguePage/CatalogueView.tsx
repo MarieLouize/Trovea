@@ -157,6 +157,7 @@ export default function CataloguePage() {
       product_type: 'digital',
       stock_level: null,
       collection_id: null,
+      category: null,
       tags: [],
       status: 'live',
       images: [],
@@ -177,6 +178,7 @@ export default function CataloguePage() {
       deliverables: null,
       timeline_estimate: null,
       deposit_pct: null,
+      deleted_at: null,
       created_at: now,
       updated_at: now,
     });
@@ -211,7 +213,7 @@ export default function CataloguePage() {
           <m.button
             key={tab.value}
             className={`${styles.statusTab} ${statusFilter === tab.value ? styles.active : ''}`}
-            onClick={() => setStatusFilter(tab.value)}
+            onClick={() => setStatusFilter(tab.value as any)}
             whileTap={{ scale: 0.96 }}
           >
             {tab.label}

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Receipt, PaymentStatus, PaymentMethod, ShipmentStatus } from '../types';
 import { FIXTURE_RECEIPTS } from '../fixtures';
+import { getReceiptsByMerchant } from '../db/queries';
 
 export type LedgerTab = 'all' | 'pending' | 'dispatch' | 'completed' | 'drops' | 'fulfilment' | 'deposits' | 'delivery' | 'pipeline' | 'buyers' | 'clients';
 
@@ -10,6 +11,8 @@ interface LedgerState {
   selectedReceiptId: string | null;
   selectedIds: string[];
   isMultiSelectMode: boolean;
+  isLoading: boolean;
+  error: string | null;
 
   setActiveTab: (tab: LedgerTab) => void;
   selectReceipt: (id: string | null) => void;
@@ -32,6 +35,9 @@ interface LedgerState {
   
   updateReceiptStatus: (receiptId: string, updates: Partial<Receipt>) => void;
 
+  // Initialization
+  initFromDB: (merchantId: string) => Promise<void>;
+
   // Derived
   filteredReceipts: () => Receipt[];
 }
@@ -42,6 +48,8 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   selectedReceiptId: null,
   selectedIds: [],
   isMultiSelectMode: false,
+  isLoading: false,
+  error: null,
 
   setActiveTab: (tab) => set({ activeTab: tab, isMultiSelectMode: false, selectedIds: [] }),
   selectReceipt: (id) => set({ selectedReceiptId: id }),
@@ -180,6 +188,20 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
           : r
       ),
     })),
+
+  initFromDB: async (merchantId) => {
+    set({ isLoading: true, error: null });
+    try {
+      const receipts = await getReceiptsByMerchant(merchantId);
+      if (receipts.length > 0) {
+        set({ receipts, isLoading: false });
+      } else {
+        set({ isLoading: false });
+      }
+    } catch (err) {
+      set({ error: (err as Error).message, isLoading: false });
+    }
+  },
 
   filteredReceipts: () => {
     const { receipts, activeTab } = get();

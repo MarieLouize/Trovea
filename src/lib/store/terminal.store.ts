@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Product, ProductVariant, Receipt, ReceiptType } from '../types';
+import { createReceipt } from '../db/queries';
 
 export type TerminalStage = 'composition' | 'attribution' | 'issuance';
 
@@ -35,6 +36,7 @@ interface TerminalState {
   deliveryFee: number;
   deliveryFeeExpanded: boolean;
   issuedReceipt: Receipt | null;
+  isPersisting: boolean;
 
   // New fields from Phase 2.5-F
   saleNote: string;
@@ -81,6 +83,7 @@ interface TerminalState {
   // Reset
   reset: () => void;
   setIssuedReceipt: (receipt: Receipt, storeType: ReceiptType) => void;
+  persistReceipt: () => Promise<boolean>;
 }
 
 const STAGE_ORDER: TerminalStage[] = ['composition', 'attribution', 'issuance'];
@@ -95,6 +98,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   deliveryFee: 0,
   deliveryFeeExpanded: false,
   issuedReceipt: null,
+  isPersisting: false,
 
   // New initial state
   saleNote: '',
@@ -120,6 +124,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   addItem: (product, variant = null) => {
     const variantLabel = variant?.label ?? null;
+    // FIX: use variant price_override if set, otherwise fall back to product.price
     const price = variant?.price_override ?? product.price;
 
     set((state) => {
@@ -221,6 +226,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       deliveryFee: 0,
       deliveryFeeExpanded: false,
       issuedReceipt: null,
+      isPersisting: false,
       saleNote: '',
       orderType: null,
       fulfilmentType: null,
@@ -238,5 +244,26 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       delivery_status: state.buyerEmail ? 'pending' : (receipt.delivery_status || null),
     };
     set({ issuedReceipt: enrichedReceipt });
+  },
+
+  persistReceipt: async () => {
+    const { issuedReceipt } = get();
+    if (!issuedReceipt) return false;
+
+    set({ isPersisting: true });
+    try {
+      const { id: _id, created_at: _ca, updated_at: _ua, ...receiptData } = issuedReceipt;
+      const saved = await createReceipt(receiptData);
+      if (saved) {
+        set({ issuedReceipt: saved, isPersisting: false });
+        return true;
+      }
+      set({ isPersisting: false });
+      return false;
+    } catch (err) {
+      console.error('Failed to persist receipt:', err);
+      set({ isPersisting: false });
+      return false;
+    }
   },
 }));

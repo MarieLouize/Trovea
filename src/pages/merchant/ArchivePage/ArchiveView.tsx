@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { m, AnimatePresence } from '@/lib/motion';
 import type { Product, ProductStatus, ProductType, Drop } from '@/lib/types';
-import type { ClaimRequest } from '@/lib/types/store-config.types';
+import type { ClaimRequest } from '@/lib/types';
 import { useArchiveStore } from '@/lib/store/archive.store';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
@@ -520,12 +520,6 @@ export default function ArchivePage() {
   const openAdd = () => {
     setEditTarget(null);
     setDropsView(false);
-    setDrawerOpen(true);
-  };
-
-  const openEdit = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditTarget(id);
     setDrawerOpen(true);
   };
 

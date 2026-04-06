@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Eye, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
-import type { StoreConfig } from '@/lib/types/store-config.types';
+import type { StoreConfig } from '@/lib/types';
 import { type LayerId, LAYER_ORDER } from '../../lib/types/architect.types';
 import LayerNav from '../LayerNav/LayerNav';
 import LivePreview from '../LivePreview/LivePreview';

@@ -24,8 +24,9 @@ import { formatCurrencyFull } from '@/lib/utils/format';
 import { buildChatToBuyLink, buildStoreContactLink } from '@/lib/utils/whatsapp';
 import { m, AnimatePresence, staggerContainer, staggerChild } from '@/lib/motion';
 import { useBasketStore } from '@/lib/store/basket.store';
+import { useUIStore } from '@/lib/store/ui.store';
 import type { Product, ProductVariant, CardStyle } from '@/lib/types';
-import type { ClaimRequest, HoldRequest } from '@/lib/types/store-config.types';
+import type { ClaimRequest, HoldRequest } from '@/lib/types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
 import ClaimSheet from '@/components/public/ClaimSheet';
 import HoldSheet from '@/components/public/HoldSheet';
@@ -422,10 +423,15 @@ export default function ItemDetailPage() {
   const [claimSheetOpen,   setClaimSheetOpen]    = useState(false);
   const [holdSheetOpen,    setHoldSheetOpen]     = useState(false);
   const [proofModalOpen,   setProofModalOpen]    = useState(false);
+  const [enquirySubmitted, setEnquirySubmitted]  = useState(false);
+  const [enquiryForm, setEnquiryForm] = useState({
+    name: '', company: '', budget: '', timeline: '', message: ''
+  });
   const [claims,           setClaims]            = useState<ClaimRequest[]>(FIXTURE_CLAIMS);
   const [holds,            setHolds]             = useState<HoldRequest[]>(FIXTURE_HOLDS);
 
   const { add, remove, has } = useBasketStore();
+  const { addToast } = useUIStore();
   const inBasket = product ? has(product.id) : false;
 
   const touchStart = useRef<number | null>(null);
@@ -524,6 +530,13 @@ export default function ItemDetailPage() {
   });
   const whatsappContactLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
 
+  // Studio Package Proposal Link
+  const studioPackageWaLink = st.isStudio && product.product_type === 'package'
+    ? `https://wa.me/${merchant.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+        `Hi ${merchant.store_name}, I'm interested in the "${product.name}" package (${product.price_type === 'custom' ? 'Custom Quote' : `From ${formatCurrencyFull(product.price)}`}).`
+      )}`
+    : whatsappContactLink;
+
   const images = product.images.length > 0
     ? product.images
     : [`https://picsum.photos/seed/${product.id}/600/600`];
@@ -564,6 +577,139 @@ export default function ItemDetailPage() {
     if (st.isHost || st.isStudio) return 'Book & Pay Deposit';
     return 'Claim This Piece';
   })();
+
+  // Studio Package View
+  if (st.isStudio && product.product_type === 'package') {
+    return (
+      <div className={`sf-themed ${styles.page}`} data-palette={paletteId} data-dark={isDark}>
+        <nav className={styles.navBar}>
+          <Link to={`/store/${handle}`} className={styles.backBtn} aria-label="Back">
+            <ArrowLeft size={16} />
+          </Link>
+          <span className={styles.navStoreName}>{merchant.store_name} · Package Proposal</span>
+          <button className={styles.shareBtn} onClick={handleShare} aria-label="Share">
+            <Share2 size={15} />
+          </button>
+        </nav>
+
+        <div className={styles.proposalLayout}>
+          <header className={styles.proposalHeader}>
+            <h1 className={styles.proposalTitle}>{product.name}</h1>
+            <div className={styles.proposalPrice}>
+              {product.price_type === 'custom' ? 'Custom Quote' : `From ${formatCurrencyFull(product.price)}`}
+            </div>
+            <div className={styles.proposalBrief}>
+              {product.deposit_pct && <span>{product.deposit_pct}% deposit</span>}
+              {product.timeline_estimate && <span> · {product.timeline_estimate}</span>}
+            </div>
+          </header>
+
+          <section className={styles.proposalSection}>
+            <h2 className={styles.proposalSectionTitle}>What's Included</h2>
+            <ul className={styles.deliverablesList}>
+              {(product.deliverables?.includes('\n') 
+                ? product.deliverables.split('\n') 
+                : product.deliverables?.split(',') || []
+              ).map((d, i) => (
+                <li key={i}>{d.trim()}</li>
+              ))}
+            </ul>
+          </section>
+
+          <section className={styles.proposalSection}>
+            <h2 className={styles.proposalSectionTitle}>About this Package</h2>
+            <p className={styles.proposalDescription}>{product.scope_description}</p>
+          </section>
+
+          <section className={styles.proposalSection}>
+            <h2 className={styles.proposalSectionTitle}>Send Enquiry</h2>
+            {enquirySubmitted ? (
+              <div className={styles.enquirySuccess}>
+                <Check size={24} className={styles.successIcon} />
+                <p>Enquiry received! {merchant.store_name} will get back to you shortly.</p>
+              </div>
+            ) : (
+              <div className={styles.enquiryForm}>
+                <div className={styles.enquiryRow}>
+                  <div className={styles.enquiryField}>
+                    <label>Client Name *</label>
+                    <input 
+                      type="text" 
+                      placeholder="Your name" 
+                      value={enquiryForm.name}
+                      onChange={e => setEnquiryForm(f => ({ ...f, name: e.target.value }))}
+                    />
+                  </div>
+                  <div className={styles.enquiryField}>
+                    <label>Company</label>
+                    <input 
+                      type="text" 
+                      placeholder="Optional" 
+                      value={enquiryForm.company}
+                      onChange={e => setEnquiryForm(f => ({ ...f, company: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className={styles.enquiryRow}>
+                  <div className={styles.enquiryField}>
+                    <label>Package</label>
+                    <input type="text" value={product.name} readOnly className={styles.readOnlyInput} />
+                  </div>
+                  <div className={styles.enquiryField}>
+                    <label>Timeline</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Next month" 
+                      value={enquiryForm.timeline}
+                      onChange={e => setEnquiryForm(f => ({ ...f, timeline: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className={styles.enquiryField}>
+                  <label>Message *</label>
+                  <textarea 
+                    rows={4} 
+                    placeholder="Tell us about your project..."
+                    value={enquiryForm.message}
+                    onChange={e => setEnquiryForm(f => ({ ...f, message: e.target.value }))}
+                  />
+                </div>
+                <button 
+                  className={styles.proposalSubmitBtn}
+                  onClick={() => {
+                    if (!enquiryForm.name || !enquiryForm.message) {
+                      addToast('Name and message are required', 'error');
+                      return;
+                    }
+                    setEnquirySubmitted(true);
+                    addToast('Enquiry received', 'success');
+                  }}
+                >
+                  Send Enquiry
+                </button>
+                <a 
+                  href={studioPackageWaLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.proposalWaBtn}
+                >
+                  Or chat on WhatsApp →
+                </a>
+              </div>
+            )}
+          </section>
+
+          {images.length > 0 && (
+            <section className={styles.proposalGallery}>
+              {images.map((img, i) => (
+                <img key={i} src={img} alt="" className={styles.proposalGalleryImg} />
+              ))}
+            </section>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`sf-themed ${styles.page}`} data-palette={paletteId} data-dark={isDark}>

@@ -281,7 +281,7 @@ export default function DashboardPage() {
       w => w.merchant_id === merchant.id && w.status === 'open'
     ) ?? null;
     const nextWindow = FIXTURE_WINDOWS
-      .filter(w => w.merchant_id === merchant.id && w.status === 'scheduled')
+      .filter(w => w.merchant_id === merchant.id && w.status === 'upcoming')
       .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())[0] ?? null;
     const windowState = activeWindow ? 'open' : nextWindow ? 'closed' : 'dormant';
 

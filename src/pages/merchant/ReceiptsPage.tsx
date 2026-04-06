@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
-import { Search, Filter, Download, ExternalLink, ChevronRight, X, FileText, Check, AlertCircle } from 'lucide-react';
+import { Search, Filter, Download, ExternalLink, ChevronRight, X, FileText } from 'lucide-react';
 import { useLedgerStore } from '@/lib/store/ledger.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
 import { generateCSV, downloadCSV } from '@/lib/utils/csv';
-import type { Receipt, PaymentStatus, ReceiptType } from '@/lib/types';
+import type { PaymentStatus, ReceiptType } from '@/lib/types';
 import styles from './ReceiptsPage.module.css';
 
 export default function ReceiptsPage() {

@@ -1,115 +1,93 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
-import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
-import { useGuideStore } from '@/lib/store/guide.store';
+import { MessageSquare, ArrowLeft, CheckCircle } from 'lucide-react';
+import { useAuthStore } from '@/lib/store/auth.store';
 import { useUIStore } from '@/lib/store/ui.store';
-import GuideMarker from '@/components/primitives/GuideMarker/GuideMarker';
 import styles from './AuthPage.module.css';
 
-type AuthMode = 'idle' | 'inbox' | 'sent';
-type LoadingMethod = 'google' | 'magic-link' | null;
-
-const PAGE_GUIDES = ['auth-google', 'auth-magic-link', 'auth-sent-state'];
+type AuthMode = 'idle' | 'pending' | 'sent';
 
 export default function AuthPage() {
   const navigate = useNavigate();
   const { addToast } = useUIStore();
-  const { allComplete } = useGuideStore();
+  const { signInWithOTP, verifyOTP, isLoading: authLoading } = useAuthStore();
+  
   const [mode, setMode] = useState<AuthMode>('idle');
-  const [loading, setLoading] = useState<LoadingMethod>(null);
-  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [cardReady, setCardReady] = useState(false);
-  const [showCompletion, setShowCompletion] = useState(false);
 
-  // Simulate session check on mount
+  // Simulate initial entry animation
   useEffect(() => {
-    const timer = setTimeout(() => setCardReady(true), 800);
+    const timer = setTimeout(() => setCardReady(true), 400);
     return () => clearTimeout(timer);
   }, []);
 
-  // Show completion message when all guides are done
-  useEffect(() => {
-    if (allComplete(PAGE_GUIDES)) {
-      setShowCompletion(true);
-      const timer = setTimeout(() => setShowCompletion(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [allComplete(PAGE_GUIDES)]);
-
-  const handleGoogle = async () => {
-    if (loading) return;
-    setLoading('google');
+  const handleSendOTP = async () => {
+    if (!phone || submitting) return;
     
-    try {
-      // Simulate async
-      await new Promise((resolve) => setTimeout(resolve, 1400));
-      addToast('Successfully signed in with Google', 'success');
-      navigate('/onboarding/select-role');
-    } catch (error) {
-      addToast('Failed to sign in with Google', 'error');
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleMagicLink = async () => {
-    if (!email.trim() || loading) return;
-    
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      addToast('Please enter a valid email address', 'error');
+    // Basic phone validation (could be more robust for Nigerian formats)
+    if (phone.length < 10) {
+      setError('Please enter a valid phone number');
       return;
     }
 
-    setLoading('magic-link');
+    setSubmitting(true);
+    setError(null);
     
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      addToast('Magic link sent to your email', 'success');
-      setMode('sent');
-    } catch (error) {
-      addToast('Failed to send magic link', 'error');
-    } finally {
-      setLoading(null);
+    const { error: authError } = await signInWithOTP(phone);
+    
+    if (authError) {
+      setError(authError);
+      addToast(authError, 'error');
+    } else {
+      setMode('pending');
+      addToast('OTP sent via WhatsApp/SMS', 'success');
     }
+    setSubmitting(false);
+  };
+
+  const handleVerifyOTP = async () => {
+    if (!otpCode || submitting) return;
+
+    setSubmitting(true);
+    setError(null);
+    
+    const { error: verifyError } = await verifyOTP(phone, otpCode);
+    
+    if (verifyError) {
+      setError('Invalid code — please try again');
+      addToast('Invalid verification code', 'error');
+    } else {
+      setMode('sent');
+      addToast('Successfully signed in', 'success');
+      // Small delay to show success state before navigating
+      setTimeout(() => navigate('/dashboard'), 1200);
+    }
+    setSubmitting(false);
   };
 
   const resetToIdle = () => {
     setMode('idle');
-    setEmail('');
+    setOtpCode('');
+    setError(null);
   };
 
   return (
     <div className={styles.root}>
-      {/* Page Completion Toast */}
-      <AnimatePresence>
-        {showCompletion && (
-          <m.div
-            className={styles.pageCompletion}
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span aria-hidden="true">✦</span> All auth features explored
-          </m.div>
-        )}
-      </AnimatePresence>
-
       <div className={styles.watermark} aria-hidden="true">TROVE'A</div>
 
       <AnimatePresence mode="wait">
         {!cardReady ? (
-          // Loading shimmer placeholder
           <m.div
             key="loading"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className={styles.skeletonCard}
-            aria-label="Loading authentication"
           />
         ) : (
           <m.div
@@ -117,11 +95,9 @@ export default function AuthPage() {
             className={styles.card}
             initial={{ opacity: 0, y: 32 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
           >
             <div className={styles.cardInner}>
-              {/* Header with Guide Marker */}
               <div className={styles.cardHeader}>
                 <div className={styles.logo}>
                   Trove<span className={styles.logoApostrophe}>'</span>a
@@ -129,7 +105,6 @@ export default function AuthPage() {
                 <p className={styles.tagline}>The Curator's OS</p>
               </div>
 
-              {/* Animated state panels */}
               <AnimatePresence mode="wait">
                 {mode === 'idle' && (
                   <m.div 
@@ -138,119 +113,100 @@ export default function AuthPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.25 }}
                   >
-                    {/* Google Sign In with Guide Marker */}
-                    <div className={styles.guideWrapper}>
-                      <button
-                        className={styles.googleBtn}
-                        onClick={handleGoogle}
-                        disabled={loading !== null}
-                        aria-label="Continue with Google"
-                      >
-                        {loading === 'google' ? (
-                          <>
-                            <span className={`${styles.spinner} ${styles.spinnerDark}`} aria-hidden="true" />
-                            Signing in…
-                          </>
-                        ) : (
-                          <>
-                            <svg className={styles.googleLogo} viewBox="0 0 24 24" aria-hidden="true">
-                              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                            </svg>
-                            Continue with Google
-                          </>
-                        )}
-                      </button>
-                      <GuideMarker
-                        id="auth-google"
-                        prompt="Sign in with your Google account to access Trove'a"
-                        reward="Quick access to your merchant dashboard"
-                        xp={10}
+                    <h2 className={styles.inboxHeading}>Welcome back</h2>
+                    <p className={styles.tagline} style={{ marginBottom: '24px' }}>
+                      Sign in with your phone number via WhatsApp
+                    </p>
+
+                    <div className={styles.fieldGroup}>
+                      <label className={styles.fieldLabel} htmlFor="phone-input">
+                        Phone Number
+                      </label>
+                      <input
+                        id="phone-input"
+                        className={styles.emailInput}
+                        type="tel"
+                        placeholder="0801 234 5678"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendOTP()}
+                        autoFocus
+                        autoComplete="tel"
+                        disabled={submitting || authLoading}
                       />
+                      {error && <p className={styles.errorText}>{error}</p>}
                     </div>
 
-                    <div className={styles.authDivider} aria-hidden="true">
-                      <div className={styles.authDividerLine} />
-                      <span className={styles.authDividerText}>or</span>
-                      <div className={styles.authDividerLine} />
-                    </div>
-
-                    {/* Magic link trigger with Guide Marker */}
-                    <div className={styles.guideWrapper}>
-                      <button
-                        className={styles.magicLinkTrigger}
-                        onClick={() => setMode('inbox')}
-                        disabled={loading !== null}
-                        aria-label="Continue with email magic link"
-                      >
-                        <Mail size={14} aria-hidden="true" />
-                        Continue with Email
-                      </button>
-                      <GuideMarker
-                        id="auth-magic-link"
-                        prompt="Use email magic link for passwordless access"
-                        reward="Secure sign-in without remembering passwords"
-                        xp={10}
-                      />
-                    </div>
+                    <button
+                      className={styles.googleBtn}
+                      onClick={handleSendOTP}
+                      disabled={!phone || submitting || authLoading}
+                      style={{ background: 'var(--color-fg)', color: 'var(--color-bg)' }}
+                    >
+                      {submitting ? (
+                        <>
+                          <span className={styles.spinner} style={{ borderColor: 'var(--color-bg)', borderTopColor: 'transparent' }} />
+                          Sending Code…
+                        </>
+                      ) : (
+                        <>
+                          <MessageSquare size={16} style={{ marginRight: '8px' }} />
+                          Get Login Code
+                        </>
+                      )}
+                    </button>
                   </m.div>
                 )}
 
-                {mode === 'inbox' && (
+                {mode === 'pending' && (
                   <m.div 
-                    key="inbox" 
+                    key="pending" 
                     className={styles.inboxSection}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.25 }}
                   >
-                    <button className={styles.backBtn} onClick={resetToIdle} aria-label="Go back">
-                      <ArrowLeft size={12} aria-hidden="true" />
-                      Back
+                    <button className={styles.backBtn} onClick={resetToIdle}>
+                      <ArrowLeft size={12} /> Back
                     </button>
 
-                    <h2 className={styles.inboxHeading}>Enter your email</h2>
+                    <h2 className={styles.inboxHeading}>Enter Code</h2>
+                    <p className={styles.tagline} style={{ marginBottom: '24px' }}>
+                      We sent a 6-digit code to {phone}
+                    </p>
 
-                    <div>
-                      <label className={styles.fieldLabel} htmlFor="email-input">
-                        Email Address
-                      </label>
+                    <div className={styles.fieldGroup}>
                       <input
-                        id="email-input"
+                        id="otp-input"
                         className={styles.emailInput}
-                        type="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleMagicLink();
-                        }}
+                        type="text"
+                        pattern="[0-9]*"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="000000"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleVerifyOTP()}
                         autoFocus
-                        autoComplete="email"
-                        aria-required="true"
-                        aria-label="Your email address"
-                        disabled={loading !== null}
+                        style={{ textAlign: 'center', letterSpacing: '0.5em', fontSize: '20px' }}
+                        disabled={submitting || authLoading}
                       />
+                      {error && <p className={styles.errorText}>{error}</p>}
                     </div>
 
                     <button
                       className={styles.sendBtn}
-                      onClick={handleMagicLink}
-                      disabled={!email.trim() || loading !== null}
-                      aria-label="Send magic link"
+                      onClick={handleVerifyOTP}
+                      disabled={otpCode.length < 6 || submitting || authLoading}
                     >
-                      {loading === 'magic-link' ? (
+                      {submitting ? (
                         <>
-                          <span className={styles.spinner} aria-hidden="true" />
-                          Sending…
+                          <span className={styles.spinner} />
+                          Verifying…
                         </>
                       ) : (
-                        'Send Magic Link'
+                        'Verify & Sign In'
                       )}
                     </button>
                   </m.div>
@@ -260,43 +216,23 @@ export default function AuthPage() {
                   <m.div 
                     key="sent" 
                     className={styles.sentState}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.25 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
                   >
-                    <div className={styles.sentIconWrap} aria-hidden="true">
-                      <CheckCircle size={24} />
+                    <div className={styles.sentIconWrap}>
+                      <CheckCircle size={32} color="var(--color-success)" />
                     </div>
-                    <h2 className={styles.sentTitle}>Check your inbox</h2>
+                    <h2 className={styles.sentTitle}>Authenticated</h2>
                     <p className={styles.sentBody}>
-                      We sent a sign-in link to{' '}
-                      <span className={styles.sentEmail}>{email}</span>.
-                      <br />
-                      It expires in 10 minutes.
+                      Setting up your workspace...
                     </p>
-                    <button className={styles.sentBackBtn} onClick={resetToIdle} aria-label="Use a different email">
-                      <ArrowLeft size={12} aria-hidden="true" />
-                      Use a different email
-                    </button>
-
-                    {/* Guide marker for sent state */}
-                    <div className={styles.guideWrapper}>
-                      <GuideMarker
-                        id="auth-sent-state"
-                        prompt="Check your email and click the magic link to sign in"
-                        reward="Passwordless access to your merchant account"
-                        xp={15}
-                      />
-                    </div>
                   </m.div>
                 )}
               </AnimatePresence>
 
-              {/* Footer */}
               <div className={styles.cardFooter}>
                 <p className={styles.footerText}>
-                  Merchant accounts only<br />
+                  Secure login powered by Supabase<br />
                   By continuing you agree to Trove'a's Terms
                 </p>
               </div>

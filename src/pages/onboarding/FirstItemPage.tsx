@@ -4,6 +4,10 @@ import { m, AnimatePresence } from '@/lib/motion';
 import { ArrowLeft, Package, Sparkles } from 'lucide-react';
 import { parseSmartPaste } from '@/lib/utils/smart-paste';
 import { formatCurrencyFull } from '@/lib/utils/format';
+import { useOnboardingStore } from '@/lib/store/onboarding.store';
+import { useMerchantStore } from '@/lib/store/merchant.store';
+import { useUIStore } from '@/lib/store/ui.store';
+import { createProduct } from '@/lib/db/queries';
 import styles from './FirstItemPage.module.css';
 
 interface ManualItem {
@@ -24,10 +28,14 @@ const ghostVariants = {
 
 export default function FirstItemPage() {
   const navigate = useNavigate();
+  const { submitOnboarding, reset: resetOnboarding } = useOnboardingStore();
+  const { addToast, setPageLocked } = useUIStore();
+  
   const [pasteText, setPasteText] = useState('');
   const [parsedItems, setParsedItems] = useState<ReturnType<typeof parseSmartPaste>>([]);
   const [manual, setManual] = useState<ManualItem>({ name: '', price: '', stock: '1' });
   const [useManual, setUseManual] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Trigger parse synchronously on paste
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -59,9 +67,95 @@ export default function FirstItemPage() {
 
   const mintCount = useManual ? 1 : parsedItems.length;
 
-  const handleMint = () => {
-    if (!canMint) return;
-    navigate('/dashboard');
+  const handleMint = async () => {
+    if (!canMint || submitting) return;
+    
+    setSubmitting(true);
+    const { success, error } = await submitOnboarding();
+    
+    if (!success) {
+      addToast(error ?? 'Failed to create your store. Please try again.', 'error');
+      setSubmitting(false);
+      return;
+    }
+
+    // Create products if any
+    try {
+      const merchant = useMerchantStore.getState().merchant;
+      const itemsToCreate = useManual 
+        ? [{ name: manual.name, price: parseInt(manual.price), quantity: parseInt(manual.stock), variantHints: [] as string[], tags: [] as string[] }]
+        : parsedItems;
+
+      await Promise.all(itemsToCreate.map(item => 
+        createProduct({
+          merchant_id: merchant.id,
+          name: item.name,
+          price: item.price,
+          stock_level: item.variantHints.length > 0 ? null : item.quantity,
+          product_type: 'item',
+          status: 'live',
+          collection_id: null,
+          description: null,
+          category: null,
+          tags: item.tags,
+          images: [],
+          has_variants: item.variantHints.length > 0,
+          variant_axis: item.variantHints.length > 0 ? 'Size' : null,
+          variants: item.variantHints.map((label, idx) => ({
+            id: `v-${idx}`,
+            label,
+            price_override: null,
+            stock_level: 1,
+            status: 'live',
+            display_order: idx
+          })),
+          claim_mode: false,
+          claim_limit: null,
+          duration: null,
+          deposit_amount: null,
+          deposit_required: false,
+          delivery_url: null,
+          is_free: false,
+          early_access_price: null,
+          early_access_cap: null,
+          price_type: null,
+          scope_description: null,
+          deliverables: null,
+          timeline_estimate: null,
+          deposit_pct: null
+        })
+      ));
+    } catch (err) {
+      console.error('Failed to create initial products:', err);
+      addToast('Store created, but failed to add your first item.', 'warning');
+    }
+
+    // Ceremony
+    setPageLocked(true);
+    setTimeout(() => {
+      setPageLocked(false);
+      resetOnboarding();
+      navigate('/dashboard');
+    }, 800);
+  };
+
+  const handleSkip = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    const { success, error } = await submitOnboarding();
+    
+    if (!success) {
+      addToast(error ?? 'Failed to create your store.', 'error');
+      setSubmitting(false);
+      return;
+    }
+
+    setPageLocked(true);
+    setTimeout(() => {
+      setPageLocked(false);
+      resetOnboarding();
+      navigate('/dashboard');
+    }, 800);
   };
 
   return (
@@ -114,6 +208,7 @@ export default function FirstItemPage() {
               onPaste={handlePaste}
               aria-label="Paste product caption for smart parsing"
               rows={5}
+              disabled={submitting}
             />
             <p className={styles.pasteHint}>
               Paste any WhatsApp product caption. Trove'a will extract the name, price, quantity, and variants.
@@ -183,6 +278,7 @@ export default function FirstItemPage() {
                   if (e.target.value) setUseManual(true);
                 }}
                 aria-label="Item name"
+                disabled={submitting}
               />
             </div>
             <div className={styles.fieldRow}>
@@ -202,6 +298,7 @@ export default function FirstItemPage() {
                   }}
                   min={0}
                   aria-label="Item price in naira"
+                  disabled={submitting}
                 />
               </div>
               <div className={styles.fieldGroup}>
@@ -217,6 +314,7 @@ export default function FirstItemPage() {
                   onChange={(e) => setManual((m) => ({ ...m, stock: e.target.value }))}
                   min={1}
                   aria-label="Stock quantity"
+                  disabled={submitting}
                 />
               </div>
             </div>
@@ -227,18 +325,28 @@ export default function FirstItemPage() {
             <button
               className={styles.mintBtn}
               onClick={handleMint}
-              disabled={!canMint}
+              disabled={!canMint || submitting}
               aria-label={canMint ? `Mint ${mintCount} item${mintCount > 1 ? 's' : ''}` : 'Fill in item details to mint'}
             >
-              <Sparkles size={14} aria-hidden="true" />
-              {canMint
-                ? `Mint ${mintCount > 1 ? `${mintCount} Assets` : 'Asset'} →`
-                : 'Fill in item details'}
+              {submitting ? (
+                <>
+                  <span className={styles.spinner} style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginRight: 8 }} />
+                  Minting...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} aria-hidden="true" />
+                  {canMint
+                    ? `Mint ${mintCount > 1 ? `${mintCount} Assets` : 'Asset'} →`
+                    : 'Fill in item details'}
+                </>
+              )}
             </button>
 
             <button
               className={styles.skipBtn}
-              onClick={() => navigate('/dashboard')}
+              onClick={handleSkip}
+              disabled={submitting}
               aria-label="Skip and go to dashboard"
             >
               Skip for now — go to Dashboard
@@ -251,6 +359,11 @@ export default function FirstItemPage() {
           </div>
         </div>
       </m.div>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
