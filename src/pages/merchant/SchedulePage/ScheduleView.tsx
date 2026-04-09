@@ -1,10 +1,16 @@
-import { useState } from 'react';
-import { Plus, Calendar, Clock, Lock, Edit2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Calendar, Clock, Lock, Edit2, Trash2 } from 'lucide-react';
 import type { AvailabilityWindow, Booking } from '@/lib/types';
-import { FIXTURE_WINDOWS, FIXTURE_BOOKINGS } from '@/lib/fixtures';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { useUIStore } from '@/lib/store/ui.store';
 import { useMerchantStore } from '@/lib/store/merchant.store';
+import { 
+  getBookingsByMerchant, 
+  getWindowsByMerchant, 
+  createWindow as apiCreateWindow, 
+  updateWindow as apiUpdateWindow,
+  deleteWindow as apiDeleteWindow,
+} from '@/lib/api/bookings.api';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './SchedulePage.module.css';
@@ -100,18 +106,52 @@ export default function SchedulePage() {
   const merchant = useMerchantStore((s) => s.merchant);
 
   // ── State ──
-  const [windows, setWindows] = useState<AvailabilityWindow[]>(FIXTURE_WINDOWS);
+  const [windows, setWindows] = useState<AvailabilityWindow[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [workingHours, setWorkingHours] = useState<WorkingHours>(DEFAULT_HOURS);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
   
+  // Phase 3E: Initial data load
+  useEffect(() => {
+    const loadData = async () => {
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      if (!hasApi) {
+        // Fallback to fixtures if no API
+        const { FIXTURE_WINDOWS, FIXTURE_BOOKINGS } = await import('@/lib/fixtures');
+        setWindows(FIXTURE_WINDOWS);
+        setBookings(FIXTURE_BOOKINGS);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const [w, b] = await Promise.all([
+          getWindowsByMerchant(),
+          getBookingsByMerchant()
+        ]);
+        setWindows(w);
+        setBookings(b);
+      } catch (err) {
+        console.error('Failed to load schedule data:', err);
+        addToast('Failed to load schedule', 'error');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [addToast]);
+
   // Drawers
   const [hoursDrawerOpen, setHoursDrawerOpen] = useState(false);
   const [hoursForm, setHoursForm] = useState<WorkingHours>(DEFAULT_HOURS);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   
-  // Bug 1 Fix: New Window State
   const [newWindowOpen, setNewWindowOpen] = useState(false);
   const [editingWindow, setEditingWindow] = useState<AvailabilityWindow | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [windowForm, setWindowForm] = useState({
     label: '',
     opens_date: '',
@@ -127,7 +167,7 @@ export default function SchedulePage() {
   const today = new Date();
 
   const getBookingsForDay = (day: Date) =>
-    FIXTURE_BOOKINGS.filter(
+    bookings.filter(
       (b) => isSameDay(new Date(b.scheduled_at), day) && b.status === 'confirmed'
     ).sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
@@ -146,22 +186,45 @@ export default function SchedulePage() {
     }
   };
 
-  const handleCloseEarly = (id: string) => {
-    setWindows((prev) =>
-      prev.map((w) =>
-        w.id === id
-          ? { ...w, status: 'closed' as const, closes_at: new Date().toISOString() }
-          : w
-      )
-    );
-    addToast('Window closed', 'info');
+  const handleCloseEarly = async (id: string) => {
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    const now = new Date().toISOString();
+
+    // Optimistic
+    setWindows(prev => prev.map(w => w.id === id ? { ...w, status: 'closed', closes_at: now } : w));
+
+    if (hasApi) {
+      try {
+        await apiUpdateWindow(id, { status: 'closed', closes_at: now });
+        addToast('Window closed early', 'info');
+      } catch (err) {
+        addToast('Failed to close window', 'error');
+      }
+    }
+  };
+
+  const handleDeleteWindow = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this upcoming window?')) return;
+    
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    
+    // Optimistic
+    setWindows(prev => prev.filter(w => w.id !== id));
+
+    if (hasApi) {
+      try {
+        await apiDeleteWindow(id);
+        addToast('Window deleted', 'info');
+      } catch (err) {
+        addToast('Failed to delete window', 'error');
+      }
+    }
   };
 
   const handleBookingClick = (booking: Booking) => {
     setSelectedBooking(booking);
   };
 
-  // Bug 1 Fix: Window Handlers
   const openNewWindow = () => {
     setEditingWindow(null);
     setWindowForm({
@@ -193,7 +256,7 @@ export default function SchedulePage() {
     setNewWindowOpen(true);
   };
 
-  const handleWindowSubmit = () => {
+  const handleWindowSubmit = async () => {
     // Validation
     const errors: Record<string, boolean> = {};
     if (!windowForm.label) errors.label = true;
@@ -212,30 +275,53 @@ export default function SchedulePage() {
 
     const opensAt = new Date(`${windowForm.opens_date}T${windowForm.opens_time}`).toISOString();
     const closesAt = new Date(`${windowForm.closes_date}T${windowForm.closes_time}`).toISOString();
+    
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    setIsSaving(true);
 
-    if (editingWindow) {
-      setWindows(prev => prev.map(w => 
-        w.id === editingWindow.id 
-          ? { ...w, label: windowForm.label, opens_at: opensAt, closes_at: closesAt, notes: windowForm.notes || null }
-          : w
-      ));
-      addToast('Window updated', 'success');
-    } else {
-      const newWindow: AvailabilityWindow = {
-        id: `window-${Date.now()}`,
-        merchant_id: merchant.id,
-        label: windowForm.label,
-        opens_at: opensAt,
-        closes_at: closesAt,
-        status: 'upcoming',
-        total_orders: 0,
-        notes: windowForm.notes || null,
-      };
-      setWindows(prev => [newWindow, ...prev]);
-      addToast('Window created', 'success');
+    try {
+      if (editingWindow) {
+        const updates = { label: windowForm.label, opens_at: opensAt, closes_at: closesAt, notes: windowForm.notes || null };
+        if (hasApi) {
+          const updated = await apiUpdateWindow(editingWindow.id, updates);
+          setWindows(prev => prev.map(w => w.id === editingWindow.id ? updated : w));
+        } else {
+          setWindows(prev => prev.map(w => w.id === editingWindow.id ? { ...w, ...updates } : w));
+        }
+        addToast('Window updated', 'success');
+      } else {
+        if (hasApi) {
+          const created = await apiCreateWindow({
+            merchant_id: merchant.id,
+            label: windowForm.label,
+            opens_at: opensAt,
+            closes_at: closesAt,
+            notes: windowForm.notes || null,
+            status: 'upcoming',
+            total_orders: 0
+          });
+          setWindows(prev => [created, ...prev]);
+        } else {
+          const newWindow: AvailabilityWindow = {
+            id: `window-${Date.now()}`,
+            merchant_id: merchant.id,
+            label: windowForm.label,
+            opens_at: opensAt,
+            closes_at: closesAt,
+            status: 'upcoming',
+            total_orders: 0,
+            notes: windowForm.notes || null,
+          };
+          setWindows(prev => [newWindow, ...prev]);
+        }
+        addToast('Window created', 'success');
+      }
+      setNewWindowOpen(false);
+    } catch (err) {
+      addToast('Failed to save window', 'error');
+    } finally {
+      setIsSaving(false);
     }
-
-    setNewWindowOpen(false);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -287,13 +373,22 @@ export default function SchedulePage() {
                 </span>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {w.status === 'upcoming' && (
-                    <button 
-                      className={styles.secondaryBtn} 
-                      style={{ fontSize: 9, padding: '2px 8px' }}
-                      onClick={() => openEditWindow(w)}
-                    >
-                      <Edit2 size={10} /> Edit
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button 
+                        className={styles.secondaryBtn} 
+                        style={{ fontSize: 9, padding: '2px 8px' }}
+                        onClick={() => openEditWindow(w)}
+                      >
+                        <Edit2 size={10} /> Edit
+                      </button>
+                      <button 
+                        className={styles.secondaryBtn} 
+                        style={{ fontSize: 9, padding: '2px 8px', color: 'var(--color-danger)' }}
+                        onClick={() => handleDeleteWindow(w.id)}
+                      >
+                        <Trash2 size={10} /> Delete
+                      </button>
+                    </div>
                   )}
                   {w.status === 'open' && (
                     <button className={styles.secondaryBtn} style={{ fontSize: 9, padding: '2px 8px' }} onClick={() => handleCloseEarly(w.id)}>

@@ -1,8 +1,8 @@
-import { FIXTURE_BOOKINGS } from '../fixtures';
+import type { Booking } from '../types';
 
 export const WORKING_HOURS = { start: 9, end: 18 };
 
-export const getNextAvailableDate = (merchantId: string): string | null => {
+export const getNextAvailableDate = (merchantId: string, bookings: Booking[]): string | null => {
   const workingDays = [2, 3, 4, 5, 6]; // Tue–Sat
   const today = new Date();
   for (let i = 1; i <= 30; i++) {
@@ -10,7 +10,7 @@ export const getNextAvailableDate = (merchantId: string): string | null => {
     d.setDate(today.getDate() + i);
     if (!workingDays.includes(d.getDay())) continue;
     const dateStr = d.toISOString().split('T')[0];
-    const bookedCount = FIXTURE_BOOKINGS.filter(b => {
+    const bookedCount = bookings.filter(b => {
       const bDate = b.scheduled_at.split('T')[0];
       return b.merchant_id === merchantId && bDate === dateStr && b.status !== 'cancelled';
     }).length;
@@ -19,7 +19,7 @@ export const getNextAvailableDate = (merchantId: string): string | null => {
   return null;
 };
 
-export const getAvailableDays = (merchantId: string): Set<string> => {
+export const getAvailableDays = (merchantId: string, bookings: Booking[]): Set<string> => {
   const workingDays = [2, 3, 4, 5, 6];
   const available = new Set<string>();
   const today = new Date();
@@ -28,7 +28,7 @@ export const getAvailableDays = (merchantId: string): Set<string> => {
     d.setDate(today.getDate() + i);
     if (!workingDays.includes(d.getDay())) continue;
     const dateStr = d.toISOString().split('T')[0];
-    const bookedCount = FIXTURE_BOOKINGS.filter(b => {
+    const bookedCount = bookings.filter(b => {
       const bDate = b.scheduled_at.split('T')[0];
       return b.merchant_id === merchantId && bDate === dateStr && b.status !== 'cancelled';
     }).length;
@@ -42,7 +42,8 @@ export const isSlotAvailable = (
   hour: number,
   minute: number,
   duration: number,
-  merchantId: string
+  merchantId: string,
+  bookings: Booking[]
 ): boolean => {
   const slotStart = new Date(`${dateStr}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`).getTime();
   const slotEnd = slotStart + (duration * 60000);
@@ -50,7 +51,7 @@ export const isSlotAvailable = (
   const dayEnd = new Date(`${dateStr}T${WORKING_HOURS.end}:00:00`).getTime();
   if (slotEnd > dayEnd) return false;
 
-  return !FIXTURE_BOOKINGS.some(b => {
+  return !bookings.some(b => {
     if (b.merchant_id !== merchantId || b.status === 'cancelled') return false;
     if (!b.scheduled_at.startsWith(dateStr)) return false;
     

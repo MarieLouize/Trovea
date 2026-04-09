@@ -5,8 +5,9 @@ import {
   UserCheck, UserMinus 
 } from 'lucide-react';
 import { m, AnimatePresence } from '@/lib/motion';
-import type { Booking, Enquiry } from '@/lib/types';
-import { FIXTURE_BOOKINGS, FIXTURE_ENQUIRIES, FIXTURE_STUDIO_PRODUCTS } from '@/lib/fixtures';
+import type { Booking, Enquiry, Product } from '@/lib/types';
+import { getBookingsByMerchant, updateBooking as apiUpdateBooking } from '@/lib/api/bookings.api';
+import { getProductsByMerchant } from '@/lib/api/products.api';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useUIStore } from '@/lib/store/ui.store';
@@ -71,21 +72,49 @@ export default function BookingsPage() {
   const [searchParams] = useSearchParams();
 
   // ── State ──
-  const [bookings, setBookings] = useState<Booking[]>(FIXTURE_BOOKINGS);
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(
-    FIXTURE_ENQUIRIES.filter(e => e.merchant_id === merchant.id)
-  );
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [hostTab, setHostTab] = useState<string>('pending');
   const [studioTab, setStudioTab] = useState<string>('new');
   const [expandedEnquiries, setExpandedEnquiries] = useState<Record<string, boolean>>({});
   const [noShows, setNoShows] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  // Simulate loading (Phase 3C)
+  // Phase 3E: Initial data load
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200);
-    return () => clearTimeout(timer);
-  }, []);
+    const loadData = async () => {
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      if (!hasApi) {
+        const { FIXTURE_BOOKINGS, FIXTURE_ENQUIRIES, FIXTURE_STUDIO_PRODUCTS } = await import('@/lib/fixtures');
+        setBookings(FIXTURE_BOOKINGS);
+        setEnquiries(FIXTURE_ENQUIRIES.filter(e => e.merchant_id === merchant.id));
+        setProducts(FIXTURE_STUDIO_PRODUCTS);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const [b, p] = await Promise.all([
+          getBookingsByMerchant(),
+          getProductsByMerchant(merchant.id)
+        ]);
+        setBookings(b);
+        setProducts(p);
+        // Enquiries still fixtures until Phase 3F
+        const { FIXTURE_ENQUIRIES } = await import('@/lib/fixtures');
+        setEnquiries(FIXTURE_ENQUIRIES.filter(e => e.merchant_id === merchant.id));
+      } catch (err) {
+        console.error('Failed to load bookings data:', err);
+        addToast('Failed to load data', 'error');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [merchant.id, addToast]);
 
   // ── Param Handling ──
   useEffect(() => {
@@ -111,8 +140,22 @@ export default function BookingsPage() {
   }, [merchant.id]);
 
   // ── Handlers ──
-  const updateBookingStatus = (id: string, status: Booking['status']) => {
+  const updateBookingStatus = async (id: string, status: Booking['status']) => {
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    
+    // Optimistic
     setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+
+    if (hasApi) {
+      try {
+        await apiUpdateBooking(id, { status });
+        addToast(`Booking ${status}`, 'success');
+      } catch (err) {
+        addToast('Failed to update booking', 'error');
+      }
+    } else {
+      addToast(`Booking ${status} (mock)`, 'info');
+    }
   };
 
   const updateEnquiryStatus = (id: string, status: Enquiry['status']) => {

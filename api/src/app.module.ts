@@ -8,9 +8,11 @@ import { ProductsModule } from './products/products.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { HoldsModule } from './holds/holds.module';
 import { ClaimsModule } from './claims/claims.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { DropsModule } from './drops/drops.module';
 
 @Module({
-  imports: [SupabaseModule, AuthModule, MerchantsModule, ProductsModule, ReceiptsModule, HoldsModule, ClaimsModule],
+  imports: [SupabaseModule, AuthModule, MerchantsModule, ProductsModule, ReceiptsModule, HoldsModule, ClaimsModule, BookingsModule, DropsModule],
   controllers: [AppController],
   providers: [AppService],
 })

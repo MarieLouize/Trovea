@@ -9,6 +9,8 @@ import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { useArchiveStore } from '@/lib/store/archive.store';
+import { getDropsByMerchant } from '@/lib/api/drops.api';
+import { getWindowsByMerchant } from '@/lib/api/bookings.api';
 import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
 import type { Product } from '@/lib/types';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
@@ -101,11 +103,41 @@ export default function DashboardPage() {
   const [devMenuOpen, setDevMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [soldOutNotification, setSoldOutNotification] = useState<Product | null>(null);
+  
+  const [drops, setDrops] = useState<Drop[]>([]);
+  const [windows, setWindows] = useState<AvailabilityWindow[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
-  // Simulate loading (Phase 3C)
+  // Phase 3E: Initial data load
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200);
-    return () => clearTimeout(timer);
+    const loadData = async () => {
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      if (!hasApi) {
+        setDrops(FIXTURE_DROPS);
+        setWindows(FIXTURE_WINDOWS);
+        setBookings(FIXTURE_BOOKINGS);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const [d, w, b] = await Promise.all([
+          getDropsByMerchant(),
+          getWindowsByMerchant(),
+          getBookingsByMerchant()
+        ]);
+        setDrops(d);
+        setWindows(w);
+        setBookings(b);
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   // Sold out listener
@@ -135,11 +167,11 @@ export default function DashboardPage() {
   // ── Render Helpers ──
 
   const renderCollector = () => {
-    const activeDrop = FIXTURE_DROPS.find(
+    const activeDrop = drops.find(
       d => d.merchant_id === merchant.id && (d.status === 'scheduled' || d.status === 'live')
     ) ?? null;
 
-    const lastCompletedDrop = [...FIXTURE_DROPS]
+    const lastCompletedDrop = [...drops]
       .filter(d => d.merchant_id === merchant.id && d.status === 'completed')
       .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())[0] ?? null;
 
@@ -288,10 +320,10 @@ export default function DashboardPage() {
   };
 
   const renderVendor = () => {
-    const activeWindow = FIXTURE_WINDOWS.find(
+    const activeWindow = windows.find(
       w => w.merchant_id === merchant.id && w.status === 'open'
     ) ?? null;
-    const nextWindow = FIXTURE_WINDOWS
+    const nextWindow = windows
       .filter(w => w.merchant_id === merchant.id && w.status === 'upcoming')
       .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())[0] ?? null;
     const windowState = activeWindow ? 'open' : nextWindow ? 'closed' : 'dormant';
@@ -403,11 +435,11 @@ export default function DashboardPage() {
 
   const renderHost = () => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const todaysBookings = FIXTURE_BOOKINGS
+    const todaysBookings = bookings
       .filter(b => b.merchant_id === merchant.id && b.scheduled_at.startsWith(todayStr) && b.status === 'confirmed')
       .sort((a,b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
-    const pendingConfirmation = FIXTURE_BOOKINGS.filter(b => b.merchant_id === merchant.id && b.status === 'pending').length;
+    const pendingConfirmation = bookings.filter(b => b.merchant_id === merchant.id && b.status === 'pending').length;
     const unpaidDeposits = 1; // Mocked
 
     return (
