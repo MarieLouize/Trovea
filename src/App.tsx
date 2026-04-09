@@ -14,6 +14,8 @@ import { useArchiveStore } from '@/lib/store/archive.store';
 import { useLedgerStore } from '@/lib/store/ledger.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { getMerchantByOwnerId } from '@/lib/db/queries';
+import { supabase } from '@/lib/supabase';
+import type { Receipt } from '@/lib/types';
 
 // ── Phase 1B ──
 import AuthPage from '@/pages/auth/AuthPage';
@@ -104,6 +106,26 @@ export default function App() {
           useMerchantStore.getState().setMerchant(merchant);
           useArchiveStore.getState().initFromDB(merchant.id);
           useLedgerStore.getState().initFromDB(merchant.id);
+
+          // Phase 3G: Realtime subscription for receipts
+          const channel = supabase
+            .channel(`merchant-receipts-${merchant.id}`)
+            .on('postgres_changes', {
+              event: 'INSERT',
+              schema: 'trovea',
+              table: 'receipts',
+              filter: `merchant_id=eq.${merchant.id}`
+            }, (payload) => {
+              const newReceipt = payload.new as Receipt;
+              const { receipts, setReceipts } = useLedgerStore.getState();
+              setReceipts([newReceipt, ...receipts]);
+              useUIStore.getState().addToast(`New order from ${newReceipt.buyer_name}`, 'success');
+            })
+            .subscribe();
+
+          return () => {
+            supabase.removeChannel(channel);
+          };
         }
       } catch (err) {
         useUIStore.getState().addToast('Failed to load store data', 'error');

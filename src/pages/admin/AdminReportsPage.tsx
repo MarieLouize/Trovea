@@ -89,52 +89,53 @@ function ConfirmSuspendModal({ storeName, onConfirm, onCancel }: ConfirmSuspendM
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function AdminReportsPage() {
-  const { reportStatuses, setReportStatus, suspendMerchant, suspendedMerchantIds } = useAdminStore();
+  const { reports, merchants, setMerchantTier, suspendMerchant, initFromDB, isLoading } = useAdminStore();
   const { addToast } = useUIStore();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [pendingSuspend, setPendingSuspend] = useState<{ merchantId: string; storeName: string } | null>(null);
 
-  // Compute effective status for each report (fixture status + admin overrides)
-  const enriched = FIXTURE_REPORTS.map((r) => ({
-    ...r,
-    effectiveStatus: (reportStatuses[r.id] ?? r.status) as ReportStatus,
-  }));
-
-  // Filter by tab
-  const filtered = enriched.filter((r) =>
-    activeTab === 'all' ? true : r.effectiveStatus === activeTab,
-  );
+  useEffect(() => {
+    initFromDB();
+  }, [initFromDB]);
 
   // Sort pending by priority, rest by date desc
-  const sorted = [...filtered].sort((a, b) => {
-    if (a.effectiveStatus === 'pending' && b.effectiveStatus === 'pending') {
-      return (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3);
-    }
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+  const sorted = useMemo(() => {
+    const enriched = reports.map(r => ({
+      ...r,
+      effectiveStatus: r.status as ReportStatus
+    }));
 
-  const handleDismiss = (reportId: string, storeName: string) => {
-    setReportStatus(reportId, 'dismissed', storeName, `Report on ${storeName} dismissed.`);
-    addToast('Report dismissed.', 'success');
-  };
-
-  const handleReview = (reportId: string, storeName: string) => {
-    setReportStatus(reportId, 'reviewed', storeName, `Report on ${storeName} marked reviewed.`);
-    addToast('Report marked reviewed.', 'success');
-  };
-
-  const handleSuspendConfirm = () => {
-    if (!pendingSuspend) return;
-    const report = FIXTURE_REPORTS.find(
-      (r) => r.reported_merchant_id === pendingSuspend.merchantId,
+    const filtered = enriched.filter((r) =>
+      activeTab === 'all' ? true : r.effectiveStatus === activeTab,
     );
-    if (report) {
-      setReportStatus(report.id, 'actioned', pendingSuspend.storeName, 'Report actioned: store suspended.');
-    }
-    suspendMerchant(pendingSuspend.merchantId, pendingSuspend.storeName);
-    addToast(`${pendingSuspend.storeName} has been suspended.`, 'success');
+
+    return [...filtered].sort((a, b) => {
+      if (a.effectiveStatus === 'pending' && b.effectiveStatus === 'pending') {
+        return (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3);
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [reports, activeTab]);
+
+  const handleDismiss = async (reportId: string, storeName: string) => {
+    // TODO: Wire report status update to API in admin.store
+    addToast('Report dismissed (mock).', 'success');
+  };
+
+  const handleReview = async (reportId: string, storeName: string) => {
+    // TODO: Wire report status update to API in admin.store
+    addToast('Report marked reviewed (mock).', 'success');
+  };
+
+  const handleSuspendConfirm = async () => {
+    if (!pendingSuspend) return;
+    await suspendMerchant(pendingSuspend.merchantId, 'Report actioned: store suspended.');
     setPendingSuspend(null);
   };
+
+  if (isLoading && reports.length === 0) {
+    return <div className={styles.page}><div className="skeleton" style={{ height: '200px' }} /></div>;
+  }
 
   return (
     <div className={styles.page}>
@@ -182,10 +183,10 @@ export default function AdminReportsPage() {
             </m.p>
           ) : (
             sorted.map((report) => {
-              const merchant = DEV_MERCHANTS.find(
+              const merchant = merchants.find(
                 (m) => m.id === report.reported_merchant_id,
               );
-              const isSuspended = suspendedMerchantIds.includes(report.reported_merchant_id);
+              const isSuspended = merchant?.is_suspended;
               const isPending = report.effectiveStatus === 'pending';
 
               return (

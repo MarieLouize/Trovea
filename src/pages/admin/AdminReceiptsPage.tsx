@@ -46,13 +46,25 @@ function filterByPeriod(receipts: Receipt[], period: Period): Receipt[] {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function AdminReceiptsPage() {
+  const { merchants, initFromDB, isLoading } = useAdminStore();
+  const [allReceipts, setAllReceipts] = useState<Receipt[]>([]);
   const [period, setPeriod] = useState<Period>('all');
   const [search, setSearch] = useState('');
 
-  const storeName = (merchantId: string) =>
-    DEV_MERCHANTS.find((m) => m.id === merchantId)?.store_name ?? merchantId;
+  useEffect(() => {
+    const loadReceipts = async () => {
+      await initFromDB();
+      // Assumption: Global receipts are fetched via fixtures for now or integrated into admin.store
+      const f = await import('@/lib/fixtures');
+      setAllReceipts(f.FIXTURE_RECEIPTS);
+    };
+    loadReceipts();
+  }, [initFromDB]);
 
-  const periodFiltered = useMemo(() => filterByPeriod(FIXTURE_RECEIPTS, period), [period]);
+  const storeName = (merchantId: string) =>
+    merchants.find((m) => m.id === merchantId)?.store_name ?? merchantId;
+
+  const periodFiltered = useMemo(() => filterByPeriod(allReceipts, period), [allReceipts, period]);
 
   const displayReceipts = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -63,6 +75,10 @@ export default function AdminReceiptsPage() {
         r.seal_id.toLowerCase().includes(q),
     );
   }, [periodFiltered, search]);
+
+  if (isLoading && allReceipts.length === 0) {
+    return <div className={styles.page}><div className="skeleton" style={{ height: '300px' }} /></div>;
+  }
 
   const paid      = periodFiltered.filter((r) => r.payment_status === 'paid').length;
   const pending   = periodFiltered.filter((r) => r.payment_status === 'pending_payment').length;

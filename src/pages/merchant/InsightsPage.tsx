@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { m } from '@/lib/motion';
 import { 
@@ -9,14 +9,11 @@ import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useLedgerStore } from '@/lib/store/ledger.store';
 import { useArchiveStore } from '@/lib/store/archive.store';
 import { formatCurrencyFull } from '@/lib/utils/format';
-import {
-  FIXTURE_DROPS,
-  FIXTURE_WINDOWS,
-  FIXTURE_BOOKINGS,
-  FIXTURE_ENQUIRIES,
-} from '@/lib/fixtures';
+import { getDropsByMerchant } from '@/lib/api/drops.api';
+import { getWindowsByMerchant, getBookingsByMerchant } from '@/lib/api/bookings.api';
+import { getEnquiries } from '@/lib/api/enquiries.api';
 import CustomDropdown from '@/components/primitives/CustomDropdown/CustomDropdown';
-import type { Receipt, Product } from '@/lib/types';
+import type { Receipt, Product, Drop, AvailabilityWindow, Booking, Enquiry } from '@/lib/types';
 import styles from './InsightsPage.module.css';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -91,6 +88,49 @@ export default function InsightsPage() {
   const { products } = useArchiveStore();
 
   const [dateRange, setDateRange] = useState<DateRange>('month');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Live data state
+  const [drops, setDrops] = useState<Drop[]>([]);
+  const [windows, setWindows] = useState<AvailabilityWindow[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+
+  useEffect(() => {
+    const loadLiveStats = async () => {
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      if (!hasApi) {
+        // Fallback to fixtures for dev
+        const f = await import('@/lib/fixtures');
+        setDrops(f.FIXTURE_DROPS);
+        setWindows(f.FIXTURE_WINDOWS);
+        setBookings(f.FIXTURE_BOOKINGS);
+        setEnquiries(f.FIXTURE_ENQUIRIES);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const [d, w, b, e] = await Promise.all([
+          getDropsByMerchant(),
+          getWindowsByMerchant(),
+          getBookingsByMerchant(),
+          st.isStudio ? getEnquiries() : Promise.resolve([])
+        ]);
+        setDrops(d);
+        setWindows(w);
+        setBookings(b);
+        setEnquiries(e);
+      } catch (err) {
+        console.error('Failed to load insights data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadLiveStats();
+  }, [st.isStudio]);
 
   // ─── Date Computation ───
   const { rangeStart, rangeEnd } = useMemo(() => {
@@ -132,7 +172,7 @@ export default function InsightsPage() {
     const stagnant = getStagnantProducts(merchantProducts, receipts);
 
     // Collector specific
-    const lastDrop = FIXTURE_DROPS.find(d => d.merchant_id === merchantId && d.status === 'completed');
+    const lastDrop = drops.find(d => d.merchant_id === merchantId && d.status === 'completed');
     let dropSellThrough = 0;
     let dropReceipts: Receipt[] = [];
     if (lastDrop) {
@@ -155,7 +195,7 @@ export default function InsightsPage() {
 
     // Vendor specific
     const estimatedCap = merchantProducts.reduce((sum, p) => sum + (p.stock_level ?? 20), 0);
-    const windowSellThroughs = FIXTURE_WINDOWS
+    const windowSellThroughs = windows
       .filter(w => w.status === 'closed' && w.merchant_id === merchantId)
       .map(w => ({
         label: w.label,
@@ -168,7 +208,7 @@ export default function InsightsPage() {
       : 0;
 
     // Host specific
-    const bookingsInRange = FIXTURE_BOOKINGS.filter(b => {
+    const bookingsInRange = bookings.filter(b => {
       const t = new Date(b.scheduled_at).getTime();
       return b.merchant_id === merchantId &&
         b.status !== 'cancelled' &&
@@ -230,18 +270,18 @@ export default function InsightsPage() {
     })();
 
     // Studio specific
-    const enquiries = FIXTURE_ENQUIRIES.filter(e => e.merchant_id === merchantId);
-    const pipelineValue = enquiries
+    const studioEnquiries = enquiries.filter(e => e.merchant_id === merchantId);
+    const pipelineValue = studioEnquiries
       .filter(e => !['declined', 'completed'].includes(e.status))
       .reduce((sum, e) => sum + (e.package_value ?? 0), 0);
 
-    const pendingDeposits = enquiries.filter(e =>
+    const pendingDeposits = studioEnquiries.filter(e =>
       e.status === 'active_project' &&
       (e.deposit_paid ?? 0) < (e.package_value ?? 0)
     );
     const pendingDepositValue = pendingDeposits.reduce((sum, e) => sum + ((e.package_value ?? 0) - (e.deposit_paid ?? 0)), 0);
 
-    const responded = enquiries.filter(e => e.response_time_hours !== null);
+    const responded = studioEnquiries.filter(e => e.response_time_hours !== null);
     const avgResponse = responded.length ? Math.round(responded.reduce((sum, e) => sum + (e.response_time_hours ?? 0), 0) / responded.length) : 18;
 
     return {
@@ -265,7 +305,27 @@ export default function InsightsPage() {
       pendingDepositValue,
       avgResponse
     };
-  }, [receipts, products, merchant?.id, rangeStart, rangeEnd]);
+  }, [receipts, products, merchant?.id, rangeStart, rangeEnd, drops, windows, bookings, enquiries]);
+
+  if (isLoading) {
+    return (
+      <div className={styles.root}>
+        <div className={styles.pageHeader}>
+          <div className="skeleton-text" style={{ width: '120px', height: '24px' }} />
+          <div className="skeleton-text" style={{ width: '240px', height: '48px', marginTop: '12px' }} />
+        </div>
+        <div className={styles.insightList}>
+          {[1,2,3].map(i => (
+            <div key={i} className={styles.insightCard} style={{ height: '160px' }}>
+              <div className="skeleton" style={{ width: '80px', height: '14px', borderRadius: '4px' }} />
+              <div className="skeleton-text" style={{ width: '90%', height: '24px', marginTop: '16px' }} />
+              <div className="skeleton-text" style={{ width: '60%', height: '14px', marginTop: '12px' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ─── RENDERERS ───
 

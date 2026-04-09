@@ -1,9 +1,8 @@
 import { Link } from 'react-router-dom';
+import { useMemo, useEffect } from 'react';
 import { m } from '@/lib/motion';
 import { Store, Receipt, Flag, BookMarked } from 'lucide-react';
 import { useAdminStore } from '@/lib/store/admin.store';
-import { DEV_MERCHANTS } from '@/lib/store/merchant.store';
-import { FIXTURE_RECEIPTS, FIXTURE_REPORTS, FIXTURE_CLAIMS, FIXTURE_ADMIN_LOG } from '@/lib/fixtures';
 import { formatRelativeDate } from '@/lib/utils/format';
 import styles from './AdminOverviewPage.module.css';
 
@@ -12,35 +11,37 @@ const PRIORITY_ORDER: Record<string, number> = {
 };
 
 export default function AdminOverviewPage() {
-  const { reportStatuses, adminLog } = useAdminStore();
+  const { adminLog, reports, merchants, initFromDB, isLoading } = useAdminStore();
 
-  const pendingReports = FIXTURE_REPORTS.filter(
-    (r) => (reportStatuses[r.id] ?? r.status) === 'pending',
-  );
+  useEffect(() => {
+    initFromDB();
+  }, [initFromDB]);
 
-  const activeClaims = FIXTURE_CLAIMS.filter((c) => c.status === 'pending').length;
+  const pendingReports = useMemo(() => reports.filter(
+    (r) => r.status === 'pending',
+  ), [reports]);
 
-  const sortedPendingReports = [...pendingReports].sort(
+  const sortedPendingReports = useMemo(() => [...pendingReports].sort(
     (a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3),
-  );
+  ), [pendingReports]);
 
-  const recentLog = [...adminLog]
+  const recentLog = useMemo(() => [...adminLog]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
+    .slice(0, 5), [adminLog]);
 
   const statCards = [
     {
       icon: <Store size={18} />,
       label: 'Total Stores',
-      value: String(DEV_MERCHANTS.length),
+      value: String(merchants.length),
       sub: 'All store types',
       colorClass: styles.iconBlue,
     },
     {
       icon: <Receipt size={18} />,
-      label: 'Total Receipts',
-      value: String(FIXTURE_RECEIPTS.length),
-      sub: 'Across all stores',
+      label: 'Platform Reports',
+      value: String(reports.length),
+      sub: 'Lifetime total',
       colorClass: styles.iconGold,
     },
     {
@@ -52,19 +53,34 @@ export default function AdminOverviewPage() {
     },
     {
       icon: <BookMarked size={18} />,
-      label: 'Active Claims',
-      value: String(activeClaims),
-      sub: 'Awaiting confirmation',
+      label: 'Audit Log',
+      value: String(adminLog.length),
+      sub: 'Actions recorded',
       colorClass: styles.iconGold,
     },
   ];
 
   const merchantName = (merchantId: string | null) => {
     if (!merchantId) return '—';
-    return DEV_MERCHANTS.find((m) => m.id === merchantId)?.store_name ?? merchantId;
+    return merchants.find((m) => m.id === merchantId)?.store_name ?? merchantId;
   };
 
-  const initialLog = FIXTURE_ADMIN_LOG.slice(0, 2);
+  if (isLoading && merchants.length === 0) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div className="skeleton-text" style={{ width: '120px', height: '32px' }} />
+        </div>
+        <div className={styles.statGrid}>
+          {[1,2,3,4].map(i => (
+            <div key={i} className={styles.statCard} style={{ height: '140px', opacity: 0.5 }}>
+              <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 'var(--r-md)' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
@@ -100,7 +116,7 @@ export default function AdminOverviewPage() {
         <div>
           <h2 className={styles.sectionTitle}>Recent Activity</h2>
           <div className={styles.activityCard}>
-            {recentLog.length === 0 && initialLog.length === 0 ? (
+            {recentLog.length === 0 ? (
               <p className={styles.emptyNote}>No admin actions yet.</p>
             ) : (
               <ul className={styles.logList} role="list">

@@ -1,12 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
 import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Merchant } from '@/lib/types';
-import { useAdminStore } from '@/lib/store/admin.store';
+import { useAdminStore, type AdminVerificationTier } from '@/lib/store/admin.store';
 import { useUIStore } from '@/lib/store/ui.store';
-import { DEV_MERCHANTS } from '@/lib/store/merchant.store';
-import { FIXTURE_REPORTS } from '@/lib/fixtures';
 import styles from './AdminStoresPage.module.css';
 
 // ─── Sub-component: Inline management panel ──────────────────────────────────
@@ -17,31 +15,35 @@ interface ManagePanelProps {
 }
 
 function ManagePanel({ merchant, onClose }: ManagePanelProps) {
-  const { merchantTiers, suspendedMerchantIds, setMerchantTier, suspendMerchant } = useAdminStore();
-  const { addToast } = useUIStore();
+  const { setMerchantTier, suspendMerchant, unsuspendMerchant } = useAdminStore();
   const [note, setNote] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const currentTier = merchantTiers[merchant.id] ?? merchant.verification_tier;
-  const isSuspended = suspendedMerchantIds.includes(merchant.id);
-  const tiers = ['unverified', 'verified', 'trusted'] as const;
+  const currentTier = merchant.verification_tier;
+  const isSuspended = merchant.is_suspended;
+  const tiers: AdminVerificationTier[] = ['unverified', 'verified', 'trusted'];
 
-  const handleTier = (tier: typeof tiers[number]) => {
-    if (tier === currentTier) return;
-    setMerchantTier(merchant.id, tier, merchant.store_name);
-    addToast(`${merchant.store_name} tier updated to ${tier}.`, 'success');
+  const handleTier = async (tier: AdminVerificationTier) => {
+    if (tier === currentTier || isProcessing) return;
+    setIsProcessing(true);
+    await setMerchantTier(merchant.id, tier);
+    setIsProcessing(false);
   };
 
-  const handleSuspend = () => {
-    if (isSuspended) return;
-    suspendMerchant(merchant.id, merchant.store_name, note || undefined);
-    addToast(`${merchant.store_name} has been suspended.`, 'success');
+  const handleSuspend = async () => {
+    if (isSuspended || isProcessing) return;
+    setIsProcessing(true);
+    await suspendMerchant(merchant.id, note || `Suspended by admin.`);
+    setIsProcessing(false);
     onClose();
   };
 
-  const handleSaveNote = () => {
-    if (!note.trim()) return;
-    addToast('Changes saved.', 'success');
-    setNote('');
+  const handleUnsuspend = async () => {
+    if (!isSuspended || isProcessing) return;
+    setIsProcessing(true);
+    await unsuspendMerchant(merchant.id);
+    setIsProcessing(false);
+    onClose();
   };
 
   return (
@@ -62,6 +64,7 @@ function ManagePanel({ merchant, onClose }: ManagePanelProps) {
                 key={tier}
                 className={`${styles.tierBtn} ${currentTier === tier ? styles.tierBtnActive : ''}`}
                 onClick={() => handleTier(tier)}
+                disabled={isProcessing}
                 whileTap={{ scale: 0.97 }}
                 aria-pressed={currentTier === tier}
               >
@@ -72,42 +75,44 @@ function ManagePanel({ merchant, onClose }: ManagePanelProps) {
         </div>
 
         {/* Admin note */}
-        <div className={styles.manageSection}>
-          <label className={styles.manageLabel} htmlFor={`note-${merchant.id}`}>
-            Admin Note
-          </label>
-          <textarea
-            id={`note-${merchant.id}`}
-            className={styles.noteInput}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Add an internal note…"
-            rows={2}
-          />
-        </div>
+        {!isSuspended && (
+          <div className={styles.manageSection}>
+            <label className={styles.manageLabel} htmlFor={`note-${merchant.id}`}>
+              Suspension Note
+            </label>
+            <textarea
+              id={`note-${merchant.id}`}
+              className={styles.noteInput}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Reason for suspension…"
+              rows={2}
+            />
+          </div>
+        )}
 
         {/* Actions */}
         <div className={styles.manageActions}>
-          <m.button
-            className={styles.saveBtn}
-            onClick={handleSaveNote}
-            disabled={!note.trim()}
-            whileTap={{ scale: 0.97 }}
-          >
-            Save Changes
-          </m.button>
-          {!isSuspended && (
+          {!isSuspended ? (
             <m.button
               className={styles.suspendBtn}
               onClick={handleSuspend}
+              disabled={isProcessing}
               whileTap={{ scale: 0.97 }}
               aria-label={`Suspend ${merchant.store_name}`}
             >
-              Suspend Store
+              {isProcessing ? 'Processing...' : 'Suspend Store'}
             </m.button>
-          )}
-          {isSuspended && (
-            <span className={styles.suspendedNote}>Store is currently suspended</span>
+          ) : (
+            <m.button
+              className={styles.saveBtn}
+              onClick={handleUnsuspend}
+              disabled={isProcessing}
+              whileTap={{ scale: 0.97 }}
+              aria-label={`Unsuspend ${merchant.store_name}`}
+            >
+              {isProcessing ? 'Processing...' : 'Unsuspend Store'}
+            </m.button>
           )}
         </div>
       </div>
@@ -126,30 +131,54 @@ const STORE_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function AdminStoresPage() {
-  const { merchantTiers, suspendedMerchantIds } = useAdminStore();
+  const { merchants, reports, isLoading, initFromDB } = useAdminStore();
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const reportCounts: Record<string, number> = {};
-  FIXTURE_REPORTS.forEach((r) => {
-    reportCounts[r.reported_merchant_id] = (reportCounts[r.reported_merchant_id] ?? 0) + 1;
-  });
+  useEffect(() => {
+    initFromDB();
+  }, [initFromDB]);
 
-  const filtered = DEV_MERCHANTS.filter((m) => {
+  const reportCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    reports.forEach((r) => {
+      counts[r.reported_merchant_id] = (counts[r.reported_merchant_id] ?? 0) + 1;
+    });
+    return counts;
+  }, [reports]);
+
+  const filtered = useMemo(() => merchants.filter((m) => {
     const q = search.toLowerCase();
     return m.store_name.toLowerCase().includes(q) || m.handle.toLowerCase().includes(q);
-  });
+  }), [merchants, search]);
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
   };
+
+  if (isLoading && merchants.length === 0) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div className="skeleton-text" style={{ width: '120px', height: '32px' }} />
+        </div>
+        <div className={styles.storeList}>
+          {[1,2,3].map(i => (
+            <div key={i} className={styles.storeEntry} style={{ height: '80px', opacity: 0.5 }}>
+              <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 'var(--r-md)' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
           <h1 className={styles.pageTitle}>Stores</h1>
-          <p className={styles.pageSubtitle}>{DEV_MERCHANTS.length} stores on platform</p>
+          <p className={styles.pageSubtitle}>{merchants.length} stores on platform</p>
         </div>
         <input
           className={styles.searchInput}
@@ -163,8 +192,8 @@ export default function AdminStoresPage() {
 
       <div className={styles.storeList}>
         {filtered.map((merchant) => {
-          const tier = merchantTiers[merchant.id] ?? merchant.verification_tier;
-          const isSuspended = suspendedMerchantIds.includes(merchant.id);
+          const tier = merchant.verification_tier;
+          const isSuspended = merchant.is_suspended;
           const reportCount = reportCounts[merchant.id] ?? 0;
           const isExpanded = expandedId === merchant.id;
 
