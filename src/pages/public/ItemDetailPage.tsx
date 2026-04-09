@@ -26,10 +26,10 @@ import {
 } from '@/lib/utils/whatsapp';
 import { m, AnimatePresence, staggerContainer } from '@/lib/motion';
 import { useBasketStore } from '@/lib/store/basket.store';
+import { useHoldStore } from '@/lib/store/hold.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import type { Product, ProductVariant, Merchant, ClaimRequest, HoldRequest } from '@/lib/types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
-import { useHoldStore } from '@/lib/store/hold.store';
 import PopupModal from '@/components/primitives/PopupModal/PopupModal';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import ClaimSheet from '@/components/public/ClaimSheet';
@@ -415,6 +415,9 @@ export default function ItemDetailPage() {
   const [merchant, setMerchant] = useState<Merchant>(FIXTURE_MERCHANT);
   const [product, setProduct] = useState<Product | undefined>(undefined);
   const [products, setProducts] = useState<Product[]>([]);
+  const [pendingClaim, setPendingClaim] = useState<ClaimRequest | null>(null);
+  const { addToast } = useUIStore();
+  const { initFromDB: initHolds, getHoldForProduct } = useHoldStore();
 
   // Phase 3B: Fetch data from API with fixture fallback
   useEffect(() => {
@@ -425,9 +428,10 @@ export default function ItemDetailPage() {
       if (hasApi && handle && item_id) {
         try {
           // Optimization: If we already have the item, we still need the merchant for theme/config
-          const [m, p] = await Promise.all([
+          const [m, p, claim] = await Promise.all([
             getMerchantByHandle(handle),
-            getProductById(item_id)
+            getProductById(item_id),
+            getPendingClaimForProduct(item_id)
           ]);
           // Also fetch all merchant products for "Related Items"
           const allP = await getProductsByMerchant(m.id);
@@ -435,6 +439,8 @@ export default function ItemDetailPage() {
           setMerchant(m);
           setProduct(p);
           setProducts(allP);
+          setPendingClaim(claim);
+          initHolds(m.id);
           setIsLoading(false);
           return;
         } catch (err) {
@@ -595,8 +601,9 @@ const activeHold = useMemo(
   [product, getHoldForProduct],
 );
 
-if (isLoading) return <ItemDetailSkeleton />;
+const isClaimed = !!pendingClaim;
 
+if (isLoading) return <ItemDetailSkeleton />;
 if (!product) {
 
   const isPaused = merchant.is_paused; 
@@ -1064,7 +1071,10 @@ if (!product) {
 
           {/* ── Actions (per store type) ── */}
           <div className={styles.actions}>
-            {isPaused ? (
+            {isClaimed ? (
+              <span className={`${styles.actionBtn} ${styles.actionBtnDisabled}`}>Reserved</span>
+
+            ) : isPaused ? (
               <div className={styles.pauseBanner}>
                 <AlertTriangle size={13} />
                 <span>
@@ -1249,7 +1259,7 @@ if (!product) {
             )}
 
             {/* ── Hold CTA ── */}
-            {!isSoldOut && holdEligible && (
+            {!isSoldOut && !isClaimed && holdEligible && (
               activeHold ? (
                 <div className={styles.holdStatusText}>
                   <Clock size={12} />

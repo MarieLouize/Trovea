@@ -10,6 +10,7 @@ import { m, AnimatePresence, SPRING_UI } from '@/lib/motion';
 import type { Product } from '@/lib/types/product.types';
 import type { Merchant } from '@/lib/types/merchant.types';
 import type { ClaimRequest } from '@/lib/types';
+import { createClaim, uploadClaimProof } from '@/lib/api/claims.api';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import { useUIStore } from '@/lib/store/ui.store';
 import type { BasketItem } from '@/lib/store/basket.store';
@@ -71,6 +72,8 @@ export default function ClaimSheet({
     buyerName: '', buyerPhone: '', buyerEmail: '', buyerNote: '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [issuedClaimId, setIssuedClaimId] = useState('');
 
   const isDigital = merchant.store_type === 'digital_creator';
@@ -162,7 +165,7 @@ export default function ClaimSheet({
   })();
 
   // Form submit
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const errs: FormErrors = {};
     if (!form.buyerName.trim() || form.buyerName.trim().length < 2) {
       errs.buyerName = 'Please enter your full name (at least 2 characters).';
@@ -181,30 +184,50 @@ export default function ClaimSheet({
       return;
     }
 
-    const now = new Date().toISOString();
-    const suffix = randomSealSuffix();
-    const claimId = `TRV-CLAIM-${suffix}`;
-    
-    // In Phase 2, we would create multiple claim requests or a single bundled order
-    const newClaim: ClaimRequest = {
-      id: `claim-live-${Date.now()}`,
-      product_id: items[0].id,
-      merchant_id: merchant.id,
-      buyer_name: form.buyerName.trim(),
-      buyer_phone: isDigital ? '' : form.buyerPhone.trim(),
-      buyer_email: isDigital ? form.buyerEmail.trim() : null,
-      buyer_note: form.buyerNote.trim() || null,
-      proof_submitted: false,
-      proof_note: null,
-      status: 'pending',
-      created_at: now,
-      updated_at: now,
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    };
+    setIsSubmitting(true);
 
-    onClaimSubmitted(newClaim);
-    setIssuedClaimId(claimId);
-    setStep(3);
+    try {
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      
+      const claimData = {
+        product_id: items[0].id,
+        merchant_id: merchant.id,
+        buyer_name: form.buyerName.trim(),
+        buyer_phone: isDigital ? '' : form.buyerPhone.trim(),
+        buyer_email: isDigital ? form.buyerEmail.trim() : null,
+        buyer_note: form.buyerNote.trim() || null,
+        status: 'pending',
+      };
+
+      let claim: ClaimRequest;
+
+      if (hasApi) {
+        claim = await createClaim(claimData);
+        if (proofFile) {
+          await uploadClaimProof(claim.id, proofFile);
+        }
+      } else {
+        // Fallback
+        claim = {
+          ...claimData,
+          id: `claim-mock-${Date.now()}`,
+          proof_submitted: !!proofFile,
+          proof_note: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        } as ClaimRequest;
+      }
+
+      onClaimSubmitted(claim);
+      setIssuedClaimId(claim.id.slice(-8).toUpperCase()); // Short version for UI
+      setStep(3);
+    } catch (err) {
+      console.error('Failed to submit claim:', err);
+      addToast('Failed to submit claim. Please try again.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // ── Backdrop ────────────────────────────────────────────────────────────────
@@ -470,14 +493,34 @@ export default function ClaimSheet({
                         rows={3}
                       />
                     </div>
+
+                    {/* Proof Upload (Phase 3D) */}
+                    <div className={styles.formField}>
+                      <label className={styles.formLabel} htmlFor="claim-proof">
+                        Payment Proof <span className={styles.optional}>(screenshot)</span>
+                      </label>
+                      <div className={styles.fileUploadBox}>
+                        <input
+                          id="claim-proof"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                          className={styles.fileInput}
+                        />
+                        <div className={styles.fileDummy}>
+                          {proofFile ? proofFile.name : 'Select screenshot...'}
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <m.button
                     className={`${styles.actionBtn} ${styles.btnPrimary}`}
                     onClick={handleSubmit}
+                    disabled={isSubmitting}
                     whileTap={{ scale: 0.97 }}
                   >
-                    Submit Claim →
+                    {isSubmitting ? 'Submitting...' : 'Submit Claim →'}
                   </m.button>
                   <button
                     className={`${styles.actionBtn} ${styles.btnSecondary}`}

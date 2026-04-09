@@ -608,3 +608,38 @@
   text-align: center;
   margin-bottom: var(--space-6);
 }
+
+/* Proof Upload (Phase 3D) */
+.fileUploadBox {
+  position: relative;
+  height: 44px;
+  border: 1px dashed var(--color-fg-ghost);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--color-surface-soft);
+  transition: all var(--duration-fast);
+}
+
+.fileUploadBox:hover {
+  border-color: var(--color-accent);
+}
+
+.fileInput {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.fileDummy {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4);
+  color: var(--color-fg-subtle);
+  font-size: 13px;
+  z-index: 1;
+  pointer-events: none;
+}

@@ -19,4 +19,19 @@ export class MerchantsService {
 
     return data;
   }
+
+  async getByOwnerId(ownerId: string) {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('merchants')
+      .select('*')
+      .eq('owner_id', ownerId)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException(`Merchant for owner ${ownerId} not found`);
+    }
+
+    return data;
+  }
 }

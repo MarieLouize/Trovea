@@ -11,6 +11,7 @@ import { m, AnimatePresence, SPRING_UI } from '@/lib/motion';
 import type { Product } from '@/lib/types/product.types';
 import type { Merchant } from '@/lib/types/merchant.types';
 import type { HoldRequest } from '@/lib/types';
+import { useHoldStore } from '@/lib/store/hold.store';
 import { buildStoreContactLink } from '@/lib/utils/whatsapp';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './HoldSheet.module.css';
@@ -66,11 +67,13 @@ export default function HoldSheet({
   hasActiveHold,
   onHoldCreated,
 }: HoldSheetProps) {
+  const { addHold } = useHoldStore();
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormState>({
     buyerName: '', buyerPhone: '', buyerNote: '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [issuedHold, setIssuedHold] = useState<HoldRequest | null>(null);
 
   const handleClose = useCallback(() => {
@@ -80,12 +83,13 @@ export default function HoldSheet({
       setForm({ buyerName: '', buyerPhone: '', buyerNote: '' });
       setErrors({});
       setIssuedHold(null);
+      setIsSubmitting(false);
     }, 300);
   }, [onClose]);
 
   const contactLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const errs: FormErrors = {};
     if (!form.buyerName.trim() || form.buyerName.trim().length < 2) {
       errs.buyerName = 'Please enter your full name (at least 2 characters).';
@@ -98,27 +102,25 @@ export default function HoldSheet({
       return;
     }
 
-    const now = new Date().toISOString();
-    const expiresAt = new Date(
-      Date.now() + merchant.hold_duration_hours * 3_600_000,
-    ).toISOString();
+    setIsSubmitting(true);
 
-    const newHold: HoldRequest = {
-      id: `hold-live-${Date.now()}`,
+    const holdData = {
       product_id: product.id,
       merchant_id: merchant.id,
       buyer_name: form.buyerName.trim(),
       buyer_phone: form.buyerPhone.trim(),
       buyer_note: form.buyerNote.trim() || null,
-      status: 'active',
       duration_hours: merchant.hold_duration_hours,
-      created_at: now,
-      expires_at: expiresAt,
     };
 
-    onHoldCreated(newHold);
-    setIssuedHold(newHold);
-    setStep(2);
+    const newHold = await addHold(holdData);
+
+    if (newHold) {
+      onHoldCreated(newHold);
+      setIssuedHold(newHold);
+      setStep(2);
+    }
+    setIsSubmitting(false);
   };
 
   return (
@@ -275,9 +277,10 @@ export default function HoldSheet({
                       <m.button
                         className={`${styles.actionBtn} ${styles.btnPrimary}`}
                         onClick={handleSubmit}
+                        disabled={isSubmitting}
                         whileTap={{ scale: 0.97 }}
                       >
-                        Hold This Item →
+                        {isSubmitting ? 'Reserving...' : 'Hold This Item →'}
                       </m.button>
                     </>
                   )}

@@ -133,12 +133,13 @@ interface ProductCardProps {
   bagEligible: boolean;
   urgencySignal: string | null;
   isOnHold: boolean;
+  isClaimed: boolean;
   isPaused: boolean;
   dropState?: 'none' | 'pre' | 'live' | 'post';
 }
 
 function ProductCard({
-  product, handle, merchantId, cardStyle, bagEligible, urgencySignal, isOnHold, isPaused, dropState,
+  product, handle, merchantId, cardStyle, bagEligible, urgencySignal, isOnHold, isClaimed, isPaused, dropState,
 }: ProductCardProps) {
   const { add, has } = useBasketStore();
   const inBasket = has(product.id);
@@ -150,7 +151,7 @@ function ProductCard({
   const handleBasket = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isSoldOut || isPaused || isLocked) return;
+    if (isSoldOut || isPaused || isLocked || isOnHold || isClaimed) return;
     add({
       id:    product.id,
       name:  product.name,
@@ -173,21 +174,22 @@ function ProductCard({
             loading="lazy"
           />
           {badge.type === 'sold_out' && <span className="sf-card-status sf-card-status-sold">Sold out</span>}
-          {isClaim && !isSoldOut && <span className="sf-card-status sf-card-status-claim">Claim</span>}
-          {badge.type === 'last' && !isClaim && <span className="sf-card-status sf-card-status-last">Last one</span>}
-          {badge.type === 'low' && !isClaim && <span className="sf-card-status sf-card-status-low">{badge.text}</span>}
-          {isOnHold && !isSoldOut && (
+          {isClaim && !isSoldOut && !isClaimed && <span className="sf-card-status sf-card-status-claim">Claim</span>}
+          {isClaimed && !isSoldOut && <span className="sf-card-status sf-card-status-sold">Reserved</span>}
+          {badge.type === 'last' && !isClaim && !isClaimed && <span className="sf-card-status sf-card-status-last">Last one</span>}
+          {badge.type === 'low' && !isClaim && !isClaimed && <span className="sf-card-status sf-card-status-low">{badge.text}</span>}
+          {isOnHold && !isSoldOut && !isClaimed && (
             <span className={sfStyles.onHoldBadge}>On Hold</span>
           )}
 
-          {bagEligible && urgencySignal && !isSoldOut && badge.type === null && !isOnHold && (
+          {bagEligible && urgencySignal && !isSoldOut && !isClaimed && badge.type === null && !isOnHold && (
             <div className={`${sfStyles.urgencyBadge} ${sfStyles.urgencyBadgeAmber}`}>
               {urgencySignal}
             </div>
           )}
 
           {/* Bag button — hidden when store is paused */}
-          {!isSoldOut && bagEligible && !isPaused && (
+          {!isSoldOut && !isClaimed && !isOnHold && bagEligible && !isPaused && (
             <button
               className={`${sfStyles.addToBagBtn} ${inBasket ? sfStyles.addToBagAdded : ''}`}
               onClick={handleBasket}
@@ -1236,6 +1238,7 @@ export default function StorefrontPage() {
 
   const { addToast } = useUIStore();
   const { clearIfDifferentStore } = useBasketStore();
+  const { holds, initFromDB: initHolds } = useHoldStore();
 
   // ─── Vendor: Window Logic ───
   const activeWindow = useMemo<AvailabilityWindow | null>(() => {
@@ -1264,8 +1267,9 @@ export default function StorefrontPage() {
   useEffect(() => {
     if (merchant.id) {
       clearIfDifferentStore(merchant.id);
+      initHolds(merchant.id);
     }
-  }, [merchant.id, clearIfDifferentStore]);
+  }, [merchant.id, clearIfDifferentStore, initHolds]);
 
   // ─── Collector: Drop Logic ───
   const activeDrop = useMemo(() => {
@@ -1309,12 +1313,42 @@ export default function StorefrontPage() {
     return getNextAvailableDate(merchant.id);
   }, [storeType, merchant.id]);
 
-  const { holds } = useHoldStore();
+  const { holds, initFromDB: initHolds } = useHoldStore();
+  const [pendingClaimIds, setPendingClaimIds] = useState<Set<string>>(new Set());
+
+  // ... rest of state ...
+
+  // Phase 3D: Fetch pending claims for visible products
+  useEffect(() => {
+    const fetchClaims = async () => {
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      if (!hasApi) return;
+
+      try {
+        const claims = await Promise.all(
+          liveProducts.map(p => getPendingClaimForProduct(p.id))
+        );
+        const claimedSet = new Set(claims.filter(Boolean).map(c => c!.product_id));
+        setPendingClaimIds(claimedSet);
+      } catch (err) {
+        console.error('Failed to fetch product claims:', err);
+      }
+    };
+
+    if (liveProducts.length > 0) fetchClaims();
+  }, [liveProducts]);
+
   const isOnHold = useCallback(
     (productId: string) =>
       holds.some((h: HoldRequest) => h.product_id === productId && h.status === 'active'),
     [holds],
   );
+
+  const isClaimed = useCallback(
+    (productId: string) => pendingClaimIds.has(productId),
+    [pendingClaimIds]
+  );
+
 
   const liveProducts = useMemo(
     () => products.filter((p) => p.status !== 'hidden'),
@@ -1504,8 +1538,10 @@ export default function StorefrontPage() {
                     bagEligible={bagEligible}
                     urgencySignal={getUrgencySignal(p, storeType, activeWindow, weekSlotCount)}
                     isOnHold={isOnHold(p.id)}
+                    isClaimed={isClaimed(p.id)}
                     isPaused={isPaused}
                     dropState={dropState}
+
                   />
                 ))}
               </m.div>
@@ -1560,8 +1596,10 @@ export default function StorefrontPage() {
                     bagEligible={bagEligible}
                     urgencySignal={getUrgencySignal(p, storeType, activeWindow, weekSlotCount)}
                     isOnHold={isOnHold(p.id)}
+                    isClaimed={isClaimed(p.id)}
                     isPaused={isPaused}
                     dropState={dropState}
+
                   />
                 ))}
               </m.div>
