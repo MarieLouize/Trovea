@@ -4,3 +4,5 @@ export * from './receipts';
 export * from './drops';
 export * from './bookings';
 export * from './enquiries';
+export * from './profiles';
+

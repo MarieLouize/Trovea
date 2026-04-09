@@ -12,6 +12,7 @@ import { useAuthStore } from '@/lib/store/auth.store';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useArchiveStore } from '@/lib/store/archive.store';
 import { useLedgerStore } from '@/lib/store/ledger.store';
+import { useUIStore } from '@/lib/store/ui.store';
 import { getMerchantByOwnerId } from '@/lib/db/queries';
 
 // ── Phase 1B ──
@@ -105,7 +106,7 @@ export default function App() {
           useLedgerStore.getState().initFromDB(merchant.id);
         }
       } catch (err) {
-        console.error('Failed to load merchant data:', err);
+        useUIStore.getState().addToast('Failed to load store data', 'error');
       }
     };
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { StoreType, Merchant, StoreTypeConfig, StoreConfig } from '@/lib/types';
 import { db } from '@/lib/db';
+import { upsertProfile } from '@/lib/db/queries';
 import { useAuthStore } from './auth.store';
 import { useMerchantStore } from './merchant.store';
 
@@ -50,16 +51,14 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     }
 
     // 1. Create/update profile
-    const { error: profileError } = await db
-      .from('profiles')
-      .upsert({
-        id: userId,
-        display_name: state.displayName,
-        whatsapp: state.whatsapp,
-        role: state.role ?? 'curator',
-      });
+    const profileSuccess = await upsertProfile({
+      id: userId,
+      display_name: state.displayName,
+      whatsapp: state.whatsapp,
+      role: state.role ?? 'curator',
+    });
 
-    if (profileError) return { success: false, error: profileError.message };
+    if (!profileSuccess) return { success: false, error: 'Failed to update profile' };
 
     // 2. Create merchant with sensible defaults
     const defaultStoreTypeConfig = buildDefaultStoreTypeConfig(state.storeType);
