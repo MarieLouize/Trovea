@@ -8,6 +8,7 @@ import {
   FIXTURE_STUDIO_MERCHANT,
 } from '@/lib/fixtures';
 import { getMerchantById } from '../db/queries';
+import { updateMerchant as apiUpdateMerchant } from '../api/merchants.api';
 
 export const DEV_MERCHANTS: Merchant[] = [
   FIXTURE_MERCHANT,
@@ -23,6 +24,7 @@ interface MerchantState {
   error: string | null;
   setMerchant: (merchant: Merchant) => void;
   updateMerchant: (updates: Partial<Merchant>) => void;
+  saveMerchant: () => Promise<boolean>;
   storeName: () => string;
   handle: () => string;
   initFromDB: (merchantId: string) => Promise<void>;
@@ -37,6 +39,22 @@ export const useMerchantStore = create<MerchantState>((set, get) => ({
     set((state) => ({
       merchant: { ...state.merchant, ...updates },
     })),
+  saveMerchant: async () => {
+    const { merchant } = get();
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    if (!hasApi) return true;
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, owner_id, handle, store_type, initialized_at, updated_at, ...payload } = merchant;
+      const updated = await apiUpdateMerchant(payload);
+      set({ merchant: updated });
+      return true;
+    } catch (err) {
+      console.error('Failed to save merchant:', err);
+      return false;
+    }
+  },
   storeName: () => get().merchant.store_name,
   handle: () => get().merchant.handle,
   initFromDB: async (merchantId) => {

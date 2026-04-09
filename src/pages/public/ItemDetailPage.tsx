@@ -38,7 +38,8 @@ import BookingRequestSheet from '@/components/public/BookingRequestSheet';
 import MiniCard from '@/components/public/MiniCard/MiniCard';
 import { ItemDetailSkeleton } from '@/components/public/Skeletons';
 import { getMerchantByHandle } from '@/lib/api/merchants.api';
-import { getProductById } from '@/lib/api/products.api';
+import { getProductById, getProductsByMerchant } from '@/lib/api/products.api';
+import { getPendingClaimForProduct, createEnquiry as apiCreateEnquiry } from '@/lib/api/enquiries.api';
 import styles from './ItemDetailPage.module.css';
 import '@/styles/cards.css';
 
@@ -497,6 +498,7 @@ export default function ItemDetailPage() {
   const [digitalDrawerOpen, setDigitalDrawerOpen] = useState(false);
   const [proofModalOpen,   setProofModalOpen]    = useState(false);
   const [enquirySubmitted, setEnquirySubmitted]  = useState(false);
+  const [isEnquirySubmitting, setIsEnquirySubmitting] = useState(false);
   const [enquiryForm, setEnquiryForm] = useState({
     name: '', company: '', budget: '', timeline: '', message: '', projectType: ''
   });
@@ -829,29 +831,51 @@ if (!product) {
                 </div>
                 <button 
                   className={styles.proposalSubmitBtn}
-                  onClick={() => {
+                  disabled={isEnquirySubmitting}
+                  onClick={async () => {
                     if (!enquiryForm.name || !enquiryForm.message) {
                       addToast('Name and brief are required', 'error');
                       return;
                     }
                     
-                    const waLink = buildStudioEnquiryLink({
-                      phone: merchant.whatsapp,
-                      storeName: merchant.store_name,
-                      projectName: product.name,
-                      clientName: enquiryForm.name,
-                      company: enquiryForm.company,
-                      budget: enquiryForm.budget,
-                      timeline: enquiryForm.timeline,
-                      message: enquiryForm.message,
-                    });
+                    setIsEnquirySubmitting(true);
+                    try {
+                      const hasApi = !!import.meta.env.VITE_API_URL;
+                      if (hasApi) {
+                        await apiCreateEnquiry({
+                          merchant_id: merchant.id,
+                          package_id: product.id,
+                          buyer_name: enquiryForm.name,
+                          buyer_company: enquiryForm.company || null,
+                          budget_range: enquiryForm.budget || null,
+                          timeline_estimate: enquiryForm.timeline || null,
+                          message: enquiryForm.message,
+                          status: 'new'
+                        });
+                      }
 
-                    window.open(waLink, '_blank');
-                    setEnquirySubmitted(true);
-                    addToast('Brief sent via WhatsApp', 'success');
+                      const waLink = buildStudioEnquiryLink({
+                        phone: merchant.whatsapp,
+                        storeName: merchant.store_name,
+                        projectName: product.name,
+                        clientName: enquiryForm.name,
+                        company: enquiryForm.company,
+                        budget: enquiryForm.budget,
+                        timeline: enquiryForm.timeline,
+                        message: enquiryForm.message,
+                      });
+
+                      window.open(waLink, '_blank');
+                      setEnquirySubmitted(true);
+                      addToast('Brief sent via WhatsApp', 'success');
+                    } catch (err) {
+                      addToast('Failed to submit enquiry', 'error');
+                    } finally {
+                      setIsEnquirySubmitting(false);
+                    }
                   }}
                 >
-                  Start Consultation →
+                  {isEnquirySubmitting ? 'Submitting...' : 'Start Consultation →'}
                 </button>
                 <a 
                   href={studioPackageWaLink}

@@ -123,6 +123,8 @@ export default function SettingsPage() {
   const [modalPauseMessage, setModalPauseMessage] = useState('');
   const [modalReturnDate, setModalReturnDate] = useState('');
 
+  const [isSaving, setIsSaving] = useState(false);
+
   // ── DIRTY STATE ──────────────────────────────────────────────────
   const initialWaTemplate = merchant.whatsapp_template ?? DEFAULT_WA_TEMPLATE;
 
@@ -155,9 +157,13 @@ export default function SettingsPage() {
   const isFirstLiveTrigger = !merchant.has_gone_live && storeOpen && storeOpen !== merchant.store_open;
 
   // ── ACTIONS ──────────────────────────────────────────────────────
-  const handleSave = () => {
+  const handleSave = async () => {
     const isFirstLive = !merchant.has_gone_live && storeOpen;
+    setIsSaving(true);
     
+    // Snapshot current merchant for potential rollback
+    const snapshot = { ...merchant };
+
     updateMerchant({
       display_name: displayName,
       store_name: storeName,
@@ -173,6 +179,9 @@ export default function SettingsPage() {
       hold_duration_hours: holdDuration,
       arrival_notes: arrivalNotes,
       response_time_hours: responseTimeHours,
+      is_paused: isPaused,
+      pause_message: modalPauseMessage || null,
+      pause_return_date: modalReturnDate || null,
       store_config: {
         ...merchant.store_config,
         store_type_config: {
@@ -182,12 +191,21 @@ export default function SettingsPage() {
       }
     });
 
-    if (isFirstLive) {
-      setShowFirstLiveCeremony(true);
-      setTimeout(() => setShowFirstLiveCeremony(false), 2500);
-    }
+    const { saveMerchant } = useMerchantStore.getState();
+    const success = await saveMerchant();
 
-    addToast('Changes saved', 'success');
+    if (success) {
+      if (isFirstLive) {
+        setShowFirstLiveCeremony(true);
+        setTimeout(() => setShowFirstLiveCeremony(false), 2500);
+      }
+      addToast('Changes saved', 'success');
+    } else {
+      // Rollback
+      updateMerchant(snapshot);
+      addToast('Failed to save changes. Please try again.', 'error');
+    }
+    setIsSaving(false);
   };
 
   const handleCopyUrl = () => {
@@ -985,10 +1003,11 @@ export default function SettingsPage() {
               <m.button
                 className={styles.saveChangesBtn}
                 onClick={handleSave}
+                disabled={isSaving}
                 whileTap={{ scale: 0.97 }}
                 aria-label="Save changes"
               >
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </m.button>
             </div>
           </m.div>

@@ -34,4 +34,20 @@ export class MerchantsService {
 
     return data;
   }
+
+  async update(ownerId: string, dto: any) {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('merchants')
+      .update({ ...dto, updated_at: new Date().toISOString() })
+      .eq('owner_id', ownerId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(`Failed to update merchant: ${error?.message}`);
+    }
+
+    return data;
+  }
 }
