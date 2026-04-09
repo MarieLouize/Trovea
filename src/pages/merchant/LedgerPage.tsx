@@ -59,14 +59,7 @@ export default function LedgerPage() {
   const [dropFilter, setDropFilter] = useState<string>('all');
   const [windowFilter, setWindowFilter] = useState<string>('all');
 
-  // Local state
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Simulate loading (Phase 3C)
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200);
-    return () => clearTimeout(timer);
-  }, []);
+  const { isLoading, error } = useLedgerStore();
 
   useEffect(() => {
     if (tabParam) {
@@ -247,6 +240,17 @@ export default function LedgerPage() {
     window.open(url, '_blank', 'noopener,noreferrer');
     setCustomMsgOpen(false);
   };
+
+  if (error) {
+    return (
+      <div className={styles.root}>
+        <div className={styles.pageHeader}>
+          <p className="t-caps" style={{ color: 'var(--color-danger)' }}>Error Loading Ledger</p>
+          <h1 className="t-title">{error}</h1>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

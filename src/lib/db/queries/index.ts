@@ -1,5 +1,6 @@
 export * from './merchants';
 export * from './products';
+export * from './collections';
 export * from './receipts';
 export * from './drops';
 export * from './bookings';

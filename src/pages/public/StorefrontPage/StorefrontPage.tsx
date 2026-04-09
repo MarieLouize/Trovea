@@ -40,6 +40,9 @@ import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import BookingRequestSheet from '@/components/public/BookingRequestSheet';
 import MiniCard from '@/components/public/MiniCard/MiniCard';
 import DigitalCartCheckoutDrawer from '@/components/public/DigitalCartCheckoutDrawer/DigitalCartCheckoutDrawer';
+import { StorefrontSkeleton } from '@/components/public/Skeletons';
+import { getMerchantByHandle } from '@/lib/api/merchants.api';
+import { getProductsByMerchant, getCollectionsByMerchant } from '@/lib/api/products.api';
 import sfStyles from './StorefrontPage.module.css';
 import '@/styles/cards.css';
 import '@/styles/storefront-shapes.css';
@@ -1143,6 +1146,53 @@ export default function StorefrontPage() {
   const [devPaused, setDevPaused] = useState(false);
   const [following, setFollowing] = useState(false);
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [merchant, setMerchant] = useState<Merchant>(FIXTURE_MERCHANT);
+  const [products, setProducts] = useState<Product[]>(FIXTURE_PRODUCTS);
+  const [merchantCollections, setMerchantCollections] = useState<any[]>([]);
+
+  // Phase 3B: Fetch data from API with fixture fallback
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      
+      if (hasApi && handle) {
+        try {
+          const m = await getMerchantByHandle(handle);
+          const [p, c] = await Promise.all([
+            getProductsByMerchant(m.id),
+            getCollectionsByMerchant(m.id)
+          ]);
+          setMerchant(m);
+          setProducts(p);
+          setMerchantCollections(c);
+          setIsLoading(false);
+          return;
+        } catch (err) {
+          console.error('Failed to fetch storefront data:', err);
+          // Fall through to fixture logic on error
+        }
+      }
+
+      // Fixture Fallback
+      let fMerchant = FIXTURE_MERCHANT;
+      let fProducts = FIXTURE_PRODUCTS;
+      
+      if (handle === 'chisombeauty') { fMerchant = FIXTURE_HOST_MERCHANT; fProducts = FIXTURE_HOST_PRODUCTS; }
+      else if (handle === 'femicreates') { fMerchant = FIXTURE_DIGITAL_MERCHANT; fProducts = FIXTURE_DIGITAL_PRODUCTS; }
+      else if (handle === 'ngozistudio') { fMerchant = FIXTURE_STUDIO_MERCHANT; fProducts = FIXTURE_STUDIO_PRODUCTS; }
+      else if (handle === 'tobieats') { fMerchant = FIXTURE_VENDOR_MERCHANT; fProducts = FIXTURE_VENDOR_PRODUCTS; }
+
+      setMerchant(fMerchant);
+      setProducts(fProducts);
+      setMerchantCollections(FIXTURE_COLLECTIONS.filter(c => c.merchant_id === fMerchant.id));
+      setIsLoading(false);
+    };
+
+    fetchData();
+  }, [handle]);
+
   // Phase 3G: Initial follow state
   useEffect(() => {
     const follows = JSON.parse(localStorage.getItem('trovea_follows') || '[]');
@@ -1175,15 +1225,6 @@ export default function StorefrontPage() {
   const [slotDrawerService, setSlotDrawerService] = useState<Product | null>(null);
   const [slotDrawerPreselected, setSlotDrawerPreselected] = useState<{ date?: string; time?: string }>({});
 
-  // Derive merchant and products based on handle
-  const { merchant, products } = useMemo(() => {
-    if (handle === 'chisombeauty') return { merchant: FIXTURE_HOST_MERCHANT, products: FIXTURE_HOST_PRODUCTS };
-    if (handle === 'femicreates') return { merchant: FIXTURE_DIGITAL_MERCHANT, products: FIXTURE_DIGITAL_PRODUCTS };
-    if (handle === 'ngozistudio') return { merchant: FIXTURE_STUDIO_MERCHANT, products: FIXTURE_STUDIO_PRODUCTS };
-    if (handle === 'tobieats') return { merchant: FIXTURE_VENDOR_MERCHANT, products: FIXTURE_VENDOR_PRODUCTS };
-    return { merchant: FIXTURE_MERCHANT, products: FIXTURE_PRODUCTS };
-  }, [handle]);
-
   const { store_config: cfg } = merchant;
   const layout     = cfg.layout;
   const cardStyle  = cfg.card_style;
@@ -1194,7 +1235,7 @@ export default function StorefrontPage() {
   const bagEligible = ['collector', 'vendor', 'digital_creator'].includes(storeType);
 
   const { addToast } = useUIStore();
-  const { items: basketItems, clear: clearBasket, clearIfDifferentStore } = useBasketStore();
+  const { clearIfDifferentStore } = useBasketStore();
 
   // ─── Vendor: Window Logic ───
   const activeWindow = useMemo<AvailabilityWindow | null>(() => {
@@ -1280,10 +1321,6 @@ export default function StorefrontPage() {
     [products]
   );
 
-  const merchantCollections = useMemo(() => 
-    FIXTURE_COLLECTIONS.filter(c => c.merchant_id === merchant.id),
-  [merchant.id]);
-
   const hasUncollected = useMemo(() => 
     liveProducts.some(p => p.collection_id === null),
   [liveProducts]);
@@ -1313,6 +1350,8 @@ export default function StorefrontPage() {
     setSlotDrawerPreselected({});
     setSlotDrawerOpen(true);
   };
+
+  if (isLoading) return <StorefrontSkeleton />;
 
   if (!merchant.store_open) {
     return (
@@ -1795,10 +1834,10 @@ export default function StorefrontPage() {
       <DigitalCartCheckoutDrawer
         open={digitalCheckoutOpen}
         onClose={() => setDigitalCheckoutOpen(false)}
-        items={basketItems}
+        items={useBasketStore.getState().items}
         merchant={merchant}
         onComplete={() => {
-          clearBasket();
+          useBasketStore.getState().clear();
           addToast('Order received! Check your email.', 'success');
         }}
       />

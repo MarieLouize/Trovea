@@ -36,6 +36,9 @@ import ClaimSheet from '@/components/public/ClaimSheet';
 import HoldSheet from '@/components/public/HoldSheet';
 import BookingRequestSheet from '@/components/public/BookingRequestSheet';
 import MiniCard from '@/components/public/MiniCard/MiniCard';
+import { ItemDetailSkeleton } from '@/components/public/Skeletons';
+import { getMerchantByHandle } from '@/lib/api/merchants.api';
+import { getProductById } from '@/lib/api/products.api';
 import styles from './ItemDetailPage.module.css';
 import '@/styles/cards.css';
 
@@ -408,16 +411,54 @@ export default function ItemDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Derive merchant and products based on handle
-  const { merchant, products } = useMemo(() => {
-    if (handle === 'chisombeauty') return { merchant: FIXTURE_HOST_MERCHANT, products: FIXTURE_HOST_PRODUCTS };
-    if (handle === 'femicreates') return { merchant: FIXTURE_DIGITAL_MERCHANT, products: FIXTURE_DIGITAL_PRODUCTS };
-    if (handle === 'ngozistudio') return { merchant: FIXTURE_STUDIO_MERCHANT, products: FIXTURE_STUDIO_PRODUCTS };
-    if (handle === 'tobieats') return { merchant: FIXTURE_VENDOR_MERCHANT, products: FIXTURE_VENDOR_PRODUCTS };
-    return { merchant: FIXTURE_MERCHANT, products: FIXTURE_PRODUCTS };
-  }, [handle]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [merchant, setMerchant] = useState<Merchant>(FIXTURE_MERCHANT);
+  const [product, setProduct] = useState<Product | undefined>(undefined);
+  const [products, setProducts] = useState<Product[]>([]);
 
-  const product  = useMemo(() => products.find((p) => p.id === item_id), [products, item_id]);
+  // Phase 3B: Fetch data from API with fixture fallback
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      const hasApi = !!import.meta.env.VITE_API_URL;
+
+      if (hasApi && handle && item_id) {
+        try {
+          // Optimization: If we already have the item, we still need the merchant for theme/config
+          const [m, p] = await Promise.all([
+            getMerchantByHandle(handle),
+            getProductById(item_id)
+          ]);
+          // Also fetch all merchant products for "Related Items"
+          const allP = await getProductsByMerchant(m.id);
+          
+          setMerchant(m);
+          setProduct(p);
+          setProducts(allP);
+          setIsLoading(false);
+          return;
+        } catch (err) {
+          console.error('Failed to fetch item data:', err);
+        }
+      }
+
+      // Fixture Fallback
+      let fMerchant = FIXTURE_MERCHANT;
+      let fProducts = FIXTURE_PRODUCTS;
+      
+      if (handle === 'chisombeauty') { fMerchant = FIXTURE_HOST_MERCHANT; fProducts = FIXTURE_HOST_PRODUCTS; }
+      else if (handle === 'femicreates') { fMerchant = FIXTURE_DIGITAL_MERCHANT; fProducts = FIXTURE_DIGITAL_PRODUCTS; }
+      else if (handle === 'ngozistudio') { fMerchant = FIXTURE_STUDIO_MERCHANT; fProducts = FIXTURE_STUDIO_PRODUCTS; }
+      else if (handle === 'tobieats') { fMerchant = FIXTURE_VENDOR_MERCHANT; fProducts = FIXTURE_VENDOR_PRODUCTS; }
+
+      setMerchant(fMerchant);
+      setProducts(fProducts);
+      setProduct(fProducts.find(p => p.id === item_id));
+      setIsLoading(false);
+    };
+
+    fetchData();
+  }, [handle, item_id]);
   const cfg      = merchant.store_config;
   const { paletteId, isDark } = usePaletteTheme(cfg.palette);
   
@@ -549,11 +590,14 @@ export default function ItemDetailPage() {
       claims.some((c) => c.product_id === productId && c.status === 'pending'),
     [claims],
   );
+const activeHold = useMemo(
+  () => product ? getHoldForProduct(product.id) : null,
+  [product, getHoldForProduct],
+);
 
-  const activeHold = useMemo(
-    () => product ? getHoldForProduct(product.id) : null,
-    [product, getHoldForProduct],
-  );
+if (isLoading) return <ItemDetailSkeleton />;
+
+if (!product) {
 
   const isPaused = merchant.is_paused; 
   const bagEligible = st.isCollector || st.isVendor || st.isDigital;

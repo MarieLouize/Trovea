@@ -1,0 +1,109 @@
+.skeletonStorefront,
+.skeletonItemDetail {
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0.5) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Storefront */
+.skeletonHero {
+  height: 400px;
+  background: rgba(0,0,0,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.skeletonHeroContent {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.skeletonBadge { width: 80px; height: 16px; border-radius: 4px; background: rgba(0,0,0,0.1); }
+.skeletonTitle { width: 240px; height: 32px; border-radius: 4px; background: rgba(0,0,0,0.1); }
+.skeletonTagline { width: 180px; height: 14px; border-radius: 4px; background: rgba(0,0,0,0.08); }
+.skeletonTrustRow { width: 200px; height: 12px; border-radius: 4px; background: rgba(0,0,0,0.05); }
+
+.skeletonNav {
+  display: flex;
+  gap: 12px;
+  padding: 24px;
+}
+
+.skeletonChip { width: 60px; height: 28px; border-radius: 14px; background: rgba(0,0,0,0.05); }
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: rgba(0,0,0,0.05);
+}
+
+.skeletonCard {
+  background: var(--color-bg);
+  height: 300px;
+}
+
+.skeletonMedia { height: 220px; background: rgba(0,0,0,0.03); }
+.skeletonBody { padding: 12px; }
+.skeletonLine { width: 80%; height: 14px; border-radius: 2px; background: rgba(0,0,0,0.05); margin-bottom: 8px; }
+.skeletonPrice { width: 40%; height: 14px; border-radius: 2px; background: rgba(0,0,0,0.08); }
+
+/* Item Detail */
+.skeletonNavTop {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.skeletonCircle { width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.05); }
+.skeletonTitleSm { width: 120px; height: 14px; border-radius: 4px; background: rgba(0,0,0,0.05); }
+
+.skeletonLayout {
+  display: flex;
+  flex-direction: column;
+}
+
+.skeletonGallery {
+  width: 100%;
+  aspect-ratio: 1/1;
+  background: rgba(0,0,0,0.05);
+}
+
+.skeletonInfo {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeletonBadgeSmall { width: 60px; height: 12px; border-radius: 2px; background: rgba(0,0,0,0.05); }
+.skeletonTitleLg { width: 80%; height: 28px; border-radius: 4px; background: rgba(0,0,0,0.1); }
+.skeletonPriceMed { width: 30%; height: 20px; border-radius: 4px; background: rgba(0,0,0,0.08); }
+.skeletonTextLong { width: 100%; height: 80px; border-radius: 4px; background: rgba(0,0,0,0.03); }
+.skeletonCta { width: 100%; height: 48px; border-radius: 4px; background: rgba(0,0,0,0.05); }

@@ -327,6 +327,7 @@ export default function ArchivePage() {
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
   const [stagePopoverId, setStagePopoverId] = useState<string | null>(null);
   const [fulfilmentMap, setFulfilmentMap] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   // Cross-page action shortcuts
   useEffect(() => {
@@ -539,55 +540,64 @@ export default function ArchivePage() {
   };
 
   // ── Submit handlers ──
-  const handleMint = () => {
+  const handleMint = async () => {
     if (!canMintFromPaste) return;
-    const productType: ProductType = st.isVendor ? 'menu_item' : 'item';
-    mintProducts(ghostCards, productType);
-    setDrawerOpen(false);
-    addToast(`${ghostCards.length} asset${ghostCards.length > 1 ? 's' : ''} minted.`, 'success');
+    setIsSaving(true);
+    try {
+      const productType: ProductType = st.isVendor ? 'menu_item' : 'item';
+      await mintProducts(ghostCards, productType);
+      setDrawerOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!canAddManual) return;
-    const now = new Date().toISOString();
-    const price = parseFloat(form.price) || 0;
-    const productType: ProductType = st.isVendor ? 'menu_item' : st.isHost ? 'service' : 'package';
-    const newProduct: Product = {
-      id: `product-new-${Date.now()}`,
-      merchant_id: merchant.id,
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      price,
-      product_type: productType,
-      stock_level: st.isCollector ? (parseInt(form.stock) || 0) : null,
-      collection_id: null,
-      category: form.category.trim() || null,
-      tags: form.category.trim() ? [form.category.trim()] : [],
-      status: 'live' as ProductStatus,
-      images: [],
-      has_variants: false,
-      variant_axis: null,
-      variants: null,
-      claim_mode: false,
-      claim_limit: null,
-      duration: form.duration ? parseInt(form.duration) : null,
-      deposit_amount: form.depositRequired && form.depositAmount ? parseFloat(form.depositAmount) : null,
-      deposit_required: form.depositRequired,
-      delivery_url: null,
-      is_free: false,
-      early_access_price: null,
-      early_access_cap: null,
-      price_type: st.isStudio ? form.priceType : null,
-      scope_description: form.scopeDescription.trim() || null,
-      deliverables: form.deliverables.trim() || null,
-      timeline_estimate: form.timelineEstimate.trim() || null,
-      deposit_pct: form.depositPct ? parseFloat(form.depositPct) : null,
-      created_at: now,
-      updated_at: now,
-    };
-    addProduct(newProduct);
-    setDrawerOpen(false);
-    addToast(`${st.itemLabel} added.`, 'success');
+    setIsSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const price = parseFloat(form.price) || 0;
+      const productType: ProductType = st.isVendor ? 'menu_item' : st.isHost ? 'service' : 'package';
+      const newProduct: Product = {
+        id: `product-new-${Date.now()}`,
+        merchant_id: merchant.id,
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        price,
+        product_type: productType,
+        stock_level: st.isCollector ? (parseInt(form.stock) || 0) : null,
+        collection_id: null,
+        category: form.category.trim() || null,
+        tags: form.category.trim() ? [form.category.trim()] : [],
+        status: 'live' as ProductStatus,
+        images: [],
+        has_variants: false,
+        variant_axis: null,
+        variants: null,
+        claim_mode: false,
+        claim_limit: null,
+        duration: form.duration ? parseInt(form.duration) : null,
+        deposit_amount: form.depositRequired && form.depositAmount ? parseFloat(form.depositAmount) : null,
+        deposit_required: form.depositRequired,
+        delivery_url: null,
+        is_free: false,
+        early_access_price: null,
+        early_access_cap: null,
+        price_type: st.isStudio ? form.priceType : null,
+        scope_description: form.scopeDescription.trim() || null,
+        deliverables: form.deliverables.trim() || null,
+        timeline_estimate: form.timelineEstimate.trim() || null,
+        deposit_pct: form.depositPct ? parseFloat(form.depositPct) : null,
+        created_at: now,
+        updated_at: now,
+      };
+      await addProduct(newProduct);
+      setDrawerOpen(false);
+      addToast(`${st.itemLabel} added.`, 'success');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ── Claim helpers ──
@@ -619,30 +629,35 @@ export default function ArchivePage() {
     addToast('Claim declined.', 'info');
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editTarget || !form.name.trim()) return;
-    updateProduct(editTarget, {
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      price: parseFloat(form.price) || 0,
-      category: form.category.trim() || null,
-      ...(st.isCollector ? { stock_level: parseInt(form.stock) || 0 } : {}),
-      ...(st.isVendor ? { tags: form.category.trim() ? [form.category.trim()] : [] } : {}),
-      ...(st.isHost ? {
-        duration: form.duration ? parseInt(form.duration) : null,
-        deposit_required: form.depositRequired,
-        deposit_amount: form.depositRequired && form.depositAmount ? parseFloat(form.depositAmount) : null,
-      } : {}),
-      ...(st.isStudio ? {
-        price_type: form.priceType,
-        scope_description: form.scopeDescription.trim() || null,
-        deliverables: form.deliverables.trim() || null,
-        timeline_estimate: form.timelineEstimate.trim() || null,
-        deposit_pct: form.depositPct ? parseFloat(form.depositPct) : null,
-      } : {}),
-    });
-    addToast('Changes saved.', 'success');
-    setDrawerOpen(false);
+    setIsSaving(true);
+    try {
+      await updateProduct(editTarget, {
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        price: parseFloat(form.price) || 0,
+        category: form.category.trim() || null,
+        ...(st.isCollector ? { stock_level: parseInt(form.stock) || 0 } : {}),
+        ...(st.isVendor ? { tags: form.category.trim() ? [form.category.trim()] : [] } : {}),
+        ...(st.isHost ? {
+          duration: form.duration ? parseInt(form.duration) : null,
+          deposit_required: form.depositRequired,
+          deposit_amount: form.depositRequired && form.depositAmount ? parseFloat(form.depositAmount) : null,
+        } : {}),
+        ...(st.isStudio ? {
+          price_type: form.priceType,
+          scope_description: form.scopeDescription.trim() || null,
+          deliverables: form.deliverables.trim() || null,
+          timeline_estimate: form.timelineEstimate.trim() || null,
+          deposit_pct: form.depositPct ? parseFloat(form.depositPct) : null,
+        } : {}),
+      });
+      addToast('Changes saved.', 'success');
+      setDrawerOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ── Handlers passed down to ProductRow ─────────────────────────────────────
@@ -685,13 +700,18 @@ export default function ArchivePage() {
     ? `Edit ${st.itemLabel}`
     : st.isCollector ? `Mint ${st.itemLabel}` : `Add ${st.itemLabel}`;
 
-  const [isLoading, setIsLoading] = useState(true);
+  const { isLoading, error } = useArchiveStore();
 
-  // Simulate loading (Phase 3C)
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+  if (error) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <p className="t-caps" style={{ color: 'var(--color-danger)' }}>Error Loading Archive</p>
+          <h1 className="t-title">{error}</h1>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -1024,11 +1044,11 @@ export default function ArchivePage() {
               <button
                 className={styles.mintBtn}
                 onClick={handleMint}
-                disabled={!canMintFromPaste}
+                disabled={isSaving || !canMintFromPaste}
                 aria-label={canMintFromPaste ? `Mint ${ghostCards.length} asset${ghostCards.length > 1 ? 's' : ''}` : 'Mint Assets'}
               >
                 <Sparkles size={14} aria-hidden="true" />
-                {canMintFromPaste ? `Mint ${ghostCards.length} Asset${ghostCards.length > 1 ? 's' : ''}` : 'Paste items above to mint'}
+                {isSaving ? 'Minting...' : canMintFromPaste ? `Mint ${ghostCards.length} Asset${ghostCards.length > 1 ? 's' : ''}` : 'Paste items above to mint'}
               </button>
             </>
           )}
@@ -1050,7 +1070,7 @@ export default function ArchivePage() {
                   <input id="edit-stock" className={styles.drawerInput} type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} min={0} aria-label="Stock level" />
                 </div>
               </div>
-              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={!form.name.trim()} aria-label="Save changes">Save Changes</button>
+              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={isSaving || !form.name.trim()} aria-label="Save changes">{isSaving ? 'Saving...' : 'Save Changes'}</button>
             </>
           )}
 
@@ -1083,9 +1103,9 @@ export default function ArchivePage() {
                 )}
               </AnimatePresence>
               {canMintFromPaste && (
-                <button className={styles.mintBtn} onClick={handleMint} aria-label={`Mint ${ghostCards.length} menu item${ghostCards.length > 1 ? 's' : ''}`}>
+                <button className={styles.mintBtn} onClick={handleMint} disabled={isSaving} aria-label={`Mint ${ghostCards.length} menu item${ghostCards.length > 1 ? 's' : ''}`}>
                   <Sparkles size={14} aria-hidden="true" />
-                  Mint {ghostCards.length} Menu Item{ghostCards.length > 1 ? 's' : ''}
+                  {isSaving ? 'Minting...' : `Mint ${ghostCards.length} Menu Item${ghostCards.length > 1 ? 's' : ''}`}
                 </button>
               )}
               {!canMintFromPaste && (
@@ -1114,7 +1134,7 @@ export default function ArchivePage() {
                     <textarea id="vendor-desc" className={styles.drawerTextarea} placeholder="e.g. Smoky party jollof, cooked in firewood. Serves 4–6." value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} aria-label="Description" />
                   </div>
                   <p className={styles.imagePlaceholder}>Image upload — coming soon.</p>
-                  <button className={styles.mintBtn} onClick={handleAddItem} disabled={!canAddManual} aria-label="Add menu item">Add Menu Item</button>
+                  <button className={styles.mintBtn} onClick={handleAddItem} disabled={isSaving || !canAddManual} aria-label="Add item">{isSaving ? 'Adding...' : 'Add Item'}</button>
                 </>
               )}
             </>
@@ -1141,7 +1161,7 @@ export default function ArchivePage() {
                 <label className={styles.drawerLabel} htmlFor="vendor-edit-desc">Description <span style={{ color: 'var(--color-fg-ghost)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)' }}>(optional)</span></label>
                 <textarea id="vendor-edit-desc" className={styles.drawerTextarea} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} aria-label="Description" />
               </div>
-              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={!form.name.trim()} aria-label="Save changes">Save Changes</button>
+              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={isSaving || !form.name.trim()} aria-label="Save changes">{isSaving ? 'Saving...' : 'Save Changes'}</button>
             </>
           )}
 
@@ -1187,7 +1207,7 @@ export default function ArchivePage() {
                 <label className={styles.drawerLabel} htmlFor="host-desc">Description <span style={{ color: 'var(--color-fg-ghost)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)' }}>(optional)</span></label>
                 <textarea id="host-desc" className={styles.drawerTextarea} placeholder="e.g. Full classic lash extension set, suitable for all eye shapes." value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} aria-label="Description" />
               </div>
-              <button className={styles.mintBtn} onClick={handleAddItem} disabled={!canAddManual} aria-label="Add service">Add Service</button>
+              <button className={styles.mintBtn} onClick={handleAddItem} disabled={isSaving || !canAddManual} aria-label="Add item">{isSaving ? 'Adding...' : 'Add Item'}</button>
             </>
           )}
 
@@ -1229,7 +1249,7 @@ export default function ArchivePage() {
                   </m.div>
                 )}
               </AnimatePresence>
-              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={!form.name.trim()} aria-label="Save changes">Save Changes</button>
+              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={isSaving || !form.name.trim()} aria-label="Save changes">{isSaving ? 'Saving...' : 'Save Changes'}</button>
             </>
           )}
 
@@ -1273,7 +1293,7 @@ export default function ArchivePage() {
                 <label className={styles.drawerLabel} htmlFor="studio-timeline">Timeline Estimate <span style={{ color: 'var(--color-fg-ghost)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)' }}>(optional)</span></label>
                 <input id="studio-timeline" className={styles.drawerInput} type="text" placeholder="e.g. 3–5 business days" value={form.timelineEstimate} onChange={(e) => setForm((f) => ({ ...f, timelineEstimate: e.target.value }))} aria-label="Timeline estimate" />
               </div>
-              <button className={styles.mintBtn} onClick={handleAddItem} disabled={!canAddManual} aria-label="Add package">Add Package</button>
+              <button className={styles.mintBtn} onClick={handleAddItem} disabled={isSaving || !canAddManual} aria-label="Add item">{isSaving ? 'Adding...' : 'Add Item'}</button>
             </>
           )}
 
@@ -1317,7 +1337,7 @@ export default function ArchivePage() {
                 <label className={styles.drawerLabel} htmlFor="studio-edit-time">Timeline Estimate</label>
                 <input id="studio-edit-time" className={styles.drawerInput} type="text" value={form.timelineEstimate} onChange={(e) => setForm((f) => ({ ...f, timelineEstimate: e.target.value }))} aria-label="Timeline estimate" />
               </div>
-              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={!form.name.trim()} aria-label="Save changes">Save Changes</button>
+              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={isSaving || !form.name.trim()} aria-label="Save changes">{isSaving ? 'Saving...' : 'Save Changes'}</button>
             </>
           )}
         </div>

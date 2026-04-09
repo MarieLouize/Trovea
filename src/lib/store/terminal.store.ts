@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import type { Product, ProductVariant, Receipt, ReceiptType } from '../types';
 import { createReceipt } from '../db/queries';
+import { updateMerchant } from '../db/queries/merchants';
+import { db } from '../db';
+import { useMerchantStore } from './merchant.store';
 
 export type TerminalStage = 
   | 'composition' 
@@ -262,7 +265,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   },
 
   persistReceipt: async () => {
-    const { issuedReceipt } = get();
+    const { issuedReceipt, visorItems } = get();
     if (!issuedReceipt) return false;
 
     set({ isPersisting: true });
@@ -271,6 +274,29 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const { id: _id, created_at: _ca, updated_at: _ua, ...receiptData } = issuedReceipt;
       const saved = await createReceipt(receiptData);
       if (saved) {
+        // Atomic stock decrement
+        await Promise.allSettled(
+          visorItems.map((item) => {
+            if (!item.productId) return Promise.resolve();
+            return db.rpc('decrement_stock', {
+              p_product_id: item.productId,
+              p_quantity: item.quantity,
+            });
+          })
+        ).then((results) => {
+          results.forEach((r) => {
+            if (r.status === 'rejected') console.warn('Failed to decrement stock', r.reason);
+          });
+        });
+
+        // Update first_seal_issued if needed
+        const merchantStore = useMerchantStore.getState();
+        const merchant = merchantStore.merchant;
+        if (merchant.id && !merchant.first_seal_issued) {
+          await updateMerchant(merchant.id, { first_seal_issued: true });
+          merchantStore.setMerchant({ ...merchant, first_seal_issued: true });
+        }
+
         set({ issuedReceipt: saved, isPersisting: false });
         return true;
       }

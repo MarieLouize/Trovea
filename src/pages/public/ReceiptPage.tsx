@@ -39,7 +39,7 @@ import { buildStoreContactLink } from '@/lib/utils/whatsapp';
 import type { ReceiptType, ShipmentStatus, Product, Receipt } from '@/lib/types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
 import { useUIStore } from '@/lib/store/ui.store';
-import { getReceiptBySealId } from '@/lib/db/queries';
+import { getReceiptBySealId } from '@/lib/api/receipts.api';
 import MiniCard from '@/components/public/MiniCard/MiniCard';
 import styles from './ReceiptPage.module.css';
 

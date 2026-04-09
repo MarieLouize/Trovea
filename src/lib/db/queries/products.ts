@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import type { Product, Collection } from '@/lib/types';
+import type { Product } from '@/lib/types';
 
 export const getProductsByMerchant = async (merchantId: string): Promise<Product[]> => {
   const { data, error } = await db
@@ -11,17 +11,6 @@ export const getProductsByMerchant = async (merchantId: string): Promise<Product
 
   if (error || !data) return [];
   return data as Product[];
-};
-
-export const getCollectionsByMerchant = async (merchantId: string): Promise<Collection[]> => {
-  const { data, error } = await db
-    .from('collections')
-    .select('*')
-    .eq('merchant_id', merchantId)
-    .order('display_order', { ascending: true });
-
-  if (error || !data) return [];
-  return data as Collection[];
 };
 
 export const updateProduct = async (
@@ -47,4 +36,13 @@ export const createProduct = async (
 
   if (error || !data) return null;
   return data as Product;
+};
+
+export const deleteProduct = async (id: string): Promise<boolean> => {
+  const { error } = await db
+    .from('products')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id);
+
+  return !error;
 };
