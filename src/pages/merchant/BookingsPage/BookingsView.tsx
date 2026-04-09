@@ -79,6 +79,13 @@ export default function BookingsPage() {
   const [studioTab, setStudioTab] = useState<string>('new');
   const [expandedEnquiries, setExpandedEnquiries] = useState<Record<string, boolean>>({});
   const [noShows, setNoShows] = useState<Record<string, boolean>>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate loading (Phase 3C)
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1200);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ── Param Handling ──
   useEffect(() => {
@@ -138,6 +145,33 @@ export default function BookingsPage() {
     navigate(`/terminal?${params.toString()}`);
   };
 
+  if (isLoading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div className="skeleton-text" style={{ width: '180px', height: '28px' }} />
+        </div>
+        <div className={styles.tabs}>
+          {[1,2,3,4].map(i => (
+            <div key={i} className="skeleton" style={{ width: '80px', height: '32px', borderRadius: 'var(--r-pill)' }} />
+          ))}
+        </div>
+        <div className={styles.bookingList}>
+          {[1,2,3].map(i => (
+            <div key={i} className={styles.bookingCard} style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div className="skeleton-text" style={{ width: '40%', height: '18px' }} />
+                <div className="skeleton-text" style={{ width: '20%', height: '18px' }} />
+              </div>
+              <div className="skeleton-text" style={{ width: '60%', height: '14px', marginBottom: '8px' }} />
+              <div className="skeleton-text" style={{ width: '30%', height: '12px' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // RENDER: STUDIO (Enquiry CRM)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -173,7 +207,11 @@ export default function BookingsPage() {
         <div className={styles.bookingList}>
           <AnimatePresence mode="popLayout">
             {filteredEnquiries.length === 0 ? (
-              <m.div key="empty" className={styles.emptyState}>No enquiries in this stage.</m.div>
+              <m.div key="empty" className="empty-state">
+                <span className="empty-state__icon">—</span>
+                <h2 className="empty-state__title">No enquiries here.</h2>
+                <p className="empty-state__text">New project requests will appear here.</p>
+              </m.div>
             ) : (
               filteredEnquiries.map(enquiry => (
                 <m.div
@@ -326,11 +364,16 @@ export default function BookingsPage() {
       <div className={styles.bookingList}>
         <AnimatePresence mode="popLayout">
           {filteredBookings.length === 0 ? (
-            <m.div key="empty" className={styles.emptyState}>No {hostTab} appointments.</m.div>
+            <m.div key="empty" className="empty-state">
+              <span className="empty-state__icon">—</span>
+              <h2 className="empty-state__title">No appointments here.</h2>
+              <p className="empty-state__text">Scheduled slots will appear here.</p>
+            </m.div>
           ) : (
             filteredBookings.map(booking => {
-              const isWaitingLong = hostTab === 'pending' && (Date.now() - new Date(booking.created_at).getTime()) > 86400000;
-              
+              const isWaitingLong = hostTab === 'pending' && (Date.now() - new Date(booking.created_at).getTime()) > 8 * 3600000;
+              const isPassed = hostTab === 'confirmed' && new Date(booking.scheduled_at).getTime() < Date.now();
+
               return (
                 <m.div
                   key={booking.id}
@@ -338,8 +381,9 @@ export default function BookingsPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className={`${styles.bookingCard} ${isWaitingLong ? styles.waitingTimeLong : ''}`}
+                  className={`${styles.bookingCard} ${isWaitingLong ? styles.waitingTimeLong : ''} ${isPassed ? 'surface-amber' : ''}`}
                 >
+
                   <div className={styles.cardTopRow}>
                     <span className={styles.cardService}>{booking.service_name}</span>
                     <span className={styles.bookingAmount}>{formatCurrencyFull(booking.total_amount)}</span>
@@ -364,6 +408,20 @@ export default function BookingsPage() {
                     </div>
                   )}
 
+                  {isPassed && (
+                    <div className={styles.noShowPrompt}>
+                      <span className={styles.noShowLabel}>Appointment has started. Did they show up?</span>
+                      <div className={styles.noShowActions}>
+                        <button className={styles.noShowBtn} onClick={() => updateBookingStatus(booking.id, 'completed')}>
+                          Yes, they're here
+                        </button>
+                        <button className={styles.noShowBtn} style={{ color: 'var(--color-error)' }} onClick={() => handleNoShow(booking.id, true)}>
+                          No, no-show
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {hostTab === 'completed' && (
                     <>
                       {noShows[booking.id] === undefined ? (
@@ -379,7 +437,7 @@ export default function BookingsPage() {
                           <UserMinus size={12} /> No-show recorded
                         </div>
                       ) : (
-                        <div className={styles.noShowRecorded} style={{ color: 'var(--color-success)' }}>
+                        <div className={styles.noShowRecorded} style={{ color: 'var(--color-success-text)' }}>
                           <UserCheck size={12} /> Client showed up
                         </div>
                       )}

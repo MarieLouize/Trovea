@@ -63,7 +63,7 @@
 }
 
 .headerBtn:hover {
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
   color: var(--color-fg);
 }
 
@@ -195,7 +195,7 @@
 
 .optActive {
   background: var(--color-accent);
-  color: #FFF;
+  color: var(--color-fg);
   border-color: transparent;
 }
 
@@ -288,10 +288,10 @@
   border-radius: 50%;
 }
 
-.paid { background: rgba(46, 203, 117, 0.1); color: #1aab5e; }
-.paid .statusDot { background: #2ECB75; }
+.paid { background: var(--color-success-glow); color: var(--color-success-text); }
+.paid .statusDot { background: var(--color-success); }
 
-.pending_payment { background: rgba(201, 168, 76, 0.1); color: var(--color-gold); }
+.pending_payment { background: var(--color-gold-dim); color: var(--color-gold-text); }
 .pending_payment .statusDot { background: var(--color-gold); }
 
 .cancelled { background: rgba(0, 0, 0, 0.05); color: var(--color-fg-ghost); }

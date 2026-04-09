@@ -109,7 +109,7 @@
 
 .optionBtnActive {
   color: var(--color-accent);
-  background: rgba(201, 168, 76, 0.1);
+  background: var(--color-gold-dim);
   border-color: var(--color-accent);
   font-weight: 600;
 }

@@ -62,7 +62,7 @@
 .periodTab:hover { color: var(--color-fg); }
 
 .periodTabActive {
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: var(--shadow-raise-sm);
   color: var(--color-accent);
   background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
 }
@@ -111,8 +111,8 @@
   line-height: 1;
 }
 
-.paidNum      { color: #2ECB75; }
-.pendingNum   { color: var(--color-gold); }
+.paidNum      { color: var(--color-success-text); }
+.pendingNum   { color: var(--color-gold-text); }
 .cancelledNum { color: var(--color-fg-muted); }
 
 .summaryLabel {
@@ -143,7 +143,7 @@
   max-width: 400px;
   padding: var(--space-3) var(--space-4);
   background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: var(--shadow-raise-sm);
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: var(--r-md);
   font-family: var(--font-sans);
@@ -155,7 +155,7 @@
   box-sizing: border-box;
 }
 
-.searchInput:focus { box-shadow: var(--shadow-inset); }
+.searchInput:focus { box-shadow: var(--shadow-raise-sm); }
 
 .searchInput::placeholder {
   color: var(--color-fg-ghost);
@@ -271,10 +271,10 @@
 }
 
 .type_sale     { background: rgba(0, 0, 0, 0.06);         color: var(--color-fg-muted); }
-.type_booking  { background: rgba(59, 130, 246, 0.1);     color: #3B82F6; }
-.type_order    { background: rgba(201, 168, 76, 0.12);    color: var(--color-gold); }
-.type_download { background: rgba(46, 203, 117, 0.1);     color: #2ECB75; }
-.type_project  { background: rgba(168, 85, 247, 0.1);     color: #A855F7; }
+.type_booking  { background: rgba(59, 130, 246, 0.1);     color: var(--color-info); }
+.type_order    { background: var(--color-gold-dim);    color: var(--color-gold-text); }
+.type_download { background: var(--color-success-glow);     color: var(--color-success-text); }
+.type_project  { background: rgba(168, 85, 247, 0.1);     color: var(--color-purple); }
 
 .statusBadge {
   font-family: var(--font-mono);
@@ -286,8 +286,8 @@
   white-space: nowrap;
 }
 
-.status_paid             { background: rgba(46, 203, 117, 0.1); color: #2ECB75; }
-.status_pending_payment  { background: rgba(201, 168, 76, 0.12); color: var(--color-gold); }
+.status_paid             { background: var(--color-success-glow); color: var(--color-success-text); }
+.status_pending_payment  { background: var(--color-gold-dim); color: var(--color-gold-text); }
 .status_cancelled        { background: rgba(0, 0, 0, 0.06);      color: var(--color-fg-ghost); }
 
 .cellDate {

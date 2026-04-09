@@ -42,6 +42,7 @@ interface ProductRowProps {
   statusFilter: string;
   stagePopoverId: string | null;
   inlineEditId: string | null;
+  isSoldOutPulse: boolean;
   onEdit: (id: string) => void;
   onToggle: (id: string, e: React.MouseEvent) => void;
   onStage: (productId: string, dropId: string) => void;
@@ -53,7 +54,7 @@ interface ProductRowProps {
 
 function ProductRow({
   product, index, merchantId, drops, fulfilmentMap, statusFilter,
-  stagePopoverId, inlineEditId,
+  stagePopoverId, inlineEditId, isSoldOutPulse,
   onEdit, onToggle, onStage, onDuplicate, onCycleFulfilment,
   onSetStagePopover, onSetInlineEdit,
 }: ProductRowProps) {
@@ -87,7 +88,7 @@ function ProductRow({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 12, height: 0 }}
       transition={{ duration: 0.22, delay: index * 0.03 }}
-      className={styles.productRow}
+      className={`${styles.productRow} ${isSoldOutPulse ? styles.soldOutPulse : ''}`}
       onClick={() => onEdit(product.id)}
       tabIndex={0}
       aria-label={`${product.name}, ${product.price_type === 'custom' ? 'Custom' : formatCurrencyFull(product.price)}, ${product.status}`}
@@ -300,8 +301,16 @@ export default function ArchivePage() {
     ghostCards, setGhostCards,
     mintProducts, toggleProductStatus, updateProduct,
     addProduct, setProducts,
+    lastSoldOutProductId, clearLastSoldOutProduct,
   } = useArchiveStore();
   const { addToast } = useUIStore();
+
+  useEffect(() => {
+    if (lastSoldOutProductId) {
+      const timer = setTimeout(() => clearLastSoldOutProduct(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastSoldOutProductId, clearLastSoldOutProduct]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<string | null>(null);
@@ -676,8 +685,45 @@ export default function ArchivePage() {
     ? `Edit ${st.itemLabel}`
     : st.isCollector ? `Mint ${st.itemLabel}` : `Add ${st.itemLabel}`;
 
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate loading (Phase 3C)
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div className="skeleton skeleton-text" style={{ width: '80px', height: '10px' }} />
+          <div className="skeleton skeleton-text" style={{ width: '150px', height: '24px', marginTop: '8px' }} />
+        </div>
+        <div className={styles.filterBar}>
+          {[1,2,3,4].map(i => (
+            <div key={i} className="skeleton" style={{ width: '80px', height: '32px', borderRadius: 'var(--r-pill)' }} />
+          ))}
+        </div>
+        <div className={styles.productList}>
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} className={styles.productRow}>
+              <div className="skeleton" style={{ width: '48px', height: '48px', borderRadius: 'var(--r-sm)' }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton skeleton-text" style={{ width: '60%', height: '14px', marginBottom: '8px' }} />
+                <div className="skeleton skeleton-text" style={{ width: '40%', height: '10px' }} />
+              </div>
+              <div className="skeleton" style={{ width: '60px', height: '24px', borderRadius: 'var(--r-pill)' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={styles.root}>
+    <div className={styles.page}>
+
       {/* Header */}
       <div className={styles.pageHeader}>
         <div>
@@ -806,9 +852,25 @@ export default function ArchivePage() {
             </h2>
             <p className={styles.emptyText}>
               {st.isCollector
-                ? 'No items match this filter. Adjust your filters or mint a new asset.'
+                ? 'Nothing matches. Try a different filter or add new pieces.'
                 : `Add your first ${st.itemLabel.toLowerCase()} to get started.`}
             </p>
+            <div className={styles.emptyActions}>
+              <button 
+                className={styles.emptyCta}
+                onClick={() => { setEditTarget(null); setDrawerOpen(true); }}
+              >
+                {st.isCollector ? 'Mint New Asset' : `Add ${st.itemLabel}`}
+              </button>
+              {st.isCollector && (
+                <button 
+                  className={styles.emptyCtaSecondary}
+                  onClick={() => { setEditTarget(null); setDrawerOpen(true); }}
+                >
+                  Import from WhatsApp
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className={styles.productList} role="list">
@@ -821,6 +883,7 @@ export default function ArchivePage() {
                   statusFilter,
                   stagePopoverId,
                   inlineEditId,
+                  isSoldOutPulse: false, // Placeholder, will be overriden per row
                   onEdit: (id: string) => { setEditTarget(id); setDrawerOpen(true); },
                   onToggle: handleToggle,
                   onStage: handleStageProduct,
@@ -845,7 +908,7 @@ export default function ArchivePage() {
                           </div>
                         </div>
                         {isExpanded && catItems.map((product, i) => (
-                          <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                          <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                         ))}
                       </div>
                     );
@@ -858,7 +921,7 @@ export default function ArchivePage() {
                   return (
                     <>
                       {activeItems.map((product, i) => (
-                        <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                        <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                       ))}
                       {inactiveItems.length > 0 && (
                         <div className={styles.inactiveSection}>
@@ -867,7 +930,7 @@ export default function ArchivePage() {
                             {expandedInactive ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </div>
                           {expandedInactive && inactiveItems.map((product, i) => (
-                            <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                            <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                           ))}
                         </div>
                       )}
@@ -882,7 +945,7 @@ export default function ArchivePage() {
                       <div className={styles.packagesSection}>
                         <h2 className={styles.sectionHeading}>Packages</h2>
                         {packages.map((product, i) => (
-                          <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                          <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                         ))}
                       </div>
                       <div className={styles.enquiryFormsSection}>
@@ -903,7 +966,7 @@ export default function ArchivePage() {
 
                 // Default / Collector
                 return products.map((product, i) => (
-                  <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                  <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                 ));
               })()}
             </AnimatePresence>

@@ -61,7 +61,7 @@
   align-items: center;
   justify-content: center;
   color: var(--color-accent);
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
   margin-bottom: var(--space-4);
 }
 

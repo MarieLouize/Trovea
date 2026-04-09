@@ -59,11 +59,11 @@ export default function AuthPage() {
     const { error: verifyError } = await verifyOTP(phone, otpCode);
     
     if (verifyError) {
-      setError('Invalid code — please try again');
-      addToast('Invalid verification code', 'error');
+      setError('That code doesn\'t match. Check your WhatsApp and try again.');
+      addToast('That code doesn\'t match. Check your WhatsApp and try again.', 'error');
     } else {
       setMode('sent');
-      addToast('Successfully signed in', 'success');
+      addToast('Signed in', 'success');
       // Small delay to show success state before navigating
       setTimeout(() => navigate('/dashboard'), 1200);
     }

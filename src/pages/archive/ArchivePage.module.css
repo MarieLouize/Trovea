@@ -41,7 +41,7 @@
   padding: 0 var(--space-4);
   height: 36px;
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg);
   border: none;
   border-radius: var(--r-md);
   cursor: pointer;
@@ -49,13 +49,13 @@
   font-size: 9px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  box-shadow: 0 4px 12px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
   transition: all var(--duration-fast);
 }
 
 .addBtn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 /* ── STATUS TABS ── */
@@ -132,9 +132,9 @@
 
 .collectionChip.active {
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg);
   border-color: transparent;
-  box-shadow: 0 2px 8px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
   padding-right: var(--space-2);
 }
 
@@ -208,7 +208,7 @@
   cursor: pointer;
 }
 
-.inlineConfirm { background: var(--color-accent); color: #fff; }
+.inlineConfirm { background: var(--color-accent); color: var(--color-fg); }
 .inlineCancel { background: transparent; color: var(--color-fg-ghost); }
 
 /* ── PRODUCT LIST ── */
@@ -263,7 +263,7 @@
   font-family: var(--font-mono);
   font-size: 7px;
   font-weight: 700;
-  color: #FFF;
+  color: var(--color-fg);
 }
 
 .stockBadge.low { background: var(--color-gold); }
@@ -303,9 +303,9 @@
   border-radius: var(--r-pill);
 }
 
-.rowStatusPill.live { background: rgba(46,203,117,0.1); color: #1aab5e; }
+.rowStatusPill.live { background: var(--color-success-glow); color: var(--color-success-text); }
 .rowStatusPill.hidden { background: rgba(0,0,0,0.05); color: var(--color-fg-ghost); }
-.rowStatusPill.sold_out { background: rgba(57,0,7,0.05); color: var(--color-accent); }
+.rowStatusPill.sold_out { background: var(--color-accent-glow); color: var(--color-accent); }
 
 /* Row price */
 .rowPrice {
@@ -386,10 +386,10 @@
   font-size: 8px;
   text-transform: uppercase;
   padding: 2px 8px;
-  background: rgba(201, 168, 76, 0.1);
-  color: var(--color-gold);
+  background: var(--color-gold-dim);
+  color: var(--color-gold-text);
   border-radius: var(--r-pill);
-  border: 1px solid rgba(201, 168, 76, 0.2);
+  border: 1px solid var(--color-gold-dim);
 }
 
 /* Ghost cards */
@@ -429,7 +429,7 @@
   width: 100%;
   height: 52px;
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg);
   border: none;
   border-radius: var(--r-md);
   cursor: pointer;

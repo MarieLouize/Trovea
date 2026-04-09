@@ -16,9 +16,9 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { 
   Share2, Check, Package, Calendar, Download, 
   Briefcase, Bell, ExternalLink,
-  Printer, Clock
+  Printer, Clock, Lock
 } from 'lucide-react';
-import { m } from '@/lib/motion';
+import { m, staggerContainer } from '@/lib/motion';
 import { 
   FIXTURE_RECEIPTS, 
   FIXTURE_MERCHANT,
@@ -38,7 +38,9 @@ import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
 import { buildStoreContactLink } from '@/lib/utils/whatsapp';
 import type { ReceiptType, ShipmentStatus, Product, Receipt } from '@/lib/types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
+import { useUIStore } from '@/lib/store/ui.store';
 import { getReceiptBySealId } from '@/lib/db/queries';
+import MiniCard from '@/components/public/MiniCard/MiniCard';
 import styles from './ReceiptPage.module.css';
 
 // ─── Per-type metadata ─────────────────────────────────────────────────────
@@ -256,6 +258,7 @@ function WaxSeal({ initial }: { initial: string }) {
 export default function ReceiptPage() {
   const { receipt_id } = useParams<{ receipt_id: string }>();
   const navigate = useNavigate();
+  const { addToast } = useUIStore();
   const [notified, setNotified] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -278,10 +281,57 @@ export default function ReceiptPage() {
         }
       }
 
-      // Fallback: fixture data
-      const r = FIXTURE_RECEIPTS.find(
+      // Fallback: dynamic mock for Phase 4D or fixture data
+      let r = FIXTURE_RECEIPTS.find(
         (r) => r.id === receipt_id || r.seal_id.toLowerCase() === receipt_id?.toLowerCase()
       );
+
+      if (!r && receipt_id?.startsWith('mock-')) {
+        const parts = receipt_id.split('-');
+        const type = parts[1]; // 'free' or 'pending'
+        const productId = parts.slice(2).join('-');
+        const product = getProductById(productId);
+        const m = FIXTURE_DIGITAL_MERCHANT; // For now default to digital
+
+        if (product) {
+          r = {
+            id: receipt_id,
+            merchant_id: m.id,
+            seal_id: `SEAL-${Math.random().toString(36).substring(7).toUpperCase()}`,
+            receipt_type: 'download',
+            buyer_name: 'Curator',
+            buyer_phone: null,
+            buyer_email: 'buyer@example.com',
+            line_items: [{
+              product_id: product.id,
+              name: product.name,
+              variant_label: null,
+              quantity: 1,
+              unit_price: product.price,
+              total_price: product.price
+            }],
+            subtotal: product.price,
+            discount_amount: 0,
+            discount_type: null,
+            discount: null,
+            delivery_fee: 0,
+            total: product.price,
+            payment_status: type === 'free' ? 'paid' : 'pending_payment',
+            payment_method: type === 'free' ? 'other' : 'bank_transfer',
+            shipment_status: type === 'free' ? 'received' : 'not_started',
+            notes: null,
+            log: [],
+            is_quick_item: false,
+            sale_note: null,
+            fulfilment_type: null,
+            order_type: null,
+            delivery_status: type === 'free' ? 'sent' : 'manual_pending',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        }
+      }
+
       setReceipt(r ?? null);
       setIsLoading(false);
     };
@@ -292,11 +342,40 @@ export default function ReceiptPage() {
   const merchant = receipt ? getMerchantById(receipt.merchant_id) : FIXTURE_MERCHANT;
   const { paletteId, isDark } = usePaletteTheme(merchant.store_config?.palette);
 
+  const receiptType = (receipt?.receipt_type ?? 'sale') as ReceiptType;
+  const studioProduct = receiptType === 'project' ? getProductById(receipt?.line_items[0]?.product_id ?? null) : null;
+
+  const bundleSavings = useMemo(() => {
+    if (!receipt || receiptType !== 'download' || receipt.line_items.length <= 1) return 0;
+    const individualTotal = receipt.line_items.reduce((sum, li) => {
+      const p = getProductById(li.product_id);
+      return sum + (p?.price ?? li.unit_price) * li.quantity;
+    }, 0);
+    return individualTotal - receipt.total;
+  }, [receipt, receiptType]);
+
+  const financialSummary = useMemo(() => {
+    if (!receipt || receiptType !== 'project') return null;
+    const totalProjectValue = receipt.subtotal - receipt.discount_amount;
+    let depositPaid = receipt.total;
+    let balanceDue = Math.max(0, totalProjectValue - depositPaid);
+
+    // Hardcode for mockup if balance is 0 to show the feature
+    if (balanceDue === 0 && (studioProduct?.deposit_pct || receipt.id === 'receipt-019')) {
+      const pct = studioProduct?.deposit_pct ?? 50;
+      depositPaid = (totalProjectValue * pct) / 100;
+      balanceDue = totalProjectValue - depositPaid;
+    }
+
+    return { depositPaid, balanceDue, totalProjectValue };
+  }, [receipt, receiptType, studioProduct]);
+
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({ title: `${meta.sealName} ${receipt?.seal_id}`, url: window.location.href }).catch(() => {});
     } else {
       navigator.clipboard.writeText(window.location.href).catch(() => {});
+      addToast('Seal link copied to clipboard', 'info');
     }
   };
 
@@ -331,12 +410,28 @@ export default function ReceiptPage() {
     return (
       <div className={styles.page}>
         <div className={styles.brandBar}>
-          <Link to="/" className={styles.brandLogo}>
-            Trove<span className={styles.brandLogoApos}>'</span>a
-          </Link>
+          <div className="skeleton skeleton-text" style={{ width: '80px', height: '20px' }} />
         </div>
-        <div className={styles.notFound}>
-          <p className={styles.notFoundTitle}>Retrieving Seal...</p>
+        <div className={styles.doc} style={{ opacity: 0.6 }}>
+          <div className={styles.sealHeader} style={{ justifyContent: 'center', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="skeleton" style={{ width: '64px', height: '64px', borderRadius: '50%', marginBottom: '16px' }} />
+            <div className="skeleton skeleton-text" style={{ width: '140px', height: '24px', marginBottom: '8px' }} />
+            <div className="skeleton skeleton-text" style={{ width: '100px', height: '12px' }} />
+          </div>
+          <div style={{ padding: '24px' }}>
+            <div className="skeleton skeleton-text" style={{ width: '40%', height: '10px', marginBottom: '20px' }} />
+            {[1,2,3].map(i => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <div className="skeleton skeleton-text" style={{ width: '60%', height: '14px' }} />
+                <div className="skeleton skeleton-text" style={{ width: '20%', height: '14px' }} />
+              </div>
+            ))}
+            <div style={{ height: '1px', background: 'var(--color-border-dim)', margin: '24px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div className="skeleton skeleton-text" style={{ width: '30%', height: '16px' }} />
+              <div className="skeleton skeleton-text" style={{ width: '25%', height: '24px' }} />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -360,7 +455,6 @@ export default function ReceiptPage() {
     );
   }
 
-  const receiptType = (receipt.receipt_type ?? 'sale') as ReceiptType;
   const meta = getReceiptTypeMeta(receiptType);
   const currentShipIdx = STATUS_ORDER.indexOf(receipt.shipment_status ?? 'not_started');
   const storeInitial = merchant.store_name.charAt(0).toUpperCase();
@@ -378,48 +472,22 @@ export default function ReceiptPage() {
     .filter(w => w.merchant_id === receipt.merchant_id && w.status === 'upcoming')
     .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())[0] ?? null;
 
-  const bundleSavings = useMemo(() => {
-    if (receiptType !== 'download' || receipt.line_items.length <= 1) return 0;
-    const individualTotal = receipt.line_items.reduce((sum, li) => {
-      const p = getProductById(li.product_id);
-      return sum + (p?.price ?? li.unit_price) * li.quantity;
-    }, 0);
-    return individualTotal - receipt.total;
-  }, [receipt, receiptType]);
-
-  const studioProduct = receiptType === 'project' ? getProductById(receipt.line_items[0]?.product_id) : null;
   const deliverables = studioProduct?.deliverables?.split(/[,\n]/).map(s => s.trim()).filter(Boolean) ?? [];
-
-  const financialSummary = useMemo(() => {
-    if (receiptType !== 'project') return null;
-    const totalProjectValue = receipt.subtotal - receipt.discount_amount;
-    let depositPaid = receipt.total;
-    let balanceDue = Math.max(0, totalProjectValue - depositPaid);
-
-    // Hardcode for mockup if balance is 0 to show the feature
-    if (balanceDue === 0 && (studioProduct?.deposit_pct || receipt.id === 'receipt-019')) {
-      const pct = studioProduct?.deposit_pct ?? 50;
-      depositPaid = (totalProjectValue * pct) / 100;
-      balanceDue = totalProjectValue - depositPaid;
-    }
-
-    return { depositPaid, balanceDue, totalProjectValue };
-  }, [receipt, receiptType, studioProduct]);
 
   return (
     <m.div
       className={`sf-themed ${styles.page}`}
       data-palette={paletteId}
       data-dark={isDark}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0, transition: { duration: 0.4 } }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { duration: 0.6 } }}
     >
       {/* Brand Bar */}
       <div className={`${styles.brandBar} noPrint`}>
         <Link to="/" className={styles.brandLogo}>
           Trove<span className={styles.brandLogoApos}>'</span>a
         </Link>
-        <button className={styles.shareBtn} onClick={handleShare} aria-label="Share receipt">
+        <button className={styles.shareBtn} onClick={handleShare} aria-label="Share Seal">
           <Share2 size={14} />
         </button>
       </div>
@@ -427,33 +495,97 @@ export default function ReceiptPage() {
       {/* ── Document Card ── */}
       <m.div
         className={`${styles.doc} receiptPrintArea`}
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1, transition: { delay: 0.1, duration: 0.4 } }}
+        initial={{ opacity: 0, y: 40, scale: 0.98 }}
+        animate={{ 
+          opacity: 1, 
+          y: 0, 
+          scale: 1, 
+          transition: { 
+            type: 'spring',
+            stiffness: 260,
+            damping: 32,
+            mass: 1.5,
+            delay: 0.1 
+          } 
+        }}
       >
         {/* Seal Header */}
         <div className={styles.sealHeader}>
-          <WaxSeal initial={storeInitial} />
-          <p className={styles.sealId}>{meta.sealName}</p>
-          <div className={styles.sealStoreRow}>
+          <m.div
+            initial={{ scale: 2.5, opacity: 0, rotate: -15, y: -60 }}
+            animate={{ 
+              scale: 1, 
+              opacity: 1, 
+              rotate: 0, 
+              y: 0,
+              transition: { 
+                type: 'spring',
+                stiffness: 180,
+                damping: 25,
+                mass: 2,
+                duration: 0.9, // The 900ms Ceremony
+                delay: 0.6
+              } 
+            }}
+            style={{ display: 'inline-block', marginBottom: 'var(--space-5)' }}
+          >
+            <WaxSeal initial={storeInitial} />
+          </m.div>
+          
+          <m.p 
+            className={styles.sealId}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { delay: 1.2 } }}
+          >
+            {meta.sealName}
+          </m.p>
+
+          <m.div 
+            className={styles.sealStoreRow}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0, transition: { delay: 1.3 } }}
+          >
             <span className={styles.sealStoreName}>{merchant.store_name}</span>
             {merchant.verification_tier !== 'unverified' && (
               <span className={`badge-verified ${merchant.verification_tier === 'trusted' ? 'badge-trusted' : ''}`}>
                 {merchant.verification_tier === 'trusted' ? '★ Trusted' : '✓ Verified'}
               </span>
             )}
-          </div>
-          <span className={styles.sealId}>{receipt.seal_id}</span>
-          <span className={styles.sealDate}>{formatDate(receipt.created_at, 'long')}</span>
-          <div>
+          </m.div>
+
+          <m.span 
+            className={styles.sealId}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { delay: 1.4 } }}
+          >
+            {receipt.seal_id}
+          </m.span>
+
+          <m.span 
+            className={styles.sealDate}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { delay: 1.5 } }}
+          >
+            {formatDate(receipt.created_at, 'long')}
+          </m.span>
+
+          <m.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1, transition: { delay: 1.6 } }}
+          >
             <span className={`${styles.statusBadge} ${statusBadgeClass(receipt.payment_status)}`}>
               <span className={styles.statusDot} />
               {statusLabel(receipt.payment_status, meta)}
             </span>
-          </div>
+          </m.div>
         </div>
 
         {/* Buyer */}
-        <div className={styles.buyerSection}>
+        <m.div 
+          className={styles.buyerSection}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0, transition: { delay: 1.7 } }}
+        >
           <p className={styles.buyerLabel}>{meta.issuedToLabel}</p>
           <p className={styles.buyerName}>{receipt.buyer_name}</p>
           {receipt.buyer_phone && (
@@ -462,10 +594,14 @@ export default function ReceiptPage() {
           {receipt.buyer_email && !receipt.buyer_phone && (
             <p className={styles.buyerPhone}>{receipt.buyer_email}</p>
           )}
-        </div>
+        </m.div>
 
         {/* Line Items */}
-        <div className={styles.lineItems}>
+        <m.div 
+          className={styles.lineItems}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0, transition: { delay: 1.8 } }}
+        >
           <p className={styles.lineItemsSectionLabel}>{meta.itemsSectionLabel}</p>
           {receipt.line_items.map((item, i) => {
             const product = getProductById(item.product_id);
@@ -489,12 +625,20 @@ export default function ReceiptPage() {
                   {item.variant_label && (
                     <p className={styles.lineItemVariant}>{item.variant_label}</p>
                   )}
-                  {receiptType === 'download' && product?.delivery_url && (
-                    <a href={product.delivery_url} className={styles.lineItemDownload} target="_blank" rel="noopener noreferrer">
-                      <Download size={10} />
-                      {fileType} · {fileSize} · Download
-                    </a>
+                  {product?.delivery_url && (
+                    receipt.payment_status === 'pending_payment' ? (
+                      <div className={`${styles.lineItemDownload} ${styles.downloadLocked}`} title="Unlocks after payment verification">
+                        <Lock size={10} />
+                        {fileType} · {fileSize} · Locked
+                      </div>
+                    ) : (
+                      <a href={product.delivery_url} className={styles.lineItemDownload} target="_blank" rel="noopener noreferrer">
+                        <Download size={10} />
+                        {fileType} · {fileSize} · Download
+                      </a>
+                    )
                   )}
+
                 </div>
                 <p className={styles.lineItemQtyPrice}>
                   {item.quantity > 1 && `×${item.quantity}  `}
@@ -508,10 +652,14 @@ export default function ReceiptPage() {
               You saved {formatCurrencyFull(bundleSavings)} by purchasing {receipt.line_items.length} products together
             </div>
           )}
-        </div>
+        </m.div>
 
         {/* Totals */}
-        <div className={styles.totalsSection}>
+        <m.div 
+          className={styles.totalsSection}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0, transition: { delay: 1.9 } }}
+        >
           <div className={styles.totalRow}>
             <span className={styles.totalLabel}>Subtotal</span>
             <span className={styles.totalValue}>{formatCurrencyFull(receipt.subtotal)}</span>
@@ -536,9 +684,9 @@ export default function ReceiptPage() {
           )}
           <div className={`${styles.totalRow} ${styles.totalRowGrand}`}>
             <span className={styles.totalLabelGrand}>Total</span>
-            <span className={styles.totalValueGrand}>{formatCurrencyFull(receipt.total)}</span>
+            <span className={`${styles.totalValueGrand} text-foil`}>{formatCurrencyFull(receipt.total)}</span>
           </div>
-        </div>
+        </m.div>
 
         {/* Studio: Financial Summary */}
         {receiptType === 'project' && financialSummary && (
@@ -661,6 +809,38 @@ export default function ReceiptPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Explore More (Phase 3G) */}
+        {receiptType !== 'download' && (
+          <div className={`${styles.exploreSection} noPrint`}>
+            <p className={styles.metaLabel}>More from {merchant.store_name}</p>
+            <m.div 
+              className={styles.exploreGrid}
+              variants={staggerContainer}
+              initial="initial"
+              whileInView="animate"
+              viewport={{ once: true }}
+            >
+              {[
+                ...FIXTURE_PRODUCTS,
+                ...FIXTURE_VENDOR_PRODUCTS,
+                ...FIXTURE_HOST_PRODUCTS,
+                ...FIXTURE_STUDIO_PRODUCTS
+              ]
+                .filter(p => p.merchant_id === merchant.id && p.status === 'live' && !receipt.line_items.some(li => li.product_id === p.id))
+                .slice(0, 2)
+                .map(p => (
+                  <MiniCard 
+                    key={p.id} 
+                    product={p} 
+                    handle={merchant.handle} 
+                    cardStyle={merchant.store_config.card_style} 
+                  />
+                ))
+              }
+            </m.div>
           </div>
         )}
 

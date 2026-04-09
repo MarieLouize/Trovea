@@ -17,6 +17,7 @@ export {
   useAnimation,
   useScroll,
   useTransform,
+  useMotionValue,
   Reorder,
   useDragControls,
   domAnimation as motionFeatures,
@@ -27,9 +28,9 @@ export {
 /** UI interactions — snappy, responsive but not aggressive */
 export const SPRING_UI = {
   type: 'spring' as const,
-  stiffness: 300,
-  damping: 32,
-  mass: 1,
+  stiffness: 380,
+  damping: 35,
+  mass: 1.2,
 };
 
 /** Snap interactions — tight, decisive, slightly more damped */
@@ -57,9 +58,9 @@ export const fadeIn = {
 };
 
 export const slideUp = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0, transition: SPRING_PAGE },
-  exit:    { opacity: 0, y: -12, transition: { duration: 0.2, ease: 'easeIn' } },
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0, transition: { ...SPRING_PAGE, duration: 0.6 } },
+  exit:    { opacity: 0, y: -10, transition: { duration: 0.2, ease: 'easeIn' } },
 };
 
 export const stageRight = {

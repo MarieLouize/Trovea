@@ -42,6 +42,15 @@ export default function CataloguePage() {
   const merchant = useMerchantStore((s) => s.merchant);
   const [searchParams] = useSearchParams();
 
+  const type = merchant?.store_type || 'collector';
+  const st = {
+    isCollector: type === 'collector',
+    isVendor:    type === 'vendor',
+    isHost:      type === 'host',
+    isDigital:   type === 'digital_creator',
+    isStudio:    type === 'studio',
+  };
+
   // Derive products with new filters
   const rawProducts = useArchiveStore(s => s.products);
   const searchQuery = useArchiveStore(s => s.searchQuery);
@@ -50,6 +59,7 @@ export default function CataloguePage() {
     statusFilter, setStatusFilter,
     updateProduct, addProduct, setProducts,
     toggleProductStatus,
+    lastSoldOutProductId, clearLastSoldOutProduct,
   } = useArchiveStore();
   const { addToast } = useUIStore();
 
@@ -57,6 +67,24 @@ export default function CataloguePage() {
   const [editTarget, setEditTarget] = useState<string | null>(null);
   const [form, setForm] = useState<FormDraft>(EMPTY_FORM);
   const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkStatus>>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate loading (Phase 3C)
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Sold out listener
+  useEffect(() => {
+    if (lastSoldOutProductId) {
+      const p = rawProducts.find(x => x.id === lastSoldOutProductId);
+      if (p) {
+        addToast(`Sold out! ${p.name} is gone.`, 'info');
+      }
+      clearLastSoldOutProduct();
+    }
+  }, [lastSoldOutProductId, rawProducts, addToast, clearLastSoldOutProduct]);
 
   // Cross-page action shortcuts
   useEffect(() => {
@@ -192,19 +220,57 @@ export default function CataloguePage() {
     { value: 'zero_downloads', label: 'Zero Downloads' },
   ];
 
+  const pageTitle = 
+    st.isHost    ? 'Services'  :
+    st.isVendor  ? 'Menu'      :
+    st.isStudio  ? 'Packages'  :
+    st.isDigital ? 'Tools'     :
+    'Catalogue';
+
+  if (isLoading) {
+    return (
+      <div className={styles.root}>
+        <div className={styles.pageHeader}>
+          <div>
+            <div className="skeleton-text" style={{ width: '100px', height: '28px', marginBottom: '8px' }} />
+            <div className="skeleton-text" style={{ width: '60px', height: '12px' }} />
+          </div>
+          <div className="skeleton" style={{ width: '100px', height: '36px', borderRadius: 'var(--r-md)' }} />
+        </div>
+        <div className={styles.statusTabs}>
+          {[1,2,3].map(i => (
+            <div key={i} className="skeleton" style={{ width: '80px', height: '32px', borderRadius: 'var(--r-pill)' }} />
+          ))}
+        </div>
+        <div className={styles.productList}>
+          {[1,2,3,4].map(i => (
+            <div key={i} className={styles.productRow} style={{ padding: '16px' }}>
+              <div className="skeleton" style={{ width: '48px', height: '48px', borderRadius: 'var(--r-sm)', marginRight: '12px' }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton-text" style={{ width: '40%', height: '14px', marginBottom: '8px' }} />
+                <div className="skeleton-text" style={{ width: '20%', height: '12px' }} />
+              </div>
+              <div className="skeleton" style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.root}>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>Catalogue</h1>
-          <span className={styles.itemCount}>{products.length} products</span>
+          <h1 className={styles.pageTitle}>{pageTitle}</h1>
+          <span className={styles.itemCount}>{products.length} {products.length === 1 ? (st.isHost ? 'service' : 'item') : (st.isHost ? 'services' : 'items')}</span>
         </div>
         <m.button
           className={styles.addBtn}
           onClick={() => { setEditTarget(null); setDrawerOpen(true); }}
           whileTap={{ scale: 0.97 }}
         >
-          <Plus size={14} /> + Product
+          <Plus size={14} /> + {st.isHost ? 'Service' : 'Item'}
         </m.button>
       </div>
 
@@ -213,7 +279,7 @@ export default function CataloguePage() {
           <m.button
             key={tab.value}
             className={`${styles.statusTab} ${statusFilter === tab.value ? styles.active : ''}`}
-            onClick={() => setStatusFilter(tab.value as any)}
+            onClick={() => setStatusFilter(tab.value as Parameters<typeof setStatusFilter>[0])}
             whileTap={{ scale: 0.96 }}
           >
             {tab.label}
@@ -222,8 +288,15 @@ export default function CataloguePage() {
       </div>
 
       <div className={styles.productList}>
-        <AnimatePresence initial={false}>
-          {products.map((product, i) => {
+        {products.length === 0 ? (
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon}>—</span>
+            <h2 className={styles.emptyTitle}>Nothing found.</h2>
+            <p className={styles.emptyText}>Adjust your filters or add your first {st.isHost ? 'service' : 'item'}.</p>
+          </div>
+        ) : (
+          <AnimatePresence initial={false}>
+            {products.map((product, i) => {
             const linkStatus = linkStatuses[product.id] || 'idle';
             const downloadCount = FIXTURE_RECEIPTS.filter(r => r.line_items.some(li => li.product_id === product.id)).length;
             
@@ -294,6 +367,7 @@ export default function CataloguePage() {
             );
           })}
         </AnimatePresence>
+      )}
       </div>
 
       <BaseDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={editTarget ? 'Edit Product' : 'Add Product'}>

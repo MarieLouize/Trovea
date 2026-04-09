@@ -74,7 +74,7 @@ export default function FirstItemPage() {
     const { success, error } = await submitOnboarding();
     
     if (!success) {
-      addToast(error ?? 'Failed to create your store. Please try again.', 'error');
+      addToast(error ?? 'Couldn\'t create your store. Check your connection and try again.', 'error');
       setSubmitting(false);
       return;
     }
@@ -145,7 +145,7 @@ export default function FirstItemPage() {
     const { success, error } = await submitOnboarding();
     
     if (!success) {
-      addToast(error ?? 'Failed to create your store.', 'error');
+      addToast(error ?? 'Couldn\'t create your store. Check your connection and try again.', 'error');
       setSubmitting(false);
       return;
     }
@@ -330,7 +330,7 @@ export default function FirstItemPage() {
             >
               {submitting ? (
                 <>
-                  <span className={styles.spinner} style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginRight: 8 }} />
+                  <span className={styles.spinner} style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--color-fg)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginRight: 8 }} />
                   Minting...
                 </>
               ) : (

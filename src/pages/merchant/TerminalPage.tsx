@@ -5,7 +5,7 @@ import {
   Calendar, Clock, Check, MessageSquare,
   FileText, ShoppingBag, Zap,
 } from 'lucide-react';
-import { m, AnimatePresence, useDragControls } from '@/lib/motion';
+import { m, AnimatePresence, useMotionValue, useTransform } from '@/lib/motion';
 import type { Product, ProductVariant, ReceiptType } from '@/lib/types';
 import { useTerminalStore } from '@/lib/store/terminal.store';
 import { useMerchantStore } from '@/lib/store/merchant.store';
@@ -140,7 +140,7 @@ export default function TerminalPage() {
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
   const [quickName, setQuickName] = useState('');
   const [quickPrice, setQuickPrice] = useState('');
-  const [quickNameLocked, setQuickNameLocked] = useState(false); // Studio: name pre-filled
+  const [quickNameLocked, setQuickNameLocked] = useState(false); 
 
   // ── Host slot picker ──
   const [hostStep, setHostStep] = useState<1 | 2>(1);
@@ -157,10 +157,20 @@ export default function TerminalPage() {
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
 
   // ── Issuance slider ──
-  const [sliderX, setSliderX] = useState(0);
   const [isCeremony, setIsCeremony] = useState(false);
   const sliderTrackRef = useRef<HTMLDivElement>(null);
-  const dragControls = useDragControls();
+  const [trackWidth, setTrackWidth] = useState(0);
+  const sliderX = useMotionValue(0);
+  
+  useEffect(() => {
+    if (sliderTrackRef.current) {
+      setTrackWidth(sliderTrackRef.current.offsetWidth);
+    }
+  }, [stage]);
+
+  // Dynamic fill based on thumb position
+  const sliderFillWidth = useTransform(sliderX, [0, trackWidth - 52], ["48px", `${trackWidth}px`]);
+  const sliderOpacity = useTransform(sliderX, [0, trackWidth / 2], [1, 0]);
 
   // ─── Computed data ─────────────────────────────────────────────────────────
 
@@ -323,12 +333,13 @@ export default function TerminalPage() {
 
   // Issuance
   const handleSliderDragEnd = () => {
-    const trackWidth = sliderTrackRef.current?.offsetWidth ?? 300;
-    const threshold = trackWidth * 0.8;
-    if (sliderX >= threshold - 48) {
+    const currentX = sliderX.get();
+    const threshold = trackWidth - 64;
+
+    if (currentX >= threshold) {
       triggerCeremony();
     } else {
-      setSliderX(0);
+      sliderX.set(0);
     }
   };
 
@@ -355,9 +366,6 @@ export default function TerminalPage() {
 
     setIssuedReceipt(mockReceipt, receiptType);
     setIsCeremony(false);
-    
-    // In a real app, we'd navigate to the receipt ID. 
-    // For this prototype, we'll just go to the first receipt in fixtures.
     navigate(`/receipt/${baseReceipt.id}`);
   };
 
@@ -612,6 +620,9 @@ export default function TerminalPage() {
                               </div>
                               <div className={styles.inventoryBody}>
                                 <div className={styles.inventoryName}>{product.name}</div>
+                                {product.description && (
+                                  <div className={styles.inventoryDesc}>{product.description}</div>
+                                )}
                                 <div className={styles.inventoryPrice}>{formatCurrencyFull(product.price)}</div>
                               </div>
                             </m.div>
@@ -672,6 +683,9 @@ export default function TerminalPage() {
                                 </div>
                                 <div className={styles.inventoryBody}>
                                   <div className={styles.inventoryName}>{product.name}</div>
+                                  {product.description && (
+                                    <div className={styles.inventoryDesc}>{product.description}</div>
+                                  )}
                                   <div className={styles.inventoryPrice}>{formatCurrencyFull(product.price)}</div>
                                 </div>
                               </m.div>
@@ -861,7 +875,7 @@ export default function TerminalPage() {
                                 )}
                                 {isSelected && isBundleMode && (
                                   <div style={{ position: 'absolute', inset: 0, background: 'rgba(57,0,7,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}>
-                                    <Check color="#fff" size={24} />
+                                    <Check color="var(--color-fg)" size={24} />
                                   </div>
                                 )}
                                 {product.is_free && (
@@ -870,6 +884,9 @@ export default function TerminalPage() {
                               </div>
                               <div className={styles.inventoryBody}>
                                 <div className={styles.inventoryName}>{product.name}</div>
+                                {product.description && (
+                                  <div className={styles.inventoryDesc}>{product.description}</div>
+                                )}
                                 <div className={styles.inventoryPrice}>
                                   {product.is_free ? (
                                     <span className={styles.freePrice}>Free</span>
@@ -878,6 +895,7 @@ export default function TerminalPage() {
                                   )}
                                 </div>
                               </div>
+
                             </m.div>
                           );
                         })}
@@ -1319,28 +1337,26 @@ export default function TerminalPage() {
                     aria-label="Slide to issue seal"
                     aria-disabled={!canIssue}
                   >
-                    <div
+                    <m.div
                       className={styles.sliderFill}
-                      style={{ width: `${sliderX + 48}px` }}
+                      style={{ width: sliderFillWidth }}
                       aria-hidden="true"
                     />
-                    <span className={styles.sliderLabel} aria-hidden="true">
+                    <m.span 
+                      className={styles.sliderLabel} 
+                      aria-hidden="true"
+                      style={{ opacity: sliderOpacity }}
+                    >
                       {canIssue ? `Slide to Issue ${st.isHost ? 'Booking' : st.isStudio ? 'Project' : 'Seal'} →` : st.isDigital ? 'Enter valid email' : 'Enter buyer name'}
-                    </span>
+                    </m.span>
                     <m.div
                       className={styles.sliderThumb}
                       drag={canIssue ? 'x' : false}
-                      dragControls={dragControls}
-                      dragConstraints={sliderTrackRef}
+                      dragConstraints={{ left: 0, right: Math.max(0, trackWidth - 56) }}
                       dragElastic={0}
                       dragMomentum={false}
-                      animate={{ x: sliderX }}
-                      onDrag={(_, info) => {
-                        const trackWidth = sliderTrackRef.current?.offsetWidth ?? 300;
-                        setSliderX(Math.max(0, Math.min(info.point.x - 24, trackWidth - 52)));
-                      }}
+                      style={{ x: sliderX, opacity: canIssue ? 1 : 0.3 }}
                       onDragEnd={handleSliderDragEnd}
-                      style={{ opacity: canIssue ? 1 : 0.3 }}
                       aria-hidden="true"
                     >
                       <ArrowRight size={20} aria-hidden="true" />

@@ -69,7 +69,7 @@ export default function SetupStorePage() {
       case 'checking':
         return <Loader size={14} style={{ color: 'var(--color-fg-ghost)', animation: 'spin 0.65s linear infinite' }} aria-label="Checking availability" />;
       case 'available':
-        return <Check size={14} style={{ color: 'var(--color-success)' }} aria-label="Handle is available" />;
+        return <Check size={14} style={{ color: 'var(--color-success-text)' }} aria-label="Handle is available" />;
       case 'taken':
         return <X size={14} style={{ color: 'var(--color-accent)' }} aria-label="Handle is taken" />;
       case 'invalid':

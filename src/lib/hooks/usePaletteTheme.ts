@@ -16,7 +16,7 @@
 import { useEffect } from 'react';
 import { buildPaletteStyle, isPaletteDark, type PaletteId } from '@/lib/palette-theme';
 
-const ALL_PALETTES: PaletteId[] = ['maroon', 'velvet', 'parchment', 'slate', 'onyx'];
+const ALL_PALETTES: PaletteId[] = ['velvet', 'slate', 'bloom', 'obsidian', 'chalk'];
 
 export function usePaletteTheme(rawPalette?: string): {
   paletteId: PaletteId;
@@ -24,7 +24,7 @@ export function usePaletteTheme(rawPalette?: string): {
 } {
   const paletteId = (ALL_PALETTES.includes(rawPalette as PaletteId)
     ? rawPalette
-    : 'maroon') as PaletteId;
+    : 'chalk') as PaletteId;
 
   const isDark = isPaletteDark(paletteId);
 

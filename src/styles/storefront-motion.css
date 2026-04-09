@@ -1,0 +1,47 @@
+/* storefront-motion.css
+   Motion intensity system for Trovéa storefronts.
+   Applied via [data-motion="X"] on .sf-themed root.
+   Controls animation duration + card hover lift across the storefront.
+*/
+
+/* Still — no animation, accessibility-first */
+[data-motion="still"] {
+  --sf-dur-enter:        80ms;
+  --sf-dur-exit:         60ms;
+  --sf-card-hover-lift:  translateY(0) scale(1);
+  --sf-transition-ease:  linear;
+}
+
+/* Precise — sharp, intentional (Trovéa default) */
+[data-motion="precise"] {
+  --sf-dur-enter:        400ms;
+  --sf-dur-exit:         240ms;
+  --sf-card-hover-lift:  translateY(-6px) scale(1.01);
+  --sf-transition-ease:  cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Fluid — expressive, breathing */
+[data-motion="fluid"] {
+  --sf-dur-enter:        600ms;
+  --sf-dur-exit:         360ms;
+  --sf-card-hover-lift:  translateY(-12px) scale(1.02);
+  --sf-transition-ease:  cubic-bezier(0.12, 0.8, 0.2, 1);
+}
+
+/* Cinematic — dramatic, show-stopping */
+[data-motion="cinematic"] {
+  --sf-dur-enter:        900ms;
+  --sf-dur-exit:         500ms;
+  --sf-card-hover-lift:  translateY(-16px) scale(1.03);
+  --sf-transition-ease:  cubic-bezier(0.08, 0.92, 0.16, 1);
+}
+
+/* prefers-reduced-motion always forces still, regardless of setting */
+@media (prefers-reduced-motion: reduce) {
+  [data-motion] {
+    --sf-dur-enter:        80ms;
+    --sf-dur-exit:         60ms;
+    --sf-card-hover-lift:  translateY(0) scale(1);
+    --sf-transition-ease:  linear;
+  }
+}

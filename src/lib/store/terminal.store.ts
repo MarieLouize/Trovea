@@ -2,7 +2,14 @@ import { create } from 'zustand';
 import type { Product, ProductVariant, Receipt, ReceiptType } from '../types';
 import { createReceipt } from '../db/queries';
 
-export type TerminalStage = 'composition' | 'attribution' | 'issuance';
+export type TerminalStage = 
+  | 'composition' 
+  | 'attribution' 
+  | 'review' 
+  | 'submitting' 
+  | 'ceremony_card' 
+  | 'ceremony_code' 
+  | 'ceremony_done';
 
 export interface VisorLineItem {
   productId: string | null;
@@ -86,7 +93,15 @@ interface TerminalState {
   persistReceipt: () => Promise<boolean>;
 }
 
-const STAGE_ORDER: TerminalStage[] = ['composition', 'attribution', 'issuance'];
+const STAGE_ORDER: TerminalStage[] = [
+  'composition', 
+  'attribution', 
+  'review', 
+  'submitting', 
+  'ceremony_card', 
+  'ceremony_code', 
+  'ceremony_done'
+];
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
   stage: 'composition',
@@ -252,6 +267,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
     set({ isPersisting: true });
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id: _id, created_at: _ca, updated_at: _ua, ...receiptData } = issuedReceipt;
       const saved = await createReceipt(receiptData);
       if (saved) {

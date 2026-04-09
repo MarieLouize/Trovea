@@ -20,25 +20,44 @@
   --color-fg-muted: rgba(12, 12, 14, 0.52);
   --color-fg-ghost: rgba(12, 12, 14, 0.28);
 
-  /* ── ACCENT ── */
+  /* ── ACCENT: Velvet Maroon ── */
   --color-accent: #390007;
+  --color-accent-rgb: 57, 0, 7;
   --color-accent-mid: #5C0010;
-  --color-accent-glow: rgba(57, 0, 7, 0.35);
+  --color-accent-glow: rgba(57, 0, 7, 0.12);
 
-  /* ── GOLD ── */
+  /* ── GOLD: Antique Brass ── */
   --color-gold: #C9A84C;
   --color-gold-light: #E2C97E;
-  --color-gold-dim: rgba(201, 168, 76, 0.4);
+  --color-gold-dark: #b46414;
+  --color-gold-text: var(--color-gold-dark); /* High-contrast variant for light backgrounds */
+  --color-gold-dim: rgba(201, 168, 76, 0.18);
 
-  /* ── STATUS ── */
+  /* ── STATUS & BRAND ── */
   --color-success: #2ECB75;
-  --color-success-glow: rgba(46, 203, 117, 0.5);
+  --color-success-dark: #1aab5e;
+  --color-success-text: var(--color-success-dark);
+  --color-success-glow: rgba(46, 203, 117, 0.15);
   --color-warning: #C9A84C;
-  --color-error: #390007;
+  --color-error: #ff3b30;
+  --color-error-light: #ff6b6b;
+  --color-info: #3B82F6;
+  --color-info-dark: #2563EB;
+  --color-whatsapp: #25D366;
+  --color-whatsapp-dark: #128C7E;
+  --color-whatsapp-glow: rgba(37, 211, 102, 0.25);
+  --color-purple: #A855F7;
+  --color-pink: #E1306C;
+  --color-gold-dark: #b46414;
 
   /* ── NEUMORPHIC SHADOW PRIMITIVES ── */
   --sh-light: rgba(255, 255, 255, 0.48);
   --sh-dark: rgba(10, 10, 14, 0.22);
+
+  --shadow-none: none;
+
+  --color-border: rgba(12, 12, 14, 0.12);
+  --color-border-dim: rgba(12, 12, 14, 0.06);
 
   --shadow-raise:
     8px 8px 18px var(--sh-dark),
@@ -96,7 +115,8 @@
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
-  --duration-ceremony: 700ms;
+  --duration-enter: 600ms;
+  --duration-ceremony: 900ms;
 
   /* ── Z-INDEX SCALE ── */
   --z-base: 0;
@@ -121,83 +141,98 @@
 
 /* Velvet Maroon — used for specific sections or as a primary theme override */
 [data-palette="velvet"], .section-velvet {
-  --color-bg: #350006;
+  --color-bg: #390007;
   --color-bg-warm: #420008;
   --color-bg-cool: #260004;
-  --color-surface: #350006;
+  --color-surface: #390007;
   --color-surface-raised: #420008;
   --color-surface-inset: #2E0005;
   --color-fg: #F0EDE8;
   --color-fg-secondary: rgba(240, 237, 232, 0.8);
   --color-fg-muted: rgba(240, 237, 232, 0.52);
   --color-fg-ghost: rgba(240, 237, 232, 0.28);
-  --sh-light: rgba(255, 255, 255, 0.06);
-  --sh-dark: rgba(0, 0, 0, 0.5);
+  --sh-light: rgba(255, 255, 255, 0.08); /* Faint highlight on dark velvet */
+  --sh-dark: rgba(0, 0, 0, 0.65);         /* Deep, heavy shadow */
+  --color-gold-text: var(--color-gold);  /* Maintain brightness on dark */
+  --color-success-text: var(--color-success);
 }
 
-/* Warm Ivory — Collectors, lifestyle */
-[data-palette="warm-ivory"] {
-  --color-bg: #EDE8DF;
-  --color-bg-warm: #F2EDE2;
-  --color-bg-cool: #E8E3D8;
-  --color-surface: #EDE8DF;
-  --color-surface-raised: #F5F0E8;
-  --color-surface-inset: #E4DFD4;
-  --color-fg: #1A1410;
-  --color-fg-secondary: #3D3228;
-  --color-fg-muted: rgba(26, 20, 16, 0.52);
-  --color-fg-ghost: rgba(26, 20, 16, 0.28);
-  --sh-light: rgba(255, 255, 255, 0.65);
-  --sh-dark: rgba(80, 60, 40, 0.18);
+/* Slate — dark dull navy */
+[data-palette="slate"] {
+  --color-bg: #1C2536;
+  --color-bg-warm: #1F2840;
+  --color-bg-cool: #161D2C;
+  --color-surface: #1C2536;
+  --color-surface-raised: #232D44;
+  --color-surface-inset: #141C2C;
+  --color-fg: #E4E8EF;
+  --color-fg-secondary: rgba(228, 232, 239, 0.8);
+  --color-fg-muted: rgba(228, 232, 239, 0.48);
+  --color-fg-ghost: rgba(228, 232, 239, 0.24);
+  --color-accent: #C9A84C;
+  --color-accent-rgb: 201, 168, 76;
+  --color-accent-mid: #E2C97E;
+  --sh-light: rgba(255, 255, 255, 0.07);
+  --sh-dark: rgba(0, 0, 0, 0.72);
+  --color-gold-text: var(--color-gold);
+  --color-success-text: var(--color-success);
 }
 
-/* Deep Obsidian — Digital creators, studios */
-[data-palette="deep-obsidian"] {
+/* Bloom — dusty rose pink */
+[data-palette="bloom"] {
+  --color-bg: #D4B0C4;
+  --color-bg-warm: #DCBCCE;
+  --color-bg-cool: #C8A4B8;
+  --color-surface: #D4B0C4;
+  --color-surface-raised: #DFC0CE;
+  --color-surface-inset: #C8A4B8;
+  --color-fg: #1A0812;
+  --color-fg-secondary: rgba(26, 8, 18, 0.8);
+  --color-fg-muted: rgba(26, 8, 18, 0.5);
+  --color-fg-ghost: rgba(26, 8, 18, 0.25);
+  --color-accent: #390007;
+  --color-accent-rgb: 57, 0, 7;
+  --color-accent-mid: #5C0010;
+  --sh-light: rgba(255, 255, 255, 0.5);
+  --sh-dark: rgba(60, 20, 40, 0.22);
+}
+
+/* Obsidian — near-black */
+[data-palette="obsidian"] {
   --color-bg: #111114;
   --color-bg-warm: #18181C;
-  --color-bg-cool: #0A0A0C;
+  --color-bg-cool: #0A0A0D;
   --color-surface: #111114;
-  --color-surface-raised: #1C1C22;
+  --color-surface-raised: #1A1A1E;
   --color-surface-inset: #08080A;
   --color-fg: #F0EDE8;
   --color-fg-secondary: rgba(240, 237, 232, 0.82);
   --color-fg-muted: rgba(240, 237, 232, 0.48);
   --color-fg-ghost: rgba(240, 237, 232, 0.24);
-  --color-accent: #C9A84C; /* Gold as accent for Obsidian */
+  --color-accent: #C9A84C;
+  --color-accent-rgb: 201, 168, 76;
   --color-accent-mid: #E2C97E;
-  --sh-light: rgba(255, 255, 255, 0.06);
-  --sh-dark: rgba(0, 0, 0, 0.55);
+  --sh-light: rgba(255, 255, 255, 0.04);
+  --sh-dark: rgba(0, 0, 0, 0.88);
+  --color-gold-text: var(--color-gold);
+  --color-success-text: var(--color-success);
 }
 
-/* Terracotta — Vendors, food sellers */
-[data-palette="terracotta"] {
-  --color-bg: #C4866A;
-  --color-bg-warm: #CC9177;
-  --color-bg-cool: #BC7B5D;
-  --color-surface: #C4866A;
-  --color-surface-raised: #D19479;
-  --color-surface-inset: #B8795D;
-  --color-fg: #1A0E08;
-  --color-fg-secondary: #3D2214;
-  --color-fg-muted: rgba(26, 14, 8, 0.55);
-  --color-fg-ghost: rgba(26, 14, 8, 0.3);
-  --sh-light: rgba(255, 255, 255, 0.28);
-  --sh-dark: rgba(40, 20, 10, 0.22);
-}
-
-/* Blush Mist — Hosts, beauty services */
-[data-palette="blush-mist"] {
-  --color-bg: #D4B8B8;
-  --color-bg-warm: #DCC2C2;
-  --color-bg-cool: #CCAEAE;
-  --color-surface: #D4B8B8;
-  --color-surface-raised: #E0CACA;
-  --color-surface-inset: #C8ABAB;
-  --color-fg: #390007;
-  --color-fg-secondary: #6B1230;
-  --color-fg-muted: rgba(57, 0, 7, 0.52);
-  --color-fg-ghost: rgba(57, 0, 7, 0.28);
-  --color-accent: #6B1230;
-  --sh-light: rgba(255, 255, 255, 0.4);
-  --sh-dark: rgba(60, 20, 20, 0.18);
+/* Chalk — warm off-white */
+[data-palette="chalk"] {
+  --color-bg: #F5F0EA;
+  --color-bg-warm: #FAF6F0;
+  --color-bg-cool: #EDE8E2;
+  --color-surface: #F5F0EA;
+  --color-surface-raised: #FAF7F2;
+  --color-surface-inset: #EDE8E2;
+  --color-fg: #1A1208;
+  --color-fg-secondary: rgba(26, 18, 8, 0.8);
+  --color-fg-muted: rgba(26, 18, 8, 0.5);
+  --color-fg-ghost: rgba(26, 18, 8, 0.25);
+  --color-accent: #390007;
+  --color-accent-rgb: 57, 0, 7;
+  --color-accent-mid: #5C0010;
+  --sh-light: rgba(255, 255, 255, 0.8);
+  --sh-dark: rgba(60, 40, 20, 0.18);
 }

@@ -1,14 +1,18 @@
 import { useRef, useEffect } from 'react';
 import { m, useAnimation } from '@/lib/motion';
-import type { StoreConfig, SignatureDefinition } from '@/lib/types';
+import type { StoreConfig, SignatureDefinition, Product } from '@/lib/types';
 import { PALETTES } from '@/lib/constants/palettes';
 import { TYPOGRAPHY_STACKS } from '@/lib/constants/typography';
 import { SIGNATURES } from '@/lib/constants/signatures';
+import { FONT_COLOR_VALUES } from '@/lib/palette-theme';
+import { getThemeById } from '@/lib/constants/themes';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { FIXTURE_PRODUCTS } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import styles from './LivePreview.module.css';
+import '@/styles/storefront-shapes.css';
+import '@/styles/storefront-motion.css';
 
 interface LivePreviewProps {
   draftConfig: StoreConfig;
@@ -27,7 +31,7 @@ function getTypoFonts(typographyId: string) {
 }
 
 // ── Products ────────────────────────────────────────────────────────────────
-const liveProducts = (FIXTURE_PRODUCTS as any[])
+const liveProducts = (FIXTURE_PRODUCTS as Product[])
   .filter((p) => p.status === 'live')
   .slice(0, 6);
 
@@ -64,7 +68,7 @@ function PreviewHero({ storeName, handle }: { storeName: string; handle: string 
   );
 }
 
-function PreviewCard({ product, cardStyle }: { product: any; cardStyle: string }) {
+function PreviewCard({ product, cardStyle }: { product: Product; cardStyle: string }) {
   const price = formatCurrencyFull(product.price ?? 0);
   const name: string = product.name ?? 'Item';
 
@@ -239,7 +243,8 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
   const bio         = merchant.bio ?? draftConfig.about_text;
 
   const signature: SignatureDefinition | undefined = SIGNATURES.find((s) => s.id === draftConfig.signature);
-  const tagline = signature?.tagline ?? '';
+  const theme = getThemeById(draftConfig.theme);
+  const tagline = theme?.tagline ?? signature?.tagline ?? '';
 
   const showStandardContent = !st.isCollector || tc.preview_state === 'static' || tc.preview_state === 'live_drop';
 
@@ -257,12 +262,15 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
           className={styles.screen}
           animate={controls}
           data-palette={draftConfig.palette}
+          data-shape={draftConfig.shape ?? 'form'}
+          data-motion={draftConfig.motion ?? 'precise'}
           style={{
             '--preview-bg':           colors.bg,
             '--preview-surface':      colors.surface,
             '--preview-accent':       colors.accent,
             '--preview-font-heading': fonts.heading,
             '--preview-font-body':    fonts.body,
+            '--preview-fg':           FONT_COLOR_VALUES[draftConfig.font_color] ?? colors.accent,
           } as React.CSSProperties}
         >
           <PreviewMiniBrand storeName={storeName} tagline={tagline} />
@@ -292,7 +300,7 @@ export default function LivePreview({ draftConfig }: LivePreviewProps) {
       </div>
 
       <p className={styles.previewCaption}>
-        {storeHandle} · {draftConfig.palette} · {draftConfig.layout}
+        {theme?.name ?? draftConfig.theme} · {draftConfig.palette} · {draftConfig.shape}
       </p>
     </div>
   );

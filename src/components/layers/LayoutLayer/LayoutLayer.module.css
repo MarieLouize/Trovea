@@ -3,7 +3,13 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-8);
+}
+
+.subSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .header {
@@ -13,6 +19,14 @@
 }
 
 .sectionTitle { color: var(--color-fg); font-size: 20px; margin: 0; }
+.subSectionTitle {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  margin: 0;
+}
 .sectionDesc { color: var(--color-fg-muted); margin: 0; font-size: 13px; }
 
 .list {
@@ -39,7 +53,7 @@
 }
 
 .card:hover {
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
   transform: translateY(-1px);
 }
 
@@ -100,7 +114,7 @@
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--color-accent);
-  background: rgba(201, 168, 76, 0.1);
+  background: var(--color-gold-dim);
   padding: 2px 6px;
   border-radius: var(--r-pill);
 }
@@ -201,3 +215,109 @@
   border-radius: 1px;
 }
 .minimapTextLineShort { width: 55%; opacity: 0.2; }
+
+/* ── Section Editor (Part B) ── */
+.sectionEditorCard {
+  position: relative;
+  border-radius: var(--r-xl);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-raise-sm);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  padding: var(--space-2) 0;
+}
+
+.sectionList {
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border-dim);
+  position: relative;
+  z-index: 1;
+  background: var(--color-surface-raised);
+}
+
+.sectionRow:last-child {
+  border-bottom: none;
+}
+
+.dragHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--color-fg-ghost);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  transition: all 120ms;
+  flex-shrink: 0;
+}
+
+.dragHandle:hover {
+  color: var(--color-fg-muted);
+  background: rgba(0,0,0,0.04);
+}
+
+.sectionLabel {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-fg);
+}
+
+/* ── Toggle ── */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggleInput {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.toggleSlider {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  background: var(--color-surface-inset);
+  transition: background 200ms;
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.toggleSlider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-fg-muted);
+  box-shadow: var(--shadow-raise-sm);
+  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toggleSliderOn {
+  background: var(--color-accent);
+  border-color: transparent;
+}
+
+.toggleSliderOn::after {
+  transform: translateX(18px);
+  background: var(--color-fg);
+}

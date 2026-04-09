@@ -32,6 +32,7 @@ interface LedgerState {
   markShipped: (receiptId: string) => void;
   markReceived: (receiptId: string) => void;
   markPacked: (id: string) => void;
+  markFulfilled: (id: string) => void;
   
   updateReceiptStatus: (receiptId: string, updates: Partial<Receipt>) => void;
 
@@ -179,6 +180,24 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       ),
     }));
   },
+
+  markFulfilled: (id: string) =>
+    set(state => ({
+      receipts: state.receipts.map(r =>
+        r.id === id
+          ? {
+              ...r,
+              shipment_status: 'received',
+              log: [...(r.log ?? []), { 
+                id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                event: 'Marked as fulfilled', 
+                actor: 'merchant', 
+                timestamp: new Date().toISOString() 
+              }],
+            }
+          : r
+      ),
+    })),
 
   updateReceiptStatus: (receiptId, updates) =>
     set((state) => ({

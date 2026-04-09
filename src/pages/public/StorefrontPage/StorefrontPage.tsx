@@ -1,37 +1,49 @@
 /**
- * Trove'a — StorefrontPage (Phase 2N: Trust Layer)
- * Verification badges, pause enforcement, store reporting.
+ * Trove'a — StorefrontPage (Phase 3 Revision)
+ * Refined buyer flows for all store types.
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   MessageCircle, Instagram, ShoppingBag, X, Trash2, Moon, Send, AlertTriangle,
-  ChevronLeft, ChevronRight, Calendar, Clock, CheckCircle
+  Clock, CheckCircle, Plus, Check, Mail, Calendar
 } from 'lucide-react';
 import {
   FIXTURE_MERCHANT, FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS,
-  FIXTURE_WINDOWS, FIXTURE_BOOKINGS, FIXTURE_HOLDS, FIXTURE_DROPS,
+  FIXTURE_WINDOWS, FIXTURE_BOOKINGS, FIXTURE_DROPS,
   FIXTURE_HOST_MERCHANT, FIXTURE_HOST_PRODUCTS,
   FIXTURE_DIGITAL_MERCHANT, FIXTURE_DIGITAL_PRODUCTS,
   FIXTURE_STUDIO_MERCHANT, FIXTURE_STUDIO_PRODUCTS,
+  FIXTURE_VENDOR_MERCHANT, FIXTURE_VENDOR_PRODUCTS,
 } from '@/lib/fixtures';
 import { SIGNATURES } from '@/lib/constants/signatures';
 import { formatCurrencyFull, formatLastActive, formatDate, truncate } from '@/lib/utils/format';
-import { buildStoreContactLink } from '@/lib/utils/whatsapp';
+import { 
+  buildStoreContactLink, 
+  buildVendorNotifyLink 
+} from '@/lib/utils/whatsapp';
+import { getNextAvailableDate, getAvailableDays, isSlotAvailable, WORKING_HOURS } from '@/lib/utils/host';
 import {
   m, AnimatePresence, staggerContainer, staggerChild, slideUp, SPRING_UI,
   useScroll, useTransform
 } from '@/lib/motion';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
-import { useBasketStore, buildBasketWhatsApp } from '@/lib/store/basket.store';
+import { 
+  useBasketStore, buildBasketWhatsApp, buildVendorPreOrderWhatsApp 
+} from '@/lib/store/basket.store';
+import { useHoldStore } from '@/lib/store/hold.store';
 import { useUIStore } from '@/lib/store/ui.store';
-import type { Product, StoreLayout, CardStyle, AvailabilityWindow, Merchant, Drop } from '@/lib/types';
-import type { HoldRequest } from '@/lib/types';
+import type { Product, StoreLayout, CardStyle, AvailabilityWindow, Merchant, Drop, HoldRequest } from '@/lib/types';
 import PopupModal from '@/components/primitives/PopupModal/PopupModal';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
+import BookingRequestSheet from '@/components/public/BookingRequestSheet';
+import MiniCard from '@/components/public/MiniCard/MiniCard';
+import DigitalCartCheckoutDrawer from '@/components/public/DigitalCartCheckoutDrawer/DigitalCartCheckoutDrawer';
 import sfStyles from './StorefrontPage.module.css';
 import '@/styles/cards.css';
+import '@/styles/storefront-shapes.css';
+import '@/styles/storefront-motion.css';
 
 
 // ─── Layout → CSS class map ──────────────────────────────────────────────────
@@ -92,42 +104,7 @@ function getUrgencySignal(
   return null;
 }
 
-// ─── Host Helpers ───────────────────────────────────────────────────────────
-
-const getNextAvailableDate = (merchantId: string): string | null => {
-  const workingDays = [2, 3, 4, 5, 6]; // Tue–Sat
-  const today = new Date();
-  for (let i = 1; i <= 30; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    if (!workingDays.includes(d.getDay())) continue;
-    const dateStr = d.toISOString().split('T')[0];
-    const bookedCount = FIXTURE_BOOKINGS.filter(b => {
-      const bDate = b.scheduled_at.split('T')[0];
-      return b.merchant_id === merchantId && bDate === dateStr && b.status !== 'cancelled';
-    }).length;
-    if (bookedCount < 4) return d.toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short' });
-  }
-  return null;
-};
-
-const getAvailableDays = (merchantId: string): Set<string> => {
-  const workingDays = [2, 3, 4, 5, 6];
-  const available = new Set<string>();
-  const today = new Date();
-  for (let i = 1; i <= 42; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    if (!workingDays.includes(d.getDay())) continue;
-    const dateStr = d.toISOString().split('T')[0];
-    const bookedCount = FIXTURE_BOOKINGS.filter(b => {
-      const bDate = b.scheduled_at.split('T')[0];
-      return b.merchant_id === merchantId && bDate === dateStr && b.status !== 'cancelled';
-    }).length;
-    if (bookedCount < 4) available.add(dateStr);
-  }
-  return available;
-};
+// ─── Host Helpers (moved to lib/utils/host.ts) ──────────────────────────────
 
 // ─── Digital Helpers ────────────────────────────────────────────────────────
 
@@ -148,43 +125,42 @@ const getFileTypeBadge = (product: Product): string | null => {
 interface ProductCardProps {
   product: Product;
   handle: string;
+  merchantId: string;
   cardStyle: CardStyle;
   bagEligible: boolean;
   urgencySignal: string | null;
   isOnHold: boolean;
   isPaused: boolean;
+  dropState?: 'none' | 'pre' | 'live' | 'post';
 }
 
 function ProductCard({
-  product, handle, cardStyle, bagEligible, urgencySignal, isOnHold, isPaused,
+  product, handle, merchantId, cardStyle, bagEligible, urgencySignal, isOnHold, isPaused, dropState,
 }: ProductCardProps) {
-  const { add, remove, has } = useBasketStore();
+  const { add, has } = useBasketStore();
   const inBasket = has(product.id);
   const badge = getStockBadge(product);
   const isSoldOut = badge.type === 'sold_out';
   const isClaim    = product.claim_mode;
+  const isLocked   = dropState === 'pre';
 
   const handleBasket = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isSoldOut || isPaused) return;
-    if (inBasket) {
-      remove(product.id);
-    } else {
-      add({
-        id:    product.id,
-        name:  product.name,
-        price: product.price,
-        image: product.images[0] ?? `https://picsum.photos/seed/${product.id}/300/300`,
-      });
-    }
+    if (isSoldOut || isPaused || isLocked) return;
+    add({
+      id:    product.id,
+      name:  product.name,
+      price: product.price,
+      image: product.images[0] ?? `https://picsum.photos/seed/${product.id}/300/300`,
+    }, merchantId);
   };
 
   return (
     <m.div variants={staggerChild}>
       <Link
         to={`/store/${handle}/item/${product.id}`}
-        className={`sf-card sf-card-${cardStyle}`}
+        className={`sf-card sf-card-${cardStyle} ${isLocked ? sfStyles.cardLocked : ''}`}
         aria-label={product.name}
       >
         <div className="sf-card-image">
@@ -229,17 +205,31 @@ function ProductCard({
 
 // ─── Inquiry Basket Drawer ────────────────────────────────────────────────────
 
-function InquiryBasket({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
-  const { items, isOpen, close, remove, clear } = useBasketStore();
+function InquiryBasket({ 
+  merchant, 
+  onOpenDigitalCheckout 
+}: { 
+  merchant: Merchant;
+  onOpenDigitalCheckout: () => void;
+}) {
+  const { 
+    items, isOpen, close, remove, clear,
+    fulfillmentType, deliveryAddress 
+  } = useBasketStore();
 
-  const whatsappLink = useMemo(
-    () => items.length > 0
-      ? buildBasketWhatsApp(merchant.whatsapp, items, merchant.store_name)
-      : '#',
-    [items, merchant]
-  );
+  const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const isAllFree = total === 0 && items.length > 0;
 
-  const total = items.reduce((s, i) => s + i.price, 0);
+  const whatsappLink = useMemo(() => {
+    if (items.length === 0) return '#';
+    // Use bundled pre-order link if it's a vendor
+    if (merchant.store_type === 'vendor') {
+      return buildVendorPreOrderWhatsApp(merchant.whatsapp, items, merchant.store_name, fulfillmentType, deliveryAddress);
+    }
+    return buildBasketWhatsApp(merchant.whatsapp, items, merchant.store_name, fulfillmentType, deliveryAddress);
+  }, [items, merchant, fulfillmentType, deliveryAddress]);
+
+  const isDigital = merchant.store_type === 'digital_creator';
 
   return (
     <AnimatePresence>
@@ -295,7 +285,7 @@ function InquiryBasket({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
                           <p className={sfStyles.basketItemVariant}>{item.variantLabel}</p>
                         )}
                         <p className={sfStyles.basketItemPrice}>
-                          {formatCurrencyFull(item.price)}
+                          {item.price === 0 ? 'FREE' : formatCurrencyFull(item.price)}
                         </p>
                       </div>
                       <button
@@ -316,16 +306,31 @@ function InquiryBasket({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
                       {formatCurrencyFull(total)}
                     </span>
                   </div>
-                  <a
-                    href={whatsappLink}
-                    className={sfStyles.basketCta}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={close}
-                  >
-                    <Send size={14} />
-                    Send Inquiry on WhatsApp
-                  </a>
+
+                  {isDigital ? (
+                    <button
+                      className={sfStyles.basketCta}
+                      onClick={() => {
+                        close();
+                        onOpenDigitalCheckout();
+                      }}
+                    >
+                      <Mail size={14} />
+                      {isAllFree ? 'Get Free Files →' : 'Buy All →'}
+                    </button>
+                  ) : (
+                    <a
+                      href={whatsappLink}
+                      className={sfStyles.basketCta}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={close}
+                    >
+                      <Send size={14} />
+                      {merchant.store_type === 'vendor' ? 'Send Pre-order' : 'Send Inquiry on WhatsApp'}
+                    </a>
+                  )}
+
                   <button className={sfStyles.basketClear} onClick={clear}>
                     <Trash2 size={12} />
                     Clear all
@@ -343,9 +348,9 @@ function InquiryBasket({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
 // ─── Sticky Bag Bar ───────────────────────────────────────────────────────────
 
 function StickyBag({ isPaused }: { isPaused: boolean }) {
-  const { items, toggle } = useBasketStore();
+  const { items, toggle, total } = useBasketStore();
   const count = items.length;
-  const total = items.reduce((s, i) => s + i.price, 0);
+  const totalVal = total();
 
   if (count === 0 || isPaused) return null;
 
@@ -355,7 +360,7 @@ function StickyBag({ isPaused }: { isPaused: boolean }) {
         <span className={sfStyles.stickyBagCount}>
           {count} item{count !== 1 ? 's' : ''}
         </span>
-        <span className={sfStyles.stickyBagTotal}>{formatCurrencyFull(total)}</span>
+        <span className={sfStyles.stickyBagTotal}>{formatCurrencyFull(totalVal)}</span>
       </div>
       <button className={sfStyles.stickyBagCta} onClick={toggle}>
         View Bag
@@ -366,7 +371,7 @@ function StickyBag({ isPaused }: { isPaused: boolean }) {
 
 // ─── Closed Store Interstitial ────────────────────────────────────────────────
 
-function ClosedInterstitial({ merchant }: { merchant: typeof FIXTURE_MERCHANT }) {
+function ClosedInterstitial({ merchant }: { merchant: Merchant }) {
   const wLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
   return (
     <m.div className={sfStyles.closedInterstitial} {...slideUp}>
@@ -397,7 +402,7 @@ function StoreHero({
   signature,
   products,
 }: {
-  merchant: typeof FIXTURE_MERCHANT;
+  merchant: Merchant;
   signature: { id: string; tagline: string } | undefined;
   products: Product[];
 }) {
@@ -479,276 +484,174 @@ function StoreHero({
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Instagram size={12} />
-              @{merchant.social_links.instagram}
+              <Instagram size={14} />
+              <span>@{merchant.social_links.instagram}</span>
             </a>
           </m.div>
         )}
       </m.div>
-
-      <div className={sfStyles.heroScrollCue}>
-        <div className={sfStyles.heroScrollLine} />
-      </div>
     </div>
   );
 }
 
-// ─── Report Modal ─────────────────────────────────────────────────────────────
-
-function ReportModal({
-  open,
-  onClose,
-  storeName,
-}: {
-  open: boolean;
-  onClose: () => void;
-  storeName: string;
+function NotifyMeForm({ 
+  merchant, 
+  context = 'drop',
+  label = 'Be the first to know when we open.'
+}: { 
+  merchant: Merchant; 
+  context?: 'drop' | 'window' | 'waitlist';
+  label?: string;
 }) {
-  const [reason, setReason] = useState<string | null>(null);
-  const [details, setDetails] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const { addToast } = useUIStore();
 
-  const handleClose = useCallback(() => {
-    onClose();
-    setTimeout(() => {
-      setReason(null);
-      setDetails('');
-      setError('');
-      setSubmitted(false);
-    }, 300);
-  }, [onClose]);
-
-  const handleSubmit = () => {
-    if (!reason) {
-      setError('Please select a reason.');
-      return;
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    
     setSubmitted(true);
+    addToast("You're on the list.", 'success');
+
+    const msgs = {
+      drop: `Hi ${merchant.store_name}! Please notify me about your next drop. My email is ${email} 🔔`,
+      window: `Hi ${merchant.store_name}! Please add me to your notification list for new windows. My email is ${email} 🙏`,
+      waitlist: `Hi ${merchant.store_name}! I'd like to join the waitlist for your next available opening. My email is ${email} 📅`,
+    };
+
+    const msg = msgs[context];
+    const clean = merchant.whatsapp.replace(/[^0-9]/g, '');
+    window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
+  if (submitted) {
+    return (
+      <div className={sfStyles.notifySuccess}>
+        <Check size={16} />
+        <span>You're on the list. We'll reach out!</span>
+      </div>
+    );
+  }
+
   return (
-    <PopupModal
-      open={open}
-      onClose={handleClose}
-      title={submitted ? undefined : `Report this store`}
-    >
-      {submitted ? (
-        <div className={sfStyles.reportConfirm}>
-          <div className={sfStyles.reportConfirmIcon}>✓</div>
-          <p className={sfStyles.reportConfirmTitle}>Report submitted</p>
-          <p className={sfStyles.reportConfirmBody}>
-            Thank you. Our team will review this store.
-          </p>
-          <button className={sfStyles.reportSubmitBtn} onClick={handleClose}>
-            Close
-          </button>
-        </div>
-      ) : (
-        <div className={sfStyles.reportBody}>
-          <p className={sfStyles.reportSubtitle}>
-            Why are you reporting {storeName}?
-          </p>
-
-          <div className={sfStyles.reportReasons} role="radiogroup" aria-label="Report reason">
-            {REPORT_REASONS.map((r) => (
-              <label key={r} className={sfStyles.reportReasonLabel}>
-                <input
-                  type="radio"
-                  name="report-reason"
-                  value={r}
-                  checked={reason === r}
-                  onChange={() => { setReason(r); setError(''); }}
-                  className={sfStyles.reportRadio}
-                />
-                <span className={sfStyles.reportReasonText}>{r}</span>
-              </label>
-            ))}
-          </div>
-
-          {error && <p className={sfStyles.reportError}>{error}</p>}
-
-          <div className={sfStyles.reportDetailsField}>
-            <label className={sfStyles.reportDetailsLabel} htmlFor="report-details">
-              Additional details <span className={sfStyles.reportOptional}>(optional)</span>
-            </label>
-            <textarea
-              id="report-details"
-              className={sfStyles.reportTextarea}
-              placeholder="Please describe what you experienced"
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className={sfStyles.reportActions}>
-            <button className={sfStyles.reportCancelBtn} onClick={handleClose}>
-              Cancel
-            </button>
-            <m.button
-              className={sfStyles.reportSubmitBtn}
-              onClick={handleSubmit}
-              whileTap={{ scale: 0.97 }}
-            >
-              Submit Report
-            </m.button>
-          </div>
-        </div>
-      )}
-    </PopupModal>
+    <div className={sfStyles.notifyMeWrap}>
+      <p className={sfStyles.notifyLabel}>{label}</p>
+      <form className={sfStyles.notifyForm} onSubmit={handleSubmit}>
+        <input 
+          type="email" 
+          placeholder="Email address" 
+          className={sfStyles.notifyInput} 
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+        />
+        <button type="submit" className={sfStyles.notifyBtn}>Notify Me</button>
+      </form>
+    </div>
   );
 }
 
-// ─── Drop Countdown (Collector) ─────────────────────────────────────────────
+// ─── Drop Countdown ───────────────────────────────────────────────────────────
 
-interface DropCountdownProps {
-  drop: Drop;
-  onLive: () => void;
-}
-
-function DropCountdown({ drop, onLive }: DropCountdownProps) {
-  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
-  const [email, setEmail] = useState('');
-  const [onList, setOnList] = useState(false);
-  const { addToast } = useUIStore();
+function DropCountdown({ drop, merchant, onLive }: { drop: Drop; merchant: Merchant; onLive: () => void }) {
+  const [timeLeft, setTimeLeft] = useState<{ d:number, h:number, m:number, s:number } | null>(null);
 
   useEffect(() => {
-    const target = new Date(drop.scheduled_at).getTime();
-
-    const update = () => {
-      const now = Date.now();
-      const diff = target - now;
-
+    const timer = setInterval(() => {
+      const diff = new Date(drop.scheduled_at).getTime() - Date.now();
       if (diff <= 0) {
-        setTimeLeft(null);
+        clearInterval(timer);
         onLive();
         return;
       }
-
       setTimeLeft({
-        d: Math.floor(diff / 86400000),
-        h: Math.floor((diff % 86400000) / 3600000),
-        m: Math.floor((diff % 3600000) / 60000),
-        s: Math.floor((diff % 60000) / 1000),
+        d: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        h: Math.floor((diff / (1000 * 60 * 60)) % 24),
+        m: Math.floor((diff / 1000 / 60) % 60),
+        s: Math.floor((diff / 1000) % 60),
       });
-    };
-
-    update();
-    const timer = setInterval(update, 1000);
+    }, 1000);
     return () => clearInterval(timer);
   }, [drop.scheduled_at, onLive]);
 
   if (!timeLeft) return null;
 
   return (
-    <section className={sfStyles.dropSection}>
-      <h2 className={sfStyles.dropLabel}>{drop.label}</h2>
-      <div className={sfStyles.countdown}>
-        <div className={sfStyles.countdownBlock}>
-          <span className={sfStyles.countdownNum}>{String(timeLeft.d).padStart(2, '0')}</span>
-          <span className={sfStyles.countdownUnit}>days</span>
-        </div>
-        <div className={sfStyles.countdownBlock}>
-          <span className={sfStyles.countdownNum}>{String(timeLeft.h).padStart(2, '0')}</span>
-          <span className={sfStyles.countdownUnit}>hrs</span>
-        </div>
-        <div className={sfStyles.countdownBlock}>
-          <span className={sfStyles.countdownNum}>{String(timeLeft.m).padStart(2, '0')}</span>
-          <span className={sfStyles.countdownUnit}>min</span>
-        </div>
-        <div className={sfStyles.countdownBlock}>
-          <span className={sfStyles.countdownNum}>{String(timeLeft.s).padStart(2, '0')}</span>
-          <span className={sfStyles.countdownUnit}>sec</span>
-        </div>
+    <div className={sfStyles.dropCountdownSection}>
+      <p className={sfStyles.dropLabel}>Next Drop Arrives In</p>
+      <div className={sfStyles.countdownGrid}>
+        <div className={sfStyles.countItem}><span className={sfStyles.countNum}>{timeLeft.d}</span><span className={sfStyles.countUnit}>Days</span></div>
+        <div className={sfStyles.countItem}><span className={sfStyles.countNum}>{timeLeft.h}</span><span className={sfStyles.countUnit}>Hrs</span></div>
+        <div className={sfStyles.countItem}><span className={sfStyles.countNum}>{timeLeft.m}</span><span className={sfStyles.countUnit}>Min</span></div>
+        <div className={sfStyles.countItem}><span className={sfStyles.countNum}>{timeLeft.s}</span><span className={sfStyles.countUnit}>Sec</span></div>
       </div>
-
-      <div className={sfStyles.notifyForm}>
-        {onList ? (
-          <p className={sfStyles.onListMessage}>✓ You're on the list</p>
-        ) : (
-          <>
-            <input
-              type="email"
-              placeholder="Email address"
-              className={sfStyles.notifyInput}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <button
-              className={sfStyles.notifyBtn}
-              onClick={() => {
-                if (email) {
-                  setOnList(true);
-                  addToast("You're on the list");
-                }
-              }}
-            >
-              Notify me
-            </button>
-          </>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// ─── Window Status & Menu (Vendor) ───────────────────────────────────────────
-
-function WindowStatusBanner({
-  activeWindow,
-  nextWindow,
-  dormantMessage,
-}: {
-  activeWindow: AvailabilityWindow | null;
-  nextWindow: AvailabilityWindow | null;
-  dormantMessage?: string | null;
-}) {
-  const state: 'open' | 'closed' | 'dormant' =
-    activeWindow ? 'open' : nextWindow ? 'closed' : 'dormant';
-
-  const statusClass =
-    state === 'open' ? sfStyles.windowOpen :
-    state === 'closed' ? sfStyles.windowClosed :
-    sfStyles.windowDormant;
-
-  return (
-    <div className={`${sfStyles.windowBanner} ${statusClass}`}>
-      <span className={sfStyles.windowStatus}>
-        ● {state.toUpperCase()}
-      </span>
-      {state === 'open' && activeWindow && (
-        <p className={sfStyles.windowSub}>
-          Closes {formatDate(activeWindow.closes_at, 'relative')}
-        </p>
-      )}
-      {state === 'closed' && nextWindow && (
-        <>
-          <p className={sfStyles.windowSub}>
-            Next window: {formatDate(nextWindow.opens_at, 'long')}
-          </p>
-          <p className={sfStyles.windowMessage}>Place your pre-order when we open</p>
-        </>
-      )}
-      {state === 'dormant' && (
-        <>
-          <p className={sfStyles.windowMessage}>
-            {dormantMessage ?? 'No window scheduled'}
-          </p>
-          <p className={sfStyles.windowSub}>Follow us for updates</p>
-        </>
-      )}
+      
+      <NotifyMeForm merchant={merchant} context="drop" label="Email for drop alert" />
     </div>
   );
 }
 
+// ─── Window Status Banner (Vendor) ──────────────────────────────────────────
+
+function WindowStatusBanner({ 
+  activeWindow, 
+  nextWindow, 
+  dormantMessage,
+  merchant
+}: { 
+  activeWindow: AvailabilityWindow | null;
+  nextWindow: AvailabilityWindow | null;
+  dormantMessage: string | null;
+  merchant: Merchant;
+}) {
+  if (activeWindow) {
+    return (
+      <div className={`${sfStyles.windowBanner} ${sfStyles.windowOpen}`}>
+        <div className={sfStyles.windowStatus}>
+          <span className={sfStyles.pulseDot} />
+          ORDERING OPEN
+        </div>
+        <p className={sfStyles.windowSub}>Window closes {formatDate(activeWindow.closes_at, 'relative')}</p>
+      </div>
+    );
+  }
+
+  if (nextWindow) {
+    return (
+      <div className={`${sfStyles.windowBanner} ${sfStyles.windowClosed}`}>
+        <div className={sfStyles.windowStatus}>WINDOW CLOSED</div>
+        <p className={sfStyles.windowSub}>Next window opens {formatDate(nextWindow.opens_at, 'long')}</p>
+        <div className={sfStyles.windowNotify}>
+          <NotifyMeForm merchant={merchant} context="window" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${sfStyles.windowBanner} ${sfStyles.windowDormant}`}>
+      <div className={sfStyles.windowStatus}>DORMANT</div>
+      <p className={sfStyles.windowMessage}>{dormantMessage ?? 'We are not currently accepting orders.'}</p>
+      <div className={sfStyles.windowNotify}>
+        <NotifyMeForm merchant={merchant} context="window" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Menu Display (Vendor) ──────────────────────────────────────────────────
+
 function MenuDisplay({
   products,
   merchant,
+  windowState,
 }: {
   products: Product[];
   merchant: Merchant;
+  windowState: 'open' | 'closed' | 'dormant';
 }) {
+  const { add, has } = useBasketStore();
   const categories = useMemo(() => {
     const map: Record<string, Product[]> = {};
     products.forEach((p) => {
@@ -759,7 +662,16 @@ function MenuDisplay({
     return map;
   }, [products]);
 
-  const whatsappLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
+  const handleBag = (e: React.MouseEvent, item: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    add({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      image: item.images[0] ?? `https://picsum.photos/seed/${item.id}/100/100`,
+    }, merchant.id);
+  };
 
   return (
     <div className={sfStyles.menuDisplay}>
@@ -769,36 +681,55 @@ function MenuDisplay({
             {cat} ({items.length})
           </h3>
           <div className={sfStyles.menuItems}>
-            {items.map((item) => (
-              <div key={item.id} className={sfStyles.menuItem}>
-                <div className={sfStyles.menuItemMain}>
-                  <p className={sfStyles.menuItemName}>{item.name}</p>
-                  {item.description && (
-                    <p className={sfStyles.menuItemDesc}>
-                      {truncate(item.description, 60)}
+            {items.map((item) => {
+              const inBag = has(item.id);
+              const isAvailable = windowState === 'open';
+
+              return (
+                <Link 
+                  key={item.id} 
+                  to={`/store/${merchant.handle}/item/${item.id}`} 
+                  className={sfStyles.menuItem}
+                >
+                  <img 
+                    src={item.images[0] ?? `https://picsum.photos/seed/${item.id}/100/100`} 
+                    alt="" 
+                    className={sfStyles.menuItemThumb} 
+                  />
+                  <div className={sfStyles.menuItemMain}>
+                    <p className={sfStyles.menuItemName}>{item.name}</p>
+                    {item.description && (
+                      <p className={sfStyles.menuItemDesc}>
+                        {truncate(item.description, 60)}
+                      </p>
+                    )}
+                    {item.stock_level !== null && (
+                      <span className={sfStyles.menuItemCap}>
+                        [{item.stock_level} left]
+                      </span>
+                    )}
+                  </div>
+                  <div className={sfStyles.menuItemRight}>
+                    <p className={sfStyles.menuItemPrice}>
+                      {formatCurrencyFull(item.price)}
                     </p>
-                  )}
-                  <p className={sfStyles.menuItemPrice}>
-                    {formatCurrencyFull(item.price)}
-                  </p>
-                </div>
-                <div className={sfStyles.menuItemActions}>
-                  {item.stock_level !== null && (
-                    <span className={sfStyles.menuItemCap}>
-                      [{item.stock_level} left]
-                    </span>
-                  )}
-                  <a
-                    href={whatsappLink}
-                    className={sfStyles.menuItemCta}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Pre-order
-                  </a>
-                </div>
-              </div>
-            ))}
+                    <div className={sfStyles.menuItemActions}>
+                      {isAvailable ? (
+                        <button
+                          className={`${sfStyles.menuBagBtn} ${inBag ? sfStyles.menuBagBtnAdded : ''}`}
+                          onClick={(e) => handleBag(e, item)}
+                          aria-label={inBag ? 'In bag' : 'Add to bag'}
+                        >
+                          {inBag ? <Check size={14} /> : <Plus size={14} />}
+                        </button>
+                      ) : (
+                        <span className={sfStyles.nextWindowLabel}>Next window</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -806,130 +737,69 @@ function MenuDisplay({
   );
 }
 
-// ─── Lightbox Component ─────────────────────────────────────────────────────
-
-function Lightbox({ 
-  images, 
-  index, 
-  onClose, 
-  onPrev, 
-  onNext,
-  captions
-}: { 
-  images: string[]; 
-  index: number; 
-  onClose: () => void;
-  onPrev: () => void;
-  onNext: () => void;
-  captions?: string[];
-}) {
-  return (
-    <m.div 
-      className={sfStyles.lightbox}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <button className={sfStyles.lightboxClose} onClick={onClose}><X size={24} /></button>
-      <div className={sfStyles.lightboxContent} onClick={e => e.stopPropagation()}>
-        <m.img 
-          key={index}
-          src={images[index]} 
-          className={sfStyles.lightboxImage} 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-        />
-        {captions?.[index] && <p className={sfStyles.lightboxCaption}>{captions[index]}</p>}
-      </div>
-      {images.length > 1 && (
-        <div className={sfStyles.lightboxNav}>
-          <button onClick={onPrev}><ChevronLeft size={32} /></button>
-          <button onClick={onNext}><ChevronRight size={32} /></button>
-        </div>
-      )}
-    </m.div>
-  );
-}
-
-// ─── Portfolio Gallery ───────────────────────────────────────────────────────
+// ─── Portfolio Gallery (Studio / Host) ──────────────────────────────────────
 
 function PortfolioGallery({ 
   images, 
-  captions,
+  captions, 
   groups 
 }: { 
-  images: string[]; 
-  captions?: string[];
-  groups?: { label: string; range: [number, number] }[];
+  images: string[], 
+  captions?: string[],
+  groups?: { label: string, range: [number, number] }[]
 }) {
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-
-  const openLightbox = (idx: number) => setLightboxIndex(idx);
-  const closeLightbox = () => setLightboxIndex(null);
-  const next = () => setLightboxIndex(i => (i! + 1) % images.length);
-  const prev = () => setLightboxIndex(i => (i! - 1 + images.length) % images.length);
+  const [activeGroup, setActiveGroup] = useState<number | null>(groups ? 0 : null);
+  
+  const displayImages = useMemo(() => {
+    if (activeGroup === null || !groups) return images;
+    const [start, end] = groups[activeGroup].range;
+    return images.slice(start, end);
+  }, [images, activeGroup, groups]);
 
   return (
     <section className={sfStyles.portfolioSection}>
       <h2 className={sfStyles.sectionTitle}>Portfolio</h2>
       
-      {groups ? (
-        <div className={sfStyles.portfolioGroups}>
-          {groups.map((group) => (
-            <div key={group.label} className={sfStyles.portfolioGroup}>
-              <h3 className={sfStyles.portfolioGroupLabel}>{group.label}</h3>
-              <div className={sfStyles.portfolioGrid}>
-                {images.slice(group.range[0], group.range[1]).map((img, i) => {
-                  const actualIdx = group.range[0] + i;
-                  return (
-                    <div 
-                      key={actualIdx} 
-                      className={sfStyles.portfolioImageWrap}
-                      onClick={() => openLightbox(actualIdx)}
-                    >
-                      <img src={img} alt="" loading="lazy" className={sfStyles.portfolioImage} />
-                      {captions?.[actualIdx] && <p className={sfStyles.portfolioCaption}>{captions[actualIdx]}</p>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className={sfStyles.portfolioGrid}>
-          {images.map((img, i) => (
-            <div 
+      {groups && (
+        <div className={sfStyles.portfolioTabs}>
+          {groups.map((g, i) => (
+            <button 
               key={i} 
-              className={sfStyles.portfolioImageWrap}
-              onClick={() => openLightbox(i)}
+              className={`${sfStyles.portfolioTab} ${activeGroup === i ? sfStyles.portfolioTabActive : ''}`}
+              onClick={() => setActiveGroup(i)}
             >
-              <img src={img} alt="" loading="lazy" className={sfStyles.portfolioImage} />
-            </div>
+              {g.label}
+            </button>
           ))}
         </div>
       )}
 
-      <AnimatePresence>
-        {lightboxIndex !== null && (
-          <Lightbox 
-            images={images} 
-            index={lightboxIndex} 
-            onClose={closeLightbox} 
-            onNext={next} 
-            onPrev={prev}
-            captions={captions}
-          />
-        )}
-      </AnimatePresence>
+      <div className={sfStyles.portfolioGrid}>
+        {displayImages.map((img, i) => (
+          <div key={i} className={sfStyles.portfolioItem}>
+            <img src={img} alt="" loading="lazy" />
+            {captions && captions[i] && (
+              <div className={sfStyles.portfolioOverlay}>
+                <p>{captions[i]}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
 
 // ─── Calendar Preview (Host) ────────────────────────────────────────────────
 
-function CalendarPreview({ merchantId, handle }: { merchantId: string, handle: string }) {
+function CalendarPreview({ 
+  merchantId, 
+  onBookSlot 
+}: { 
+  merchantId: string; 
+  handle: string;
+  onBookSlot: (date: string, time: string) => void;
+}) {
   const availableDays = useMemo(() => getAvailableDays(merchantId), [merchantId]);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const todayStr = new Date().toISOString().split('T')[0];
@@ -945,30 +815,30 @@ function CalendarPreview({ merchantId, handle }: { merchantId: string, handle: s
     return arr;
   }, []);
 
-  const bookedSlots = useMemo(() => {
-    if (!selectedDay) return [];
-    return FIXTURE_BOOKINGS
-      .filter(b => b.merchant_id === merchantId && b.scheduled_at.startsWith(selectedDay) && b.status !== 'cancelled')
-      .map(b => new Date(b.scheduled_at).getHours());
-  }, [selectedDay, merchantId]);
-
-  const timeSlots = [9, 11, 13, 15];
+  const timeSlots = useMemo(() => {
+    const slots = [];
+    for (let h = WORKING_HOURS.start; h < WORKING_HOURS.end; h++) {
+      slots.push({ h, m: 0 });
+      slots.push({ h, m: 30 });
+    }
+    return slots;
+  }, []);
 
   return (
     <section className={sfStyles.calendarSection}>
       <h2 className={sfStyles.sectionTitle}>Availability</h2>
       <div className={sfStyles.calendar}>
         <div className={sfStyles.calendarHeader}>
-          {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => <span key={d}>{d}</span>)}
+          {['M','T','W','T','F','S','S'].map((d, i) => <span key={i}>{d}</span>)}
         </div>
         <div className={sfStyles.calendarGrid}>
-          {days.map(d => {
+          {days.map((d, i) => {
             const dateStr = d.toISOString().split('T')[0];
             const isAvailable = availableDays.has(dateStr);
             const isToday = dateStr === todayStr;
             return (
               <div 
-                key={dateStr} 
+                key={i} 
                 className={`${sfStyles.calendarDay} ${isAvailable ? sfStyles.calendarDayAvailable : ''} ${isToday ? sfStyles.calendarToday : ''}`}
                 onClick={() => isAvailable && setSelectedDay(dateStr)}
               >
@@ -984,15 +854,27 @@ function CalendarPreview({ merchantId, handle }: { merchantId: string, handle: s
         <div className={sfStyles.slotDrawer}>
           <p className={sfStyles.slotDrawerInfo}>Select a time to proceed with booking.</p>
           <div className={sfStyles.slotList}>
-            {timeSlots.map(h => {
-              const isBooked = bookedSlots.includes(h);
+            {timeSlots.map(({ h, m }) => {
+              const isAvailable = selectedDay ? isSlotAvailable(selectedDay, h, m, 60, merchantId) : false;
+              const timeLabel = h >= 12 
+                ? `${h === 12 ? 12 : h - 12}:${String(m).padStart(2, '0')} pm` 
+                : `${h}:${String(m).padStart(2, '0')} am`;
+
               return (
-                <div key={h} className={sfStyles.slotItem}>
-                  <span className={sfStyles.slotTime}>{h > 12 ? `${h-12}pm` : `${h}am`}</span>
-                  {isBooked ? (
-                    <span className={sfStyles.slotStatusBooked}>● Booked</span>
+                <div key={`${h}-${m}`} className={sfStyles.slotItem}>
+                  <span className={sfStyles.slotTime}>{timeLabel}</span>
+                  {isAvailable ? (
+                    <button 
+                      onClick={() => {
+                        onBookSlot(selectedDay!, timeLabel);
+                        setSelectedDay(null);
+                      }} 
+                      className={sfStyles.slotBookBtn}
+                    >
+                      Book →
+                    </button>
                   ) : (
-                    <Link to={`/store/${handle}/book`} className={sfStyles.slotBookBtn}>Book →</Link>
+                    <span className={sfStyles.slotStatusBooked}>● Booked</span>
                   )}
                 </div>
               );
@@ -1006,8 +888,29 @@ function CalendarPreview({ merchantId, handle }: { merchantId: string, handle: s
 
 // ─── Enquiry Form (Studio) ──────────────────────────────────────────────────
 
-function EnquiryForm({ storeName, responseTime }: { storeName: string, responseTime: number | null }) {
-  const [form, setForm] = useState({ client_name: '', company: '', project_type: '', budget_range: '', timeline: '', message: '' });
+function EnquiryForm({ 
+  storeName, 
+  responseTime,
+  initialProjectType
+}: { 
+  storeName: string; 
+  responseTime: number | null;
+  initialProjectType?: string;
+}) {
+  const [form, setForm] = useState({ 
+    client_name: '', 
+    company: '', 
+    project_type: initialProjectType || '', 
+    budget_range: '', 
+    timeline: '', 
+    message: '' 
+  });
+
+  useEffect(() => {
+    if (initialProjectType) {
+      setForm(f => ({ ...f, project_type: initialProjectType }));
+    }
+  }, [initialProjectType]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
 
@@ -1085,13 +988,26 @@ function EnquiryForm({ storeName, responseTime }: { storeName: string, responseT
 }
 
 function DigitalProductCard({
-  product, handle, cardStyle
+  product, handle, merchantId, cardStyle
 }: {
-  product: Product; handle: string; cardStyle: CardStyle;
+  product: Product; handle: string; merchantId: string; cardStyle: CardStyle;
 }) {
+  const { add, has } = useBasketStore();
+  const inBag = has(product.id);
   const fileType = getFileTypeBadge(product);
   const isFree = product.is_free;
   const [expanded, setExpanded] = useState(false);
+
+  const handleBag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    add({
+      id: product.id,
+      name: product.name,
+      price: isFree ? 0 : product.price,
+      image: product.images[0] ?? `https://picsum.photos/seed/${product.id}/400/500`,
+    }, merchantId);
+  };
 
   return (
     <m.div variants={staggerChild} className={sfStyles.digitalCard}>
@@ -1104,6 +1020,13 @@ function DigitalProductCard({
           <img src={product.images[0] ?? `https://picsum.photos/seed/${product.id}/400/500`} alt={product.name} loading="lazy" />
           {fileType && <span className={sfStyles.fileTypeBadge}>{fileType}</span>}
           {isFree && <span className={sfStyles.freeBadge}>FREE</span>}
+          <button
+            className={`${sfStyles.digitalBagBtn} ${inBag ? sfStyles.digitalBagAdded : ''}`}
+            onClick={handleBag}
+            aria-label={inBag ? 'In bag' : 'Add to bag'}
+          >
+            {inBag ? <Check size={12} /> : <Plus size={12} />}
+          </button>
         </div>
         <div className="sf-card-body">
           <h3 className="sf-card-name">{product.name}</h3>
@@ -1147,28 +1070,117 @@ function DigitalProductCard({
   );
 }
 
+function RecentlyBrowsedShelf({ 
+  handle, 
+  cardStyle,
+  currentProducts 
+}: { 
+  handle: string; 
+  cardStyle: CardStyle;
+  currentProducts: Product[];
+}) {
+  const [recent, setRecent] = useState<any[]>([]);
+
+  useEffect(() => {
+    const key = `trovea_recent_${handle}`;
+    const now = Date.now();
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    
+    // Filter last 24h only and exclude those currently visible in main grid (optional but cleaner)
+    const filtered = list.filter((i: any) => 
+      (now - i.timestamp < 86400000) && !currentProducts.some(p => p.id === i.id)
+    );
+    setRecent(filtered);
+  }, [handle, currentProducts]);
+
+  const handleClear = () => {
+    localStorage.removeItem(`trovea_recent_${handle}`);
+    setRecent([]);
+  };
+
+  if (recent.length < 2) return null;
+
+  return (
+    <section className={sfStyles.recentShelfSection}>
+      <div className={sfStyles.recentShelfHeader}>
+        <h2 className={sfStyles.sectionTitle}>Recently viewed</h2>
+        <button className={sfStyles.recentClearBtn} onClick={handleClear}>Clear</button>
+      </div>
+      <div className={`${sfStyles.recentShelf} scrollbar-hide`}>
+        <m.div 
+          className={sfStyles.recentShelfInner}
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+        >
+          {recent.map(item => (
+            <div key={item.id} className={sfStyles.recentCardWrap}>
+              <MiniCard 
+                product={{
+                  ...item,
+                  status: 'live', // Simplified for recent shelf
+                  images: [item.image]
+                }} 
+                handle={handle} 
+                cardStyle={cardStyle} 
+              />
+            </div>
+          ))}
+        </m.div>
+      </div>
+    </section>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function StorefrontPage() {
   const { handle } = useParams<{ handle: string }>();
+  const [searchParams] = useSearchParams();
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
-  const [holds] = useState<HoldRequest[]>(FIXTURE_HOLDS);
   const [reportOpen, setReportOpen] = useState(false);
+  const [digitalCheckoutOpen, setDigitalCheckoutOpen] = useState(false);
   const [devPaused, setDevPaused] = useState(false);
+  const [following, setFollowing] = useState(false);
+
+  // Phase 3G: Initial follow state
+  useEffect(() => {
+    const follows = JSON.parse(localStorage.getItem('trovea_follows') || '[]');
+    if (follows.some((f: any) => f.handle === handle)) {
+      setFollowing(true);
+    }
+  }, [handle]);
+
+  const handleFollow = () => {
+    const follows = JSON.parse(localStorage.getItem('trovea_follows') || '[]');
+    if (!following) {
+      const newFollows = [...follows, { handle, timestamp: new Date().toISOString() }];
+      localStorage.setItem('trovea_follows', JSON.stringify(newFollows));
+      setFollowing(true);
+      
+      const msg = `Hi ${merchant.store_name}! I'd love to be notified about new drops and restocks 📲`;
+      const clean = merchant.whatsapp.replace(/[^0-9]/g, '');
+      window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank');
+      addToast(`Following ${merchant.store_name}`, 'success');
+    } else {
+      const newFollows = follows.filter((f: any) => f.handle !== handle);
+      localStorage.setItem('trovea_follows', JSON.stringify(newFollows));
+      setFollowing(false);
+      addToast('Unfollowed', 'info');
+    }
+  };
 
   // Part 2 — Host Slot Picker State
   const [slotDrawerOpen, setSlotDrawerOpen] = useState(false);
   const [slotDrawerService, setSlotDrawerService] = useState<Product | null>(null);
-  const [slotStep, setSlotStep] = useState<'date' | 'time' | 'confirm'>('date');
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [bookingForm, setBookingForm] = useState({ name: '', phone: '' });
+  const [slotDrawerPreselected, setSlotDrawerPreselected] = useState<{ date?: string; time?: string }>({});
 
   // Derive merchant and products based on handle
   const { merchant, products } = useMemo(() => {
     if (handle === 'chisombeauty') return { merchant: FIXTURE_HOST_MERCHANT, products: FIXTURE_HOST_PRODUCTS };
     if (handle === 'femicreates') return { merchant: FIXTURE_DIGITAL_MERCHANT, products: FIXTURE_DIGITAL_PRODUCTS };
     if (handle === 'ngozistudio') return { merchant: FIXTURE_STUDIO_MERCHANT, products: FIXTURE_STUDIO_PRODUCTS };
+    if (handle === 'tobieats') return { merchant: FIXTURE_VENDOR_MERCHANT, products: FIXTURE_VENDOR_PRODUCTS };
     return { merchant: FIXTURE_MERCHANT, products: FIXTURE_PRODUCTS };
   }, [handle]);
 
@@ -1180,9 +1192,39 @@ export default function StorefrontPage() {
 
   const storeType   = merchant.store_type;
   const bagEligible = ['collector', 'vendor', 'digital_creator'].includes(storeType);
-  const isPaused    = devPaused || merchant.is_paused;
 
   const { addToast } = useUIStore();
+  const { items: basketItems, clear: clearBasket, clearIfDifferentStore } = useBasketStore();
+
+  // ─── Vendor: Window Logic ───
+  const activeWindow = useMemo<AvailabilityWindow | null>(() => {
+    if (storeType !== 'vendor') return null;
+    return FIXTURE_WINDOWS.find(
+      (w) => w.merchant_id === merchant.id && w.status === 'open',
+    ) ?? null;
+  }, [storeType, merchant.id]);
+
+  const nextWindow = useMemo(() => {
+    if (storeType !== 'vendor') return null;
+    return FIXTURE_WINDOWS
+      .filter(w => w.merchant_id === merchant.id && w.status === 'upcoming')
+      .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())[0] ?? null;
+  }, [storeType, merchant.id]);
+
+  const windowState = useMemo(() => {
+    if (activeWindow) return 'open';
+    if (nextWindow) return 'closed';
+    return 'dormant';
+  }, [activeWindow, nextWindow]);
+
+  const isPaused = merchant.is_paused || devPaused || (storeType === 'vendor' && windowState !== 'open');
+
+  // Phase 3B: Clear bag if different store
+  useEffect(() => {
+    if (merchant.id) {
+      clearIfDifferentStore(merchant.id);
+    }
+  }, [merchant.id, clearIfDifferentStore]);
 
   // ─── Collector: Drop Logic ───
   const activeDrop = useMemo(() => {
@@ -1208,27 +1250,6 @@ export default function StorefrontPage() {
     setDropState(isLive ? 'live' : 'pre');
   }, [activeDrop]);
 
-  // ─── Vendor: Window Logic ───
-  const activeWindow = useMemo<AvailabilityWindow | null>(() => {
-    if (storeType !== 'vendor') return null;
-    return FIXTURE_WINDOWS.find(
-      (w) => w.merchant_id === merchant.id && w.status === 'open',
-    ) ?? null;
-  }, [storeType, merchant.id]);
-
-  const nextWindow = useMemo(() => {
-    if (storeType !== 'vendor') return null;
-    return FIXTURE_WINDOWS
-      .filter(w => w.merchant_id === merchant.id && w.status === 'upcoming')
-      .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())[0] ?? null;
-  }, [storeType, merchant.id]);
-
-  const windowState = useMemo(() => {
-    if (activeWindow) return 'open';
-    if (nextWindow) return 'closed';
-    return 'dormant';
-  }, [activeWindow, nextWindow]);
-
   const weekSlotCount = useMemo(() => {
     if (storeType !== 'host') return 0;
     const now     = Date.now();
@@ -1247,9 +1268,10 @@ export default function StorefrontPage() {
     return getNextAvailableDate(merchant.id);
   }, [storeType, merchant.id]);
 
+  const { holds } = useHoldStore();
   const isOnHold = useCallback(
     (productId: string) =>
-      holds.some((h) => h.product_id === productId && h.status === 'active'),
+      holds.some((h: HoldRequest) => h.product_id === productId && h.status === 'active'),
     [holds],
   );
 
@@ -1288,40 +1310,9 @@ export default function StorefrontPage() {
   // Host Slot Picker Helpers
   const openSlotPicker = (product: Product) => {
     setSlotDrawerService(product);
-    setSlotStep('date');
-    setSelectedDate(null);
-    setSelectedTime(null);
+    setSlotDrawerPreselected({});
     setSlotDrawerOpen(true);
   };
-
-  const handleBookingRequest = () => {
-    if (!bookingForm.name || !bookingForm.phone) {
-      addToast('Please provide your name and phone', 'error');
-      return;
-    }
-    setSlotDrawerOpen(false);
-    addToast(`${merchant.store_name} will confirm your booking shortly`, 'success');
-  };
-
-  const availableDays = useMemo(() => getAvailableDays(merchant.id), [merchant.id]);
-  const calendarDays = useMemo(() => {
-    const arr = [];
-    const start = new Date();
-    for (let i = 0; i < 28; i++) { // 4 weeks
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      arr.push(d);
-    }
-    return arr;
-  }, []);
-
-  const timeSlots = [9, 11, 13, 15];
-  const bookedSlots = useMemo(() => {
-    if (!selectedDate) return [];
-    return FIXTURE_BOOKINGS
-      .filter(b => b.merchant_id === merchant.id && b.scheduled_at.startsWith(selectedDate) && b.status !== 'cancelled')
-      .map(b => new Date(b.scheduled_at).getHours());
-  }, [selectedDate, merchant.id]);
 
   if (!merchant.store_open) {
     return (
@@ -1330,6 +1321,8 @@ export default function StorefrontPage() {
         data-layout={layout}
         data-palette={paletteId}
         data-dark={isDark}
+        data-shape={cfg.shape ?? 'form'}
+        data-motion={cfg.motion ?? 'precise'}
       >
         <ClosedInterstitial merchant={merchant} />
       </div>
@@ -1352,7 +1345,19 @@ export default function StorefrontPage() {
           {storeType === 'host' && (
             <div className={sfStyles.availabilitySignal}>
               <Calendar size={12} />
-              {nextAvailableDate ? `Next available: ${nextAvailableDate}` : 'Fully booked — check back soon'}
+              {nextAvailableDate 
+                ? `Next available: ${nextAvailableDate}` 
+                : (
+                  <div className={sfStyles.fullyBookedWrap}>
+                    <span>Fully booked — check back soon</span>
+                    <NotifyMeForm 
+                      merchant={merchant} 
+                      context="waitlist" 
+                      label="Join the waitlist for next month." 
+                    />
+                  </div>
+                )
+              }
             </div>
           )}
           {storeType === 'studio' && merchant.response_time_hours && (
@@ -1396,7 +1401,7 @@ export default function StorefrontPage() {
         <>
           {/* Drop Countdown */}
           {dropState === 'pre' && activeDrop && (
-            <DropCountdown drop={activeDrop} onLive={() => setDropState('live')} />
+            <DropCountdown drop={activeDrop} merchant={merchant} onLive={() => setDropState('live')} />
           )}
           {dropState === 'live' && activeDrop && (
             <div className={sfStyles.dropLiveBanner}>
@@ -1455,16 +1460,25 @@ export default function StorefrontPage() {
                     key={p.id}
                     product={p}
                     handle={handle ?? merchant.handle}
+                    merchantId={merchant.id}
                     cardStyle={cardStyle}
                     bagEligible={bagEligible}
                     urgencySignal={getUrgencySignal(p, storeType, activeWindow, weekSlotCount)}
                     isOnHold={isOnHold(p.id)}
                     isPaused={isPaused}
+                    dropState={dropState}
                   />
                 ))}
               </m.div>
             </section>
           )}
+
+          {/* Recently Viewed (Phase 3G) */}
+          <RecentlyBrowsedShelf 
+            handle={handle ?? merchant.handle} 
+            cardStyle={cardStyle} 
+            currentProducts={displayProducts} 
+          />
 
           {/* Product Grid */}
           <section className={sfStyles.gridSection}>
@@ -1502,11 +1516,13 @@ export default function StorefrontPage() {
                     key={p.id}
                     product={p}
                     handle={handle ?? merchant.handle}
+                    merchantId={merchant.id}
                     cardStyle={cardStyle}
                     bagEligible={bagEligible}
                     urgencySignal={getUrgencySignal(p, storeType, activeWindow, weekSlotCount)}
                     isOnHold={isOnHold(p.id)}
                     isPaused={isPaused}
+                    dropState={dropState}
                   />
                 ))}
               </m.div>
@@ -1522,9 +1538,32 @@ export default function StorefrontPage() {
             activeWindow={activeWindow}
             nextWindow={nextWindow}
             dormantMessage={merchant.store_config.store_type_config.dormant_message}
+            merchant={merchant}
           />
-          {windowState === 'open' && (
-            <MenuDisplay products={liveProducts} merchant={merchant} />
+
+          {windowState === 'closed' && nextWindow && (
+            <div className={sfStyles.preOrderChipRow}>
+              <div className={sfStyles.preOrderChip}>
+                <Clock size={12} />
+                Pre-orders open {formatDate(nextWindow.opens_at, 'long')}
+              </div>
+            </div>
+          )}
+          
+          <MenuDisplay products={liveProducts} merchant={merchant} windowState={windowState} />
+
+          {windowState !== 'open' && (
+            <div className={sfStyles.vendorNotifySection}>
+              <a 
+                href={buildVendorNotifyLink(merchant.whatsapp, merchant.store_name)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={sfStyles.vendorNotifyLink}
+              >
+                <MessageCircle size={14} />
+                Remind me on WhatsApp when open
+              </a>
+            </div>
           )}
         </>
       )}
@@ -1537,25 +1576,50 @@ export default function StorefrontPage() {
             <h2 className={sfStyles.sectionTitle}>Services</h2>
             <div className={sfStyles.serviceGrid}>
               {liveProducts.map(p => (
-                <div key={p.id} className={sfStyles.serviceCard}>
-                  <h3 className={sfStyles.serviceName}>{p.name}</h3>
-                  <div className={sfStyles.serviceMeta}>
-                    {p.duration && <span>{p.duration} min</span>}
-                    {p.duration && <span> · </span>}
-                    <span>{formatCurrencyFull(p.price)}</span>
-                    {p.deposit_required && <span> · </span>}
-                    {p.deposit_required && <span>{formatCurrencyFull(p.deposit_amount || 0)} deposit required</span>}
+                <Link key={p.id} to={`/store/${handle}/item/${p.id}`} className={sfStyles.serviceCard}>
+                  <div className={sfStyles.serviceCardMain}>
+                    <img 
+                      src={p.images[0] ?? `https://picsum.photos/seed/${p.id}/160/160`} 
+                      alt="" 
+                      className={sfStyles.serviceCardThumb} 
+                    />
+                    <div className={sfStyles.serviceInfo}>
+                      <h3 className={sfStyles.serviceName}>{p.name}</h3>
+                      <div className={sfStyles.serviceMeta}>
+                        {p.duration && <span>{p.duration} min</span>}
+                        {p.duration && <span> · </span>}
+                        {p.deposit_required && <span>{formatCurrencyFull(p.deposit_amount || 0)} deposit</span>}
+                      </div>
+                    </div>
                   </div>
-                  <button onClick={() => openSlotPicker(p)} className={sfStyles.serviceBookBtn}>
-                    Book a Slot →
-                  </button>
-                </div>
+                  <div className={sfStyles.serviceCardRight}>
+                    <span className={sfStyles.servicePrice}>{formatCurrencyFull(p.price)}</span>
+                    <button 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openSlotPicker(p);
+                      }} 
+                      className={sfStyles.serviceBookBtn}
+                    >
+                      Book a Slot
+                    </button>
+                  </div>
+                </Link>
               ))}
             </div>
           </section>
 
           {/* Calendar Preview */}
-          <CalendarPreview merchantId={merchant.id} handle={handle || merchant.handle} />
+          <CalendarPreview 
+            merchantId={merchant.id} 
+            handle={handle || merchant.handle} 
+            onBookSlot={(date, time) => {
+              setSlotDrawerService(liveProducts[0]);
+              setSlotDrawerPreselected({ date, time });
+              setSlotDrawerOpen(true);
+            }}
+          />
 
           {/* Portfolio Gallery */}
           {merchant.portfolio_images.length > 0 && (
@@ -1573,7 +1637,7 @@ export default function StorefrontPage() {
               <p className={sfStyles.sectionTitle}>Featured Tools</p>
               <div className={sfStyles.digitalCatalogue}>
                 {featuredProducts.map(p => (
-                  <DigitalProductCard key={p.id} product={p} handle={handle || merchant.handle} cardStyle={cardStyle} />
+                  <DigitalProductCard key={p.id} product={p} handle={handle || merchant.handle} merchantId={merchant.id} cardStyle={cardStyle} />
                 ))}
               </div>
             </section>
@@ -1584,7 +1648,7 @@ export default function StorefrontPage() {
             <h2 className={sfStyles.gridSectionTitle}>Digital Catalogue</h2>
             <div className={sfStyles.digitalCatalogue}>
               {liveProducts.map(p => (
-                <DigitalProductCard key={p.id} product={p} handle={handle || merchant.handle} cardStyle={cardStyle} />
+                <DigitalProductCard key={p.id} product={p} handle={handle || merchant.handle} merchantId={merchant.id} cardStyle={cardStyle} />
               ))}
             </div>
           </section>
@@ -1616,38 +1680,35 @@ export default function StorefrontPage() {
             <h2 className={sfStyles.sectionTitle}>Service Packages</h2>
             <div className={sfStyles.packageGrid}>
               {liveProducts.filter(p => p.product_type === 'package').map(p => (
-                <div key={p.id} className={sfStyles.packageCard}>
+                <Link key={p.id} to={`/store/${handle}/item/${p.id}`} className={sfStyles.packageCard}>
                   <h3 className={sfStyles.packageName}>{p.name}</h3>
                   <div className={sfStyles.packageMeta}>
                     {p.price_type === 'custom' ? 'Custom Quote' : `From ${formatCurrencyFull(p.price)}`}
                     {p.deposit_pct && ` · ${p.deposit_pct}% deposit`}
                     {p.timeline_estimate && ` · ${p.timeline_estimate}`}
                   </div>
-                  {p.scope_description && <p className={sfStyles.packageScope}>{p.scope_description}</p>}
-                  {p.deliverables && (
-                    <div className={sfStyles.packageDeliverables}>
-                      <strong>Deliverables:</strong>
-                      <p>{p.deliverables}</p>
-                    </div>
-                  )}
+                  {p.scope_description && <p className={sfStyles.packageScope}>{truncate(p.scope_description, 120)}</p>}
+                  
                   <div className={sfStyles.packageCta}>
-                    <button 
-                      onClick={() => document.getElementById('enquiry-form')?.scrollIntoView({ behavior: 'smooth' })}
-                      className={sfStyles.enquireBtn}
-                    >
-                      Enquire →
-                    </button>
-                    <Link to={`/store/${handle}/book`} className={sfStyles.bookCallBtn}>
-                      Book a Call →
-                    </Link>
+                    <span className={sfStyles.packageCtaLabel}>
+                      {p.price_type === 'custom' ? 'View & Enquire →' : 'Book Package →'}
+                    </span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </section>
 
           {/* Enquiry Form */}
-          <EnquiryForm storeName={merchant.store_name} responseTime={merchant.response_time_hours} />
+          <EnquiryForm 
+            storeName={merchant.store_name} 
+            responseTime={merchant.response_time_hours} 
+            initialProjectType={(() => {
+              const pkgId = searchParams.get('package');
+              if (!pkgId) return undefined;
+              return products.find(p => p.id === pkgId)?.name;
+            })()}
+          />
         </>
       )}
 
@@ -1689,15 +1750,20 @@ export default function StorefrontPage() {
           <p className={sfStyles.contactSubtitle}>
             Every piece is sold with care. DM or message to inquire, hold, or order.
           </p>
-          <a
-            href={whatsappLink}
-            className={sfStyles.whatsappCta}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <MessageCircle size={16} />
-            Chat on WhatsApp
-          </a>
+          <div className={sfStyles.contactActions}>
+            <a
+              href={whatsappLink}
+              className={sfStyles.whatsappCta}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MessageCircle size={16} />
+              Chat on WhatsApp
+            </a>
+            <button className={sfStyles.followBtn} onClick={handleFollow}>
+              {following ? '✓ Following' : 'Follow for updates'}
+            </button>
+          </div>
         </div>
       </m.section>
 
@@ -1720,7 +1786,22 @@ export default function StorefrontPage() {
       {bagEligible && <StickyBag isPaused={isPaused} />}
 
       {/* ── Inquiry Basket Drawer ── */}
-      <InquiryBasket merchant={merchant} />
+      <InquiryBasket 
+        merchant={merchant} 
+        onOpenDigitalCheckout={() => setDigitalCheckoutOpen(true)}
+      />
+
+      {/* ── Digital Checkout Drawer (Phase 3E) ── */}
+      <DigitalCartCheckoutDrawer
+        open={digitalCheckoutOpen}
+        onClose={() => setDigitalCheckoutOpen(false)}
+        items={basketItems}
+        merchant={merchant}
+        onComplete={() => {
+          clearBasket();
+          addToast('Order received! Check your email.', 'success');
+        }}
+      />
 
       {/* ── Report Modal ── */}
       <ReportModal
@@ -1730,125 +1811,16 @@ export default function StorefrontPage() {
       />
 
       {/* ── Slot Picker Drawer (Host) ── */}
-      <BaseDrawer
-        open={slotDrawerOpen}
-        onClose={() => setSlotDrawerOpen(false)}
-        title={slotDrawerService?.name || 'Book a Slot'}
-      >
-        <div className={sfStyles.slotPickerDrawer}>
-          {slotStep === 'date' && (
-            <div className={sfStyles.slotStep}>
-              <p className={sfStyles.slotPickerTitle}>Select a date</p>
-              <div className={sfStyles.slotPickerCalendar}>
-                <div className={sfStyles.calendarHeader}>
-                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <span key={i}>{d}</span>)}
-                </div>
-                <div className={sfStyles.calendarGrid}>
-                  {calendarDays.map((d, i) => {
-                    const dateStr = d.toISOString().split('T')[0];
-                    const isAvailable = availableDays.has(dateStr);
-                    return (
-                      <button
-                        key={i}
-                        className={`${sfStyles.slotPickerDay} ${isAvailable ? sfStyles.slotPickerDayAvailable : ''} ${selectedDate === dateStr ? sfStyles.slotPickerDaySelected : ''}`}
-                        disabled={!isAvailable}
-                        onClick={() => {
-                          setSelectedDate(dateStr);
-                          setSlotStep('time');
-                        }}
-                      >
-                        <span className={sfStyles.calendarDayNum}>{d.getDate()}</span>
-                        {isAvailable && <span className={sfStyles.calendarDot} />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {slotStep === 'time' && (
-            <div className={sfStyles.slotStep}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <button onClick={() => setSlotStep('date')} className={sfStyles.backIconBtn}><ChevronLeft size={16} /></button>
-                <p className={sfStyles.slotPickerTitle}>{selectedDate ? formatDate(selectedDate, 'long') : ''}</p>
-              </div>
-              <p className={sfStyles.slotPickerSub}>Available times for {slotDrawerService?.name} ({slotDrawerService?.duration} min)</p>
-              <div className={sfStyles.slotPickerTimeGrid}>
-                {timeSlots.map(h => {
-                  const isTaken = bookedSlots.includes(h);
-                  const timeLabel = h > 12 ? `${h - 12}:00 pm` : `${h}:00 am`;
-                  return (
-                    <button
-                      key={h}
-                      className={`${sfStyles.slotPickerTimeBtn} ${isTaken ? sfStyles.slotPickerTimeTaken : ''}`}
-                      disabled={isTaken}
-                      onClick={() => {
-                        setSelectedTime(timeLabel);
-                        setSlotStep('confirm');
-                      }}
-                    >
-                      {timeLabel}
-                      {isTaken && <span style={{ fontSize: 9, opacity: 0.6 }}>(booked)</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {slotStep === 'confirm' && slotDrawerService && (
-            <div className={sfStyles.slotStep}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <button onClick={() => setSlotStep('time')} className={sfStyles.backIconBtn}><ChevronLeft size={16} /></button>
-                <p className={sfStyles.slotPickerTitle}>Confirm Booking</p>
-              </div>
-              <div className={sfStyles.slotConfirmCard}>
-                <p className={sfStyles.slotConfirmName}>{slotDrawerService.name}</p>
-                <p className={sfStyles.slotConfirmMeta}>
-                  {selectedDate ? formatDate(selectedDate, 'long') : ''} · {selectedTime} · {slotDrawerService.duration} min
-                </p>
-                <div className={sfStyles.slotConfirmPrices}>
-                  <div className={sfStyles.slotConfirmPriceRow}>
-                    <span>Deposit required</span>
-                    <span>{formatCurrencyFull(slotDrawerService.deposit_amount || 0)}</span>
-                  </div>
-                  <div className={`${sfStyles.slotConfirmPriceRow} ${sfStyles.slotConfirmPriceTotal}`}>
-                    <span>Total</span>
-                    <span>{formatCurrencyFull(slotDrawerService.price)}</span>
-                  </div>
-                  <p className={sfStyles.slotConfirmNotice}>(balance due at appointment)</p>
-                </div>
-              </div>
-
-              <div className={sfStyles.slotConfirmFields}>
-                <div className={sfStyles.slotConfirmField}>
-                  <label>Your name</label>
-                  <input 
-                    type="text" 
-                    placeholder="Adaeze Okonkwo" 
-                    value={bookingForm.name}
-                    onChange={e => setBookingForm(f => ({ ...f, name: e.target.value }))}
-                  />
-                </div>
-                <div className={sfStyles.slotConfirmField}>
-                  <label>WhatsApp</label>
-                  <input 
-                    type="tel" 
-                    placeholder="080 1234 5678"
-                    value={bookingForm.phone}
-                    onChange={e => setBookingForm(f => ({ ...f, phone: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <button className={sfStyles.slotRequestBtn} onClick={handleBookingRequest}>
-                Request Booking
-              </button>
-            </div>
-          )}
-        </div>
-      </BaseDrawer>
+      {slotDrawerService && (
+        <BookingRequestSheet
+          open={slotDrawerOpen}
+          onClose={() => setSlotDrawerOpen(false)}
+          service={slotDrawerService}
+          merchant={merchant}
+          preselectedDate={slotDrawerPreselected.date}
+          preselectedTime={slotDrawerPreselected.time}
+        />
+      )}
 
       {/* ── Dev Pause Toggle (DEV only) ── */}
       {import.meta.env.DEV && (
@@ -1862,5 +1834,79 @@ export default function StorefrontPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function ReportModal({
+  open,
+  onClose,
+  storeName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  storeName: string;
+}) {
+  const [step, setStep] = useState<'reason' | 'details' | 'success'>('reason');
+
+  const handleClose = () => {
+    onClose();
+    setTimeout(() => {
+      setStep('reason');
+    }, 300);
+  };
+
+  return (
+    <PopupModal open={open} onClose={handleClose} title="Report Store">
+      <div className={sfStyles.reportModal}>
+        <AnimatePresence mode="wait">
+          {step === 'reason' && (
+            <m.div key="reason" {...slideUp}>
+              <p className={sfStyles.reportIntro}>Why are you reporting {storeName}?</p>
+              <div className={sfStyles.reportReasons}>
+                {REPORT_REASONS.map((r) => (
+                  <button
+                    key={r}
+                    className={sfStyles.reasonBtn}
+                    onClick={() => {
+                      setStep('details');
+                    }}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </m.div>
+          )}
+
+          {step === 'details' && (
+            <m.div key="details" {...slideUp}>
+              <p className={sfStyles.reportIntro}>Any additional details? (Optional)</p>
+              <textarea className={sfStyles.reportTextarea} rows={4} placeholder="Tell us more..." />
+              <div className={sfStyles.reportActions}>
+                <button className={sfStyles.reportSubmit} onClick={() => setStep('success')}>
+                  Submit Report
+                </button>
+                <button className={sfStyles.reportBack} onClick={() => setStep('reason')}>
+                  Back
+                </button>
+              </div>
+            </m.div>
+          )}
+
+          {step === 'success' && (
+            <m.div key="success" {...slideUp} className={sfStyles.reportSuccess}>
+              <CheckCircle size={48} className={sfStyles.successIcon} />
+              <h3 className={sfStyles.successTitle}>Report Received</h3>
+              <p className={sfStyles.successText}>
+                We've received your report and will investigate. Thank you for keeping Trove'a safe.
+              </p>
+              <button className={sfStyles.reportSubmit} onClick={handleClose}>
+                Done
+              </button>
+            </m.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </PopupModal>
   );
 }

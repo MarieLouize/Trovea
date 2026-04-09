@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
 import { Check, ExternalLink, Download, Search, X, Filter } from 'lucide-react';
 import { useLedgerStore, type LedgerTab } from '@/lib/store/ledger.store';
@@ -29,6 +29,7 @@ const ALL_PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 ];
 
 export default function LedgerPage() {
+  const navigate = useNavigate();
   const st = useStoreType();
   const merchant = useMerchantStore(s => s.merchant);
   const [searchParams] = useSearchParams();
@@ -40,7 +41,7 @@ export default function LedgerPage() {
     activeTab, setActiveTab,
     isMultiSelectMode, selectedIds,
     exitMultiSelectMode, toggleSelectId,
-    markAsPaid, markManyAsPaid, markShipped,
+    markAsPaid, markManyAsPaid, markShipped, markFulfilled,
     selectAll
   } = useLedgerStore();
   const { addToast } = useUIStore();
@@ -58,8 +59,14 @@ export default function LedgerPage() {
   const [dropFilter, setDropFilter] = useState<string>('all');
   const [windowFilter, setWindowFilter] = useState<string>('all');
 
-  // Local state for toggles in new tabs
-  const [fulfilmentStatus, setFulfilmentStatus] = useState<Record<string, 'pending' | 'done'>>({});
+  // Local state
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate loading (Phase 3C)
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1200);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (tabParam) {
@@ -162,6 +169,7 @@ export default function LedgerPage() {
 
   const visibleTabs: { value: LedgerTab; label: string }[] = [
     { value: 'pending', label: 'Active' },
+    ...typeSpecificTabs,
   ];
 
   if (st.isCollector || st.isVendor) {
@@ -174,13 +182,11 @@ export default function LedgerPage() {
   const pendingCount = allReceipts.filter(r => r.payment_status === 'pending_payment').length;
 
   const handleToggleFulfilment = (receiptId: string) => {
-    setFulfilmentStatus(prev => ({
-      ...prev,
-      [receiptId]: prev[receiptId] === 'done' ? 'pending' : 'done'
-    }));
+    markFulfilled(receiptId);
+    addToast('Marked as fulfilled.', 'success');
   };
 
-  const handleResendDelivery = (_receiptId: string) => {
+  const handleResendDelivery = () => {
     addToast('Delivery link resent to buyer.', 'success');
   };
 
@@ -241,6 +247,45 @@ export default function LedgerPage() {
     window.open(url, '_blank', 'noopener,noreferrer');
     setCustomMsgOpen(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className={styles.root}>
+        <div className={styles.pageHeader}>
+          <div className={styles.headerTop}>
+            <div className="skeleton skeleton-text" style={{ width: '100px', height: '28px' }} />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="skeleton" style={{ width: '60px', height: '32px', borderRadius: 'var(--r-sm)' }} />
+              <div className="skeleton" style={{ width: '32px', height: '32px', borderRadius: 'var(--r-sm)' }} />
+            </div>
+          </div>
+          <div className={styles.searchBar}>
+            <div className="skeleton" style={{ flex: 1, height: '44px', borderRadius: 'var(--r-md)' }} />
+            <div className="skeleton" style={{ width: '44px', height: '44px', borderRadius: 'var(--r-md)' }} />
+          </div>
+        </div>
+        <div className={styles.tabContainer}>
+          <div className={styles.segmentedControl}>
+            {[1,2,3,4].map(i => (
+              <div key={i} className="skeleton" style={{ flex: 1, height: '36px', borderRadius: 'var(--r-pill)', margin: '0 4px' }} />
+            ))}
+          </div>
+        </div>
+        <div className={styles.mainContent}>
+          {[1,2,3,4,5].map(i => (
+            <div key={i} className={styles.receiptRow} style={{ padding: '16px' }}>
+              <div className="skeleton" style={{ width: '12px', height: '12px', borderRadius: '50%', marginRight: '12px' }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton skeleton-text" style={{ width: '40%', height: '14px', marginBottom: '8px' }} />
+                <div className="skeleton skeleton-text" style={{ width: '70%', height: '12px' }} />
+              </div>
+              <div className="skeleton skeleton-text" style={{ width: '60px', height: '16px' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.root}>
@@ -343,19 +388,26 @@ export default function LedgerPage() {
         {(activeTab === 'pending' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'dispatch') && (
           <div className={activeTab === 'pending' ? styles.activeList : styles.receiptList}>
             {filteredReceipts.length === 0 ? (
-              <div className={styles.emptyState}>
-                <span className={styles.emptyIcon}>—</span>
-                <h2 className={styles.emptyTitle}>No receipts here.</h2>
+              <div className="empty-state">
+                <span className="empty-state__icon">—</span>
+                <h2 className="empty-state__title">No receipts here.</h2>
+                <p className="empty-state__text">Transactions will appear here once issued.</p>
+                <button 
+                  className={styles.emptyCta}
+                  onClick={() => navigate('/terminal')}
+                >
+                  Issue a Receipt
+                </button>
               </div>
             ) : (
               <AnimatePresence initial={false}>
-                {filteredReceipts.map((receipt) => {
+                {filteredReceipts.map((receipt, index) => {
+                  const delayClass = `delay-${Math.min((index % 5) + 1, 5)}`;
                   return (
                     <m.div
                       key={receipt.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={activeTab === 'pending' ? styles.actionCard : styles.receiptRow}
+                      initial={false}
+                      className={`${activeTab === 'pending' ? styles.actionCard : styles.receiptRow} animate-in ${delayClass}`}
                       onClick={() => openDrawer(receipt)}
                     >
                       {isMultiSelectMode && (
@@ -459,10 +511,10 @@ export default function LedgerPage() {
                     <div className={styles.fulfilmentAmount}>{formatCurrencyFull(receipt.total)}</div>
                   </div>
                   <button 
-                    className={`${styles.fulfilmentToggle} ${fulfilmentStatus[receipt.id] === 'done' ? styles.done : styles.pending}`}
+                    className={`${styles.fulfilmentToggle} ${receipt.shipment_status === 'received' ? styles.done : styles.pending}`}
                     onClick={() => handleToggleFulfilment(receipt.id)}
                   >
-                    {fulfilmentStatus[receipt.id] === 'done' ? <><Check size={12} /> Collected</> : 'Mark Collected'}
+                    {receipt.shipment_status === 'received' ? <><Check size={12} /> Collected</> : 'Mark Collected'}
                   </button>
                 </div>
               ))}
@@ -477,10 +529,10 @@ export default function LedgerPage() {
                     <div className={styles.fulfilmentAmount}>{formatCurrencyFull(receipt.total)}</div>
                   </div>
                   <button 
-                    className={`${styles.fulfilmentToggle} ${fulfilmentStatus[receipt.id] === 'done' ? styles.done : styles.pending}`}
+                    className={`${styles.fulfilmentToggle} ${receipt.shipment_status === 'received' ? styles.done : styles.pending}`}
                     onClick={() => handleToggleFulfilment(receipt.id)}
                   >
-                    {fulfilmentStatus[receipt.id] === 'done' ? <><Check size={12} /> Delivered</> : 'Mark Delivered'}
+                    {receipt.shipment_status === 'received' ? <><Check size={12} /> Delivered</> : 'Mark Delivered'}
                   </button>
                 </div>
               ))}
@@ -534,7 +586,7 @@ export default function LedgerPage() {
                 </div>
                 <div className={styles.deliveryStatus}>
                   {receipt.delivery_status === 'failed' ? (
-                    <button className={styles.resendBtn} onClick={() => handleResendDelivery(receipt.id)}>Resend ↗</button>
+                    <button className={styles.resendBtn} onClick={() => handleResendDelivery()}>Resend ↗</button>
                   ) : (
                     <span className={styles.depositPaid}><Check size={12} /> Delivered</span>
                   )}

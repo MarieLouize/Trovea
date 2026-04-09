@@ -39,7 +39,7 @@
 }
 
 .card:hover {
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
   transform: translateY(-1px);
 }
 

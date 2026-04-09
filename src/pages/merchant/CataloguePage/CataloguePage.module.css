@@ -45,7 +45,7 @@
   padding: 0 var(--space-4);
   height: 36px;
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg);
   border: none;
   border-radius: var(--r-md);
   cursor: pointer;
@@ -53,13 +53,13 @@
   font-size: 9px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  box-shadow: 0 4px 12px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
   transition: all var(--duration-fast);
 }
 
 .addBtn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 /* ── STATUS TABS ── */
@@ -193,8 +193,8 @@
   gap: 4px;
 }
 
-.link_ok { background: rgba(46, 203, 117, 0.1); color: #1aab5e; border-color: transparent; }
-.link_broken { background: rgba(57, 0, 7, 0.05); color: var(--color-accent); border-color: transparent; }
+.link_ok { background: var(--color-success-glow); color: var(--color-success-text); border-color: transparent; }
+.link_broken { background: var(--color-accent-glow); color: var(--color-accent); border-color: transparent; }
 .link_none { opacity: 0.5; }
 
 .spinner { animation: rotate 1s linear infinite; }
@@ -215,9 +215,9 @@
 .toggleControl { width: 36px; height: 20px; border-radius: 10px; background: var(--color-surface-inset); position: relative; transition: background 0.2s; }
 .toggleThumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-fg-ghost); transition: transform 0.2s; }
 .toggleOn { background: var(--color-accent); }
-.toggleOn .toggleThumb { transform: translateX(16px); background: #FFF; }
+.toggleOn .toggleThumb { transform: translateX(16px); background: var(--color-fg); }
 
-.submitBtn { width: 100%; height: 52px; background: var(--color-accent); color: #FFF; border: none; border-radius: var(--r-md); font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; transition: all var(--duration-fast); }
+.submitBtn { width: 100%; height: 52px; background: var(--color-accent); color: var(--color-fg); border: none; border-radius: var(--r-md); font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; transition: all var(--duration-fast); }
 .submitBtn:disabled { opacity: 0.35; }
 
 /* ── MISC ── */

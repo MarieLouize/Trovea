@@ -82,6 +82,10 @@ export default function SettingsPage() {
     merchant.whatsapp_template ?? DEFAULT_WA_TEMPLATE
   );
 
+  // Ceremony state
+  const [showFirstLiveCeremony, setShowFirstLiveCeremony] = useState(false);
+  const [hasCopied, setHasCopied] = useState(false);
+
   // ── NEW STATE (Phase 2.5-K) ──────────────────────────────────────
   const [arrivalNotes, setArrivalNotes] = useState(merchant.arrival_notes ?? '');
   const [responseTimeHours, setResponseTimeHours] = useState(merchant.response_time_hours ?? 24);
@@ -148,8 +152,12 @@ export default function SettingsPage() {
     notifyClaims !== true ||
     notifyLowStock !== false;
 
+  const isFirstLiveTrigger = !merchant.has_gone_live && storeOpen && storeOpen !== merchant.store_open;
+
   // ── ACTIONS ──────────────────────────────────────────────────────
   const handleSave = () => {
+    const isFirstLive = !merchant.has_gone_live && storeOpen;
+    
     updateMerchant({
       display_name: displayName,
       store_name: storeName,
@@ -157,6 +165,7 @@ export default function SettingsPage() {
       whatsapp,
       social_links: { instagram, twitter: merchant.social_links.twitter, tiktok },
       store_open: storeOpen,
+      has_gone_live: merchant.has_gone_live || storeOpen,
       whatsapp_template: whatsappTemplate,
       checkout_enabled: checkoutEnabled,
       bank_account: checkoutEnabled ? { bank_name: bankName, account_number: accountNumber, account_name: accountName } : merchant.bank_account,
@@ -172,8 +181,29 @@ export default function SettingsPage() {
         }
       }
     });
+
+    if (isFirstLive) {
+      setShowFirstLiveCeremony(true);
+      setTimeout(() => setShowFirstLiveCeremony(false), 2500);
+    }
+
     addToast('Changes saved', 'success');
   };
+
+  const handleCopyUrl = () => {
+    const url = `trovea.store/${merchant.handle}`;
+    navigator.clipboard.writeText(url);
+    setHasCopied(true);
+    setTimeout(() => setHasCopied(false), 2000);
+    addToast('Link copied', 'success');
+  };
+
+  const handleShareWhatsApp = () => {
+    const url = `trovea.store/${merchant.handle}`;
+    const text = `Check out my store on Trovéa: ${url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
 
   const handleDiscard = () => {
     setDisplayName(merchant.display_name);
@@ -327,6 +357,19 @@ export default function SettingsPage() {
             <div className={styles.settingLeft}>
               <p className={styles.settingLabel}>Store Status</p>
               <p className={styles.settingDesc}>Control whether buyers can visit your storefront.</p>
+              <AnimatePresence>
+                {showFirstLiveCeremony && (
+                  <m.p
+                    className={styles.goLiveMessage}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    Your store is live
+                  </m.p>
+                )}
+              </AnimatePresence>
             </div>
             <div className={`${styles.openBadge} ${storeOpen ? styles.openBadgeOpen : styles.openBadgeClosed}`}>
               <span className={`${styles.openDot} ${storeOpen ? styles.openDotOpen : styles.openDotClosed}`} />
@@ -340,9 +383,46 @@ export default function SettingsPage() {
                 onChange={(e) => setStoreOpen(e.target.checked)}
                 aria-label="Toggle store open"
               />
-              <span className={styles.toggleSlider} />
+              <m.span 
+                className={styles.toggleSlider} 
+                transition={isFirstLiveTrigger ? { duration: 0.375 } : undefined}
+              />
             </label>
           </div>
+
+          <AnimatePresence>
+            {showFirstLiveCeremony && (
+              <m.div
+                className={styles.urlPanel}
+                initial={{ scaleY: 0, opacity: 0, originY: 'top' }}
+                animate={{ scaleY: 1, opacity: 1 }}
+                exit={{ scaleY: 0, opacity: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <div className={styles.urlDisplay}>
+                  <div className={styles.urlInset}>
+                    <span className={styles.urlText}>trovea.store/{merchant.handle}</span>
+                  </div>
+                  <div className={styles.urlActions}>
+                    <button 
+                      className={styles.urlActionBtn} 
+                      onClick={handleCopyUrl}
+                      aria-label="Copy store URL"
+                    >
+                      {hasCopied ? 'Check' : 'Copy'}
+                    </button>
+                    <button 
+                      className={styles.urlActionBtn} 
+                      onClick={handleShareWhatsApp}
+                      aria-label="Share store URL on WhatsApp"
+                    >
+                      Share
+                    </button>
+                  </div>
+                </div>
+              </m.div>
+            )}
+          </AnimatePresence>
 
           <div className={styles.formRow}>
             <label className={styles.formLabel} htmlFor="storeName">Store Name</label>

@@ -28,12 +28,12 @@ export function parseSmartPaste(input: string): ParsedItem[] {
 
 function splitIntoBlocks(input: string): string[] {
   // Try numbered list first: lines starting with "1." "2." etc.
-  const numberedPattern = /(?:^|\n)(?=\d+[\.\)]\s)/;
+  const numberedPattern = /(?:^|\n)(?=\d+[.)]\s)/;
   const numberedBlocks = input.split(numberedPattern).map(b => b.trim()).filter(Boolean);
 
   if (numberedBlocks.length > 1) {
     // Strip leading "1. " markers
-    return numberedBlocks.map(b => b.replace(/^\d+[\.\)]\s*/, '').trim());
+    return numberedBlocks.map(b => b.replace(/^\d+[.)]\s*/, '').trim());
   }
 
   // Try double newline
@@ -104,8 +104,10 @@ function parseBlock(block: string): ParsedItem | null {
 
 function stripLeadingEmoji(text: string): string {
   // Remove leading emoji characters (Unicode ranges for common emoji)
+  /* eslint-disable no-misleading-character-class */
   return text.replace(
     /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FEFF}\u{1F000}-\u{1FFFF}\s]+/u,
     ''
   );
+  /* eslint-enable no-misleading-character-class */
 }

@@ -476,7 +476,7 @@ export default function SchedulePage() {
               <div className={styles.drawerSection}>
                 <span className={styles.drawerLabel}>Amount</span>
                 <p style={{ fontSize: 15 }}>{formatCurrencyFull(selectedBooking.total_amount)}</p>
-                <p style={{ fontSize: 12, color: 'var(--color-success)' }}>✓ {formatCurrencyFull(selectedBooking.deposit_paid)} deposit received</p>
+                <p style={{ fontSize: 12, color: 'var(--color-success-text)' }}>✓ {formatCurrencyFull(selectedBooking.deposit_paid)} deposit received</p>
               </div>
             </div>
           )}

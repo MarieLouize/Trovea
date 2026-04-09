@@ -74,7 +74,7 @@
 
 .insightCard:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 @media (min-width: 768px) {
@@ -197,7 +197,7 @@
 }
 
 .allClear {
-  color: var(--color-success);
+  color: var(--color-success-text);
   font-family: var(--font-serif-alt);
   font-style: italic;
   font-size: 14px;

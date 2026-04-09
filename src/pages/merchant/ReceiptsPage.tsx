@@ -96,7 +96,7 @@ export default function ReceiptsPage() {
                     <button 
                       key={s}
                       className={`${styles.filterOpt} ${statusFilter === s ? styles.optActive : ''}`}
-                      onClick={() => setStatusFilter(s as any)}
+                      onClick={() => setStatusFilter(s as PaymentStatus | 'all')}
                     >
                       {s.replace('_', ' ')}
                     </button>
@@ -110,7 +110,7 @@ export default function ReceiptsPage() {
                     <button 
                       key={t}
                       className={`${styles.filterOpt} ${typeFilter === t ? styles.optActive : ''}`}
-                      onClick={() => setTypeFilter(t as any)}
+                      onClick={() => setTypeFilter(t as ReceiptType | 'all')}
                     >
                       {t}
                     </button>

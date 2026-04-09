@@ -18,6 +18,10 @@ interface ArchiveState {
   isLoading: boolean;
   error: string | null;
 
+  // Sold out ceremony (Phase 3B)
+  lastSoldOutProductId: string | null;
+  clearLastSoldOutProduct: () => void;
+
   // Smart paste
   ghostCards: GhostCard[];
   setGhostCards: (cards: GhostCard[]) => void;
@@ -53,6 +57,8 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
   searchQuery: '',
   isLoading: false,
   error: null,
+  lastSoldOutProductId: null,
+  clearLastSoldOutProduct: () => set({ lastSoldOutProductId: null }),
 
   ghostCards: [],
   setGhostCards: (cards) => set({ ghostCards: cards }),
@@ -145,13 +151,22 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
     })),
 
   updateProduct: (productId, updates) =>
-    set((state) => ({
-      products: state.products.map((p) =>
-        p.id === productId
-          ? { ...p, ...updates, updated_at: new Date().toISOString() }
-          : p
-      ),
-    })),
+    set((state) => {
+      const product = state.products.find(p => p.id === productId);
+      const isSellingOut = 
+        product && 
+        product.stock_level !== 0 && 
+        (updates.stock_level === 0 || updates.status === 'sold_out');
+      
+      return {
+        products: state.products.map((p) =>
+          p.id === productId
+            ? { ...p, ...updates, updated_at: new Date().toISOString() }
+            : p
+        ),
+        lastSoldOutProductId: isSellingOut ? productId : state.lastSoldOutProductId,
+      };
+    }),
 
   initFromDB: async (merchantId) => {
     set({ isLoading: true, error: null });

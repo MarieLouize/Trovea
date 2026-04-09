@@ -78,6 +78,8 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
       initialized_at: new Date().toISOString(),
       last_active_at: new Date().toISOString(),
       store_open: true,
+      has_gone_live: false,
+      first_seal_issued: false,
       whatsapp_template: null,
       store_config: defaultStoreConfig,
       verification_tier: 'unverified',
@@ -148,11 +150,11 @@ const buildDefaultStoreConfig = (
   store_type_config: StoreTypeConfig
 ): StoreConfig => {
   const defaults: Record<StoreType, Partial<StoreConfig>> = {
-    collector:       { palette: 'maroon', layout: 'grid-dense', typography: 'editorial', card_style: 'clean-square', signature: 'the-bale' },
-    vendor:          { palette: 'parchment', layout: 'minimal', typography: 'warm', card_style: 'minimal-line', signature: 'the-atelier' },
-    host:            { palette: 'velvet', layout: 'editorial', typography: 'editorial', card_style: 'polaroid', signature: 'the-vault' },
-    digital_creator: { palette: 'onyx', layout: 'grid-airy', typography: 'modern', card_style: 'rounded-float', signature: 'the-gallery' },
-    studio:          { palette: 'slate', layout: 'masonry', typography: 'editorial', card_style: 'film-strip', signature: 'the-archive' },
+    collector:       { theme: 'the-bale', shape: 'form', motion: 'precise', font_color: 'ink', palette: 'chalk', layout: 'masonry', typography: 'editorial', card_style: 'polaroid', signature: 'the-bale' },
+    vendor:          { theme: 'the-package', shape: 'form', motion: 'precise', font_color: 'ink', palette: 'chalk', layout: 'grid-dense', typography: 'bold', card_style: 'rounded-float', signature: 'the-atelier' },
+    host:            { theme: 'the-studio', shape: 'form', motion: 'precise', font_color: 'ink', palette: 'bloom', layout: 'editorial', typography: 'warm', card_style: 'polaroid', signature: 'the-vault' },
+    digital_creator: { theme: 'the-feed', shape: 'form', motion: 'precise', font_color: 'cream', palette: 'obsidian', layout: 'grid-airy', typography: 'modern', card_style: 'rounded-float', signature: 'the-gallery' },
+    studio:          { theme: 'the-portfolio', shape: 'form', motion: 'precise', font_color: 'cream', palette: 'velvet', layout: 'masonry', typography: 'editorial', card_style: 'minimal-line', signature: 'the-archive' },
   };
 
   return {

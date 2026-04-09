@@ -196,7 +196,7 @@
 
 .dayPillActive {
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-fg);
 }
 
 /* ── VENDOR / COMMON ── */
@@ -254,8 +254,8 @@
   letter-spacing: 1px;
 }
 
-.statusBadgeOpen { background: rgba(46, 203, 117, 0.1); color: var(--color-success); }
-.statusBadgeUpcoming { background: rgba(201, 168, 76, 0.1); color: var(--color-gold); }
+.statusBadgeOpen { background: var(--color-success-glow); color: var(--color-success-text); }
+.statusBadgeUpcoming { background: var(--color-gold-dim); color: var(--color-gold-text); }
 .statusBadgeClosed { background: rgba(0,0,0,0.05); color: var(--color-fg-ghost); }
 
 .primaryBtn, .secondaryBtn {

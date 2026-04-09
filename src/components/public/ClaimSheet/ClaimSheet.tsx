@@ -10,9 +10,9 @@ import { m, AnimatePresence, SPRING_UI } from '@/lib/motion';
 import type { Product } from '@/lib/types/product.types';
 import type { Merchant } from '@/lib/types/merchant.types';
 import type { ClaimRequest } from '@/lib/types';
-import { buildClaimConfirmLink } from '@/lib/utils/whatsapp';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import { useUIStore } from '@/lib/store/ui.store';
+import type { BasketItem } from '@/lib/store/basket.store';
 import styles from './ClaimSheet.module.css';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -20,10 +20,12 @@ import styles from './ClaimSheet.module.css';
 export interface ClaimSheetProps {
   open: boolean;
   onClose: () => void;
-  product: Product;
+  product?: Product;
+  basketItems?: BasketItem[];
   merchant: Merchant;
   variantLabel?: string | null;
-  hasPendingClaim: boolean;
+  hasPendingClaim?: boolean;
+  isDeposit?: boolean;
   onClaimSubmitted: (claim: ClaimRequest) => void;
 }
 
@@ -56,9 +58,11 @@ export default function ClaimSheet({
   open,
   onClose,
   product,
+  basketItems,
   merchant,
   variantLabel,
   hasPendingClaim,
+  isDeposit,
   onClaimSubmitted,
 }: ClaimSheetProps) {
   const { addToast } = useUIStore();
@@ -71,6 +75,28 @@ export default function ClaimSheet({
 
   const isDigital = merchant.store_type === 'digital_creator';
   const bank = merchant.bank_account;
+
+  const items = basketItems || (product ? [{
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    image: product.images[0] ?? '',
+    quantity: 1,
+    variantLabel: variantLabel || undefined,
+    // Add these for deposit calculation if needed
+    deposit_amount: product.deposit_amount,
+    deposit_pct: product.deposit_pct
+  }] : []);
+
+  const totalAmount = items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+  
+  // Phase 3F: Deposit calculation
+  const amountToTransfer = isDeposit && product
+    ? (product.deposit_amount || (product.deposit_pct ? (product.price * (product.deposit_pct / 100)) : totalAmount))
+    : totalAmount;
+
+  const displayAmount = formatCurrencyFull(amountToTransfer);
+  const balanceRemaining = totalAmount - amountToTransfer;
 
   // Reset on open/close
   const handleClose = useCallback(() => {
@@ -96,18 +122,44 @@ export default function ClaimSheet({
 
   // WhatsApp waitlist link for conflicted items
   const waitlistLink = (() => {
-    const msg = `Hi ${merchant.store_name}! I'm interested in ${product.name} and would like to be on the waitlist if the current claim doesn't go through.`;
+    const itemName = product?.name || items[0]?.name || 'item';
+    const msg = `Hi ${merchant.store_name}! I'm interested in ${itemName} and would like to be on the waitlist if the current claim doesn't go through.`;
     const clean = merchant.whatsapp.replace(/[^0-9]/g, '');
     return `https://wa.me/${clean}?text=${encodeURIComponent(msg)}`;
   })();
 
   // WhatsApp confirmation link after claim
-  const whatsappConfirmLink = buildClaimConfirmLink({
-    phone: merchant.whatsapp,
-    itemName: product.name,
-    price: product.price,
-    storeName: merchant.store_name,
-  });
+  const whatsappConfirmLink = (() => {
+    const lines = items.map((it, idx) => {
+      const v = it.variantLabel ? ` [${it.variantLabel}]` : '';
+      const q = it.quantity > 1 ? ` (x${it.quantity})` : '';
+      return `${idx + 1}. ${it.name}${v}${q}`;
+    }).join('\n');
+
+    const header = isDeposit ? `*DEPOSIT CONFIRMATION: ${merchant.store_name}*` : `*CLAIM CONFIRMATION: ${merchant.store_name}*`;
+    const footer = isDeposit 
+      ? `I have paid the deposit of ${displayAmount}. Remaining balance: ${formatCurrencyFull(balanceRemaining)}. 🤝`
+      : 'I have made the transfer. Please verify and confirm my claim. 🤝';
+
+    const message = [
+      header,
+      '---',
+      `Buyer: ${form.buyerName}`,
+      `Paid: ${displayAmount}`,
+      isDeposit ? `Remaining: ${formatCurrencyFull(balanceRemaining)}` : `Total: ${displayAmount}`,
+      '',
+      '*Items:*',
+      lines,
+      '',
+      form.buyerNote ? `*Note:* ${form.buyerNote}\n` : '',
+      `*Seal ID:* ${issuedClaimId}`,
+      '',
+      footer,
+    ].join('\n');
+
+    const clean = merchant.whatsapp.replace(/[^0-9]/g, '');
+    return `https://wa.me/${clean}?text=${encodeURIComponent(message)}`;
+  })();
 
   // Form submit
   const handleSubmit = () => {
@@ -132,9 +184,11 @@ export default function ClaimSheet({
     const now = new Date().toISOString();
     const suffix = randomSealSuffix();
     const claimId = `TRV-CLAIM-${suffix}`;
+    
+    // In Phase 2, we would create multiple claim requests or a single bundled order
     const newClaim: ClaimRequest = {
       id: `claim-live-${Date.now()}`,
-      product_id: product.id,
+      product_id: items[0].id,
       merchant_id: merchant.id,
       buyer_name: form.buyerName.trim(),
       buyer_phone: isDigital ? '' : form.buyerPhone.trim(),
@@ -152,10 +206,6 @@ export default function ClaimSheet({
     setIssuedClaimId(claimId);
     setStep(3);
   };
-
-  const displayPrice = variantLabel
-    ? formatCurrencyFull(product.price)
-    : formatCurrencyFull(product.price);
 
   // ── Backdrop ────────────────────────────────────────────────────────────────
   return (
@@ -196,7 +246,7 @@ export default function ClaimSheet({
                 >
                   <p className={styles.stepLabel}>Trovéa Checkout — Step 1 of 3</p>
                   <h2 className={styles.stepTitle}>
-                    {hasPendingClaim ? 'Item Already Claimed' : 'Complete Your Purchase'}
+                    {hasPendingClaim ? 'Item Already Claimed' : isDeposit ? 'Booking Deposit' : (items.length > 1 ? 'Claim Your Items' : 'Complete Your Purchase')}
                   </h2>
 
                   {/* ── Pending claim conflict ── */}
@@ -245,30 +295,50 @@ export default function ClaimSheet({
                   ) : (
                     /* ── Normal flow ── */
                     <>
-                      {/* Item preview */}
-                      <div className={styles.itemPreview}>
-                        <div className={styles.itemThumb}>
-                          <img
-                            src={product.images[0] ?? `https://picsum.photos/seed/${product.id}/80/80`}
-                            alt={product.name}
-                          />
-                        </div>
-                        <div className={styles.itemInfo}>
-                          <p className={styles.itemName}>{product.name}</p>
-                          {variantLabel && <p className={styles.itemVariant}>{variantLabel}</p>}
-                        </div>
-                        <span className={styles.itemPrice}>{displayPrice}</span>
+                      {/* Item(s) preview */}
+                      <div className={styles.itemsList}>
+                        {items.map((it) => (
+                          <div key={it.id} className={styles.itemPreview}>
+                            <div className={styles.itemThumb}>
+                              <img
+                                src={it.image || `https://picsum.photos/seed/${it.id}/80/80`}
+                                alt={it.name}
+                              />
+                            </div>
+                            <div className={styles.itemInfo}>
+                              <p className={styles.itemName}>{it.name}</p>
+                              {(it.variantLabel || it.quantity > 1) && (
+                                <p className={styles.itemVariant}>
+                                  {it.variantLabel}{it.variantLabel && it.quantity > 1 ? ' · ' : ''}
+                                  {it.quantity > 1 ? `Qty: ${it.quantity}` : ''}
+                                </p>
+                              )}
+                            </div>
+                            <span className={styles.itemPrice}>{formatCurrencyFull(it.price * it.quantity)}</span>
+                          </div>
+                        ))}
                       </div>
+
+                      <div className={styles.totalRow}>
+                        <span>{isDeposit ? 'Deposit to Transfer' : 'Total to Transfer'}</span>
+                        <span className={styles.totalValue}>{displayAmount}</span>
+                      </div>
+
+                      {isDeposit && balanceRemaining > 0 && (
+                        <p className={styles.balanceNotice}>
+                          Remaining {formatCurrencyFull(balanceRemaining)} due on project start.
+                        </p>
+                      )}
 
                       <div className={styles.divider} />
 
                       {/* Instructions */}
-                      <p className={styles.instructionsHeading}>How to complete your purchase:</p>
+                      <p className={styles.instructionsHeading}>How to complete your {isDeposit ? 'booking' : 'purchase'}:</p>
                       <ol className={styles.instructionsList}>
                         <li>
                           <span className={styles.instructionStep}>1</span>
                           <div className={styles.instructionBody}>
-                            <span>Transfer {displayPrice} to:</span>
+                            <span>Transfer {displayAmount} to:</span>
                             <div className={styles.bankDetails}>
                               <div className={styles.bankRow}>
                                 <span className={styles.bankLabel}>Account Name</span>
@@ -302,7 +372,7 @@ export default function ClaimSheet({
                         </li>
                         <li>
                           <span className={styles.instructionStep}>3</span>
-                          <span className={styles.instructionBody}>Submit your details below to reserve this item.</span>
+                          <span className={styles.instructionBody}>Submit your details below to reserve {items.length > 1 ? 'these items' : 'this item'}.</span>
                         </li>
                       </ol>
 
@@ -330,7 +400,7 @@ export default function ClaimSheet({
                   <p className={styles.stepLabel}>Trovéa Checkout — Step 2 of 3</p>
                   <h2 className={styles.stepTitle}>Your Details</h2>
                   <p className={styles.stepSubtitle}>
-                    Fill in your details to reserve {product.name}.
+                    Fill in your details to reserve your order.
                   </p>
 
                   <div className={styles.form}>
@@ -430,10 +500,14 @@ export default function ClaimSheet({
                   <div className={styles.confirmBadge} aria-hidden="true">
                     <Check size={22} />
                   </div>
-                  <h2 className={styles.confirmTitle}>Claim submitted!</h2>
+                  <h2 className={styles.confirmTitle}>
+                    {isDeposit ? 'Deposit submitted!' : 'Claim submitted!'}
+                  </h2>
                   <p className={styles.confirmBody}>
-                    <strong>{product.name}</strong> has been reserved for 24 hours while your
-                    payment is confirmed.
+                    {isDeposit 
+                      ? `Deposit for ${items[0].name} — ${displayAmount}. Remaining ${formatCurrencyFull(balanceRemaining)} due on project start.`
+                      : 'Your order has been reserved for 24 hours while your payment is confirmed.'
+                    }
                   </p>
 
                   <div className={styles.sealRow}>

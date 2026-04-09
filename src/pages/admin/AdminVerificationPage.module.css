@@ -104,7 +104,7 @@
   font-weight: 500;
 }
 
-.tier_trusted    { color: var(--color-gold); }
+.tier_trusted    { color: var(--color-gold-text); }
 .tier_verified   { color: var(--color-fg); }
 .tier_unverified { color: var(--color-fg-ghost); }
 
@@ -166,17 +166,17 @@
 
 .tierBtn:hover {
   color: var(--color-fg);
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 .tierBtnActive {
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: var(--shadow-raise-sm);
   color: var(--color-accent);
   background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
 }
 
 .tierBtnActive:hover {
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: var(--shadow-raise-sm);
   color: var(--color-accent);
 }
 

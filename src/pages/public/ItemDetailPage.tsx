@@ -1,42 +1,55 @@
 /**
- * Trove'a — ItemDetailPage (Phase 2M: Hold CTA + Payment Proof)
- * Image lightbox with swipe/keyboard, basket integration, per-type action buttons.
- *
- * Motion rule: NEVER use initial={{ opacity: 0 }} on elements visible above the fold.
- * Only AnimatePresence (image crossfade, lightbox overlay) and whileInView (below-fold grid).
+ * Trove'a — ItemDetailPage (Phase 3 Revision)
+ * Refined buyer flows for all product types.
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Share2, MessageCircle, X, ShoppingBag,
   ZoomIn, ChevronLeft, ChevronRight, Check, Calendar, Tag,
-  Clock, ChevronDown, AlertTriangle,
+  Clock, ChevronDown, AlertTriangle, Download
 } from 'lucide-react';
 import {
   FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS, FIXTURE_MERCHANT,
-  FIXTURE_CLAIMS, FIXTURE_HOLDS,
+  FIXTURE_CLAIMS,
   FIXTURE_HOST_MERCHANT, FIXTURE_HOST_PRODUCTS,
   FIXTURE_DIGITAL_MERCHANT, FIXTURE_DIGITAL_PRODUCTS,
   FIXTURE_STUDIO_MERCHANT, FIXTURE_STUDIO_PRODUCTS,
+  FIXTURE_VENDOR_MERCHANT, FIXTURE_VENDOR_PRODUCTS,
+  FIXTURE_WINDOWS,
 } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
-import { buildChatToBuyLink, buildStoreContactLink } from '@/lib/utils/whatsapp';
-import { m, AnimatePresence, staggerContainer, staggerChild } from '@/lib/motion';
+import { 
+  buildChatToBuyLink, buildStoreContactLink, buildStudioEnquiryLink, 
+  buildVendorNotifyLink 
+} from '@/lib/utils/whatsapp';
+import { m, AnimatePresence, staggerContainer } from '@/lib/motion';
 import { useBasketStore } from '@/lib/store/basket.store';
 import { useUIStore } from '@/lib/store/ui.store';
-import type { Product, ProductVariant, CardStyle } from '@/lib/types';
-import type { ClaimRequest, HoldRequest } from '@/lib/types';
+import type { Product, ProductVariant, Merchant, ClaimRequest, HoldRequest } from '@/lib/types';
 import { usePaletteTheme } from '@/lib/hooks/usePaletteTheme';
+import { useHoldStore } from '@/lib/store/hold.store';
+import PopupModal from '@/components/primitives/PopupModal/PopupModal';
+import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import ClaimSheet from '@/components/public/ClaimSheet';
 import HoldSheet from '@/components/public/HoldSheet';
+import BookingRequestSheet from '@/components/public/BookingRequestSheet';
+import MiniCard from '@/components/public/MiniCard/MiniCard';
 import styles from './ItemDetailPage.module.css';
 import '@/styles/cards.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function hoursRemaining(expiresAt: string): number {
-  return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 3_600_000));
+function formatHoldTime(expiresAt: string): string {
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return 'Expired';
+  
+  const hours = Math.floor(diff / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+  
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 const getFileTypeBadge = (product: Product): string | null => {
@@ -154,39 +167,6 @@ function Lightbox({
   );
 }
 
-// ─── Mini Card (below-fold "More" grid) ───────────────────────────────────────
-
-function MiniCard({
-  product,
-  handle,
-  cardStyle,
-}: {
-  product: { id: string; name: string; price: number; images: string[]; status: string };
-  handle: string;
-  cardStyle: CardStyle;
-}) {
-  return (
-    <m.div variants={staggerChild}>
-      <Link to={`/store/${handle}/item/${product.id}`} className={`sf-card sf-card-${cardStyle}`}>
-        <div className="sf-card-image" style={{ aspectRatio: '1/1' }}>
-          <img
-            src={product.images[0] ?? `https://picsum.photos/seed/${product.id}/300/300`}
-            alt={product.name}
-            loading="lazy"
-          />
-          {product.status === 'sold_out' && (
-            <span className="sf-card-status sf-card-status-sold">Sold</span>
-          )}
-        </div>
-        <div className="sf-card-body">
-          <p className="sf-card-name">{product.name}</p>
-          <p className="sf-card-price">{formatCurrencyFull(product.price)}</p>
-        </div>
-      </Link>
-    </m.div>
-  );
-}
-
 // ─── Payment Proof Modal (internal) ───────────────────────────────────────────
 
 interface PaymentProofFormState {
@@ -194,12 +174,6 @@ interface PaymentProofFormState {
   buyerPhone: string;
   method: string;
   referenceNote: string;
-}
-
-interface PaymentProofErrors {
-  buyerName?: string;
-  buyerPhone?: string;
-  referenceNote?: string;
 }
 
 function PaymentProofModal({
@@ -210,183 +184,220 @@ function PaymentProofModal({
 }: {
   open: boolean;
   onClose: () => void;
-  product: { name: string; price: number };
-  merchant: typeof FIXTURE_MERCHANT;
+  product: Product;
+  merchant: Merchant;
 }) {
+  const { addToast } = useUIStore();
   const [form, setForm] = useState<PaymentProofFormState>({
-    buyerName: '', buyerPhone: '', method: 'Bank Transfer', referenceNote: '',
+    buyerName: '',
+    buyerPhone: '',
+    method: 'Bank Transfer',
+    referenceNote: '',
   });
-  const [errors, setErrors] = useState<PaymentProofErrors>({});
-
-  const handleClose = useCallback(() => {
-    onClose();
-    setTimeout(() => {
-      setForm({ buyerName: '', buyerPhone: '', method: 'Bank Transfer', referenceNote: '' });
-      setErrors({});
-    }, 300);
-  }, [onClose]);
 
   const handleSubmit = () => {
-    const errs: PaymentProofErrors = {};
-    if (!form.buyerName.trim() || form.buyerName.trim().length < 2) {
-      errs.buyerName = 'Please enter your name.';
-    }
-    if (!form.buyerPhone.trim() || form.buyerPhone.trim().length < 8) {
-      errs.buyerPhone = 'Please enter a valid WhatsApp number.';
-    }
-    if (!form.referenceNote.trim()) {
-      errs.referenceNote = 'Please add a reference or note for your payment.';
-    }
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs);
+    if (!form.buyerName || !form.buyerPhone) {
+      addToast('Please fill in your name and phone.', 'error');
       return;
     }
-
-    const priceStr = new Intl.NumberFormat('en-NG', {
-      style: 'currency', currency: 'NGN', maximumFractionDigits: 0,
-    }).format(product.price);
-
-    const message = [
-      `Hi ${merchant.store_name}! I've made payment for ${product.name} (${priceStr}).`,
-      '',
-      `Payment method: ${form.method}`,
-      `Reference: ${form.referenceNote.trim()}`,
-      '',
-      `My name: ${form.buyerName.trim()}`,
-      `My WhatsApp: ${form.buyerPhone.trim()}`,
-      '',
-      'Please confirm receipt. Thank you!',
-    ].join('\n');
-
-    const clean = merchant.whatsapp.replace(/[^0-9]/g, '');
-    const waLink = `https://wa.me/${clean}?text=${encodeURIComponent(message)}`;
-    window.open(waLink, '_blank', 'noopener,noreferrer');
-    handleClose();
+    addToast('Proof submitted! The seller will verify and confirm.', 'success');
+    onClose();
   };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <m.div
-            className={styles.proofBackdrop}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.18 } }}
-            onClick={handleClose}
+    <PopupModal open={open} onClose={onClose} title="I've already paid">
+      <div className={styles.proofForm}>
+        <p className={styles.proofHint}>
+          Submit this if you've already transferred <strong>{formatCurrencyFull(product.price)}</strong> to {merchant.store_name}.
+        </p>
+        
+        <div className={styles.proofField}>
+          <label className={styles.proofLabel} htmlFor="proof-name">Your Name</label>
+          <input
+            id="proof-name"
+            className={styles.proofInput}
+            type="text"
+            placeholder="e.g. Adaeze Okonkwo"
+            value={form.buyerName}
+            onChange={(e) => setForm({ ...form, buyerName: e.target.value })}
           />
-          <m.div
-            className={styles.proofModal}
-            initial={{ opacity: 0, y: 24, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] } }}
-            exit={{ opacity: 0, y: 12, scale: 0.97, transition: { duration: 0.18 } }}
-            role="dialog"
-            aria-modal="true"
-            aria-label="I've already paid"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={styles.proofHeader}>
-              <h2 className={styles.proofTitle}>I've already paid</h2>
-              <button className={styles.proofClose} onClick={handleClose} aria-label="Close">
-                <X size={15} />
-              </button>
-            </div>
+        </div>
 
-            <p className={styles.proofSubtitle}>
-              Let the seller know your payment details:
-            </p>
+        <div className={styles.proofField}>
+          <label className={styles.proofLabel} htmlFor="proof-phone">WhatsApp Number</label>
+          <input
+            id="proof-phone"
+            className={styles.proofInput}
+            type="tel"
+            placeholder="080..."
+            value={form.buyerPhone}
+            onChange={(e) => setForm({ ...form, buyerPhone: e.target.value })}
+          />
+        </div>
 
-            <div className={styles.proofForm}>
-              <div className={styles.proofField}>
-                <label className={styles.proofLabel} htmlFor="proof-name">
-                  Your Name <span className={styles.proofRequired}>*</span>
-                </label>
-                <input
-                  id="proof-name"
-                  className={`${styles.proofInput} ${errors.buyerName ? styles.proofInputError : ''}`}
-                  type="text"
-                  placeholder="e.g. Adaeze Okonkwo"
-                  value={form.buyerName}
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, buyerName: e.target.value }));
-                    setErrors((err) => ({ ...err, buyerName: undefined }));
-                  }}
-                  autoComplete="name"
-                />
-                {errors.buyerName && <p className={styles.proofError}>{errors.buyerName}</p>}
-              </div>
+        <div className={styles.proofField}>
+          <label className={styles.proofLabel}>Payment Method</label>
+          <div className={styles.proofSelectWrap}>
+            <select
+              className={styles.proofSelect}
+              value={form.method}
+              onChange={(e) => setForm({ ...form, method: e.target.value })}
+            >
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <ChevronDown size={13} className={styles.proofSelectIcon} />
+          </div>
+        </div>
 
-              <div className={styles.proofField}>
-                <label className={styles.proofLabel} htmlFor="proof-phone">
-                  WhatsApp <span className={styles.proofRequired}>*</span>
-                </label>
-                <input
-                  id="proof-phone"
-                  className={`${styles.proofInput} ${errors.buyerPhone ? styles.proofInputError : ''}`}
-                  type="tel"
-                  placeholder="08012345678"
-                  value={form.buyerPhone}
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, buyerPhone: e.target.value }));
-                    setErrors((err) => ({ ...err, buyerPhone: undefined }));
-                  }}
-                  autoComplete="tel"
-                />
-                {errors.buyerPhone && <p className={styles.proofError}>{errors.buyerPhone}</p>}
-              </div>
+        <div className={styles.proofField}>
+          <label className={styles.proofLabel} htmlFor="proof-ref">Reference / Note (Optional)</label>
+          <textarea
+            id="proof-ref"
+            className={styles.proofTextarea}
+            rows={2}
+            placeholder="e.g. Session ID or bank name"
+            value={form.referenceNote}
+            onChange={(e) => setForm({ ...form, referenceNote: e.target.value })}
+          />
+        </div>
 
-              <div className={styles.proofField}>
-                <label className={styles.proofLabel} htmlFor="proof-method">
-                  Payment method
-                </label>
-                <div className={styles.proofSelectWrap}>
-                  <select
-                    id="proof-method"
-                    className={styles.proofSelect}
-                    value={form.method}
-                    onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
-                  >
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={13} className={styles.proofSelectIcon} />
-                </div>
-              </div>
+        <button className={styles.proofSubmitBtn} onClick={handleSubmit}>
+          Submit Proof
+        </button>
+      </div>
+    </PopupModal>
+  );
+}
 
-              <div className={styles.proofField}>
-                <label className={styles.proofLabel} htmlFor="proof-ref">
-                  Reference / Note <span className={styles.proofRequired}>*</span>
-                </label>
-                <textarea
-                  id="proof-ref"
-                  className={`${styles.proofTextarea} ${errors.referenceNote ? styles.proofInputError : ''}`}
-                  placeholder="e.g. Transfer ref: 3849201, sent 2:15pm"
-                  value={form.referenceNote}
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, referenceNote: e.target.value }));
-                    setErrors((err) => ({ ...err, referenceNote: undefined }));
-                  }}
-                  rows={3}
-                />
-                {errors.referenceNote && (
-                  <p className={styles.proofError}>{errors.referenceNote}</p>
+// ─── Digital Acquisition Drawer ───────────────────────────────────────────────
+
+function DigitalAcquisitionDrawer({
+  open,
+  onClose,
+  product,
+  merchant,
+}: {
+  open: boolean;
+  onClose: () => void;
+  product: Product;
+  merchant: Merchant;
+}) {
+  const navigate = useNavigate();
+  const [step, setStep] = useState<'start' | 'form'>(product.is_free ? 'form' : 'start');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleAction = async () => {
+    if (!email.trim() || (!product.is_free && !name.trim())) return;
+    
+    setSubmitting(true);
+    await new Promise(r => setTimeout(r, 1200));
+    setSubmitting(false);
+
+    if (product.is_free) {
+      navigate(`/receipt/mock-free-${product.id}`);
+    } else {
+      // In Phase 3E, we build a WhatsApp message for manual verification
+      const message = [
+        `*DIGITAL ORDER: ${merchant.store_name}*`,
+        '---',
+        `Buyer: ${name}`,
+        `Email: ${email}`,
+        `Item: ${product.name} — ${formatCurrencyFull(product.price)}`,
+        '',
+        'I have made the transfer for this tool. 🚀',
+      ].join('\n');
+
+      const cleanPhone = merchant.whatsapp.replace(/[^0-9]/g, '');
+      window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+      navigate(`/receipt/mock-pending-${product.id}`);
+    }
+    onClose();
+  };
+
+  const bank = merchant.bank_account;
+
+  return (
+    <BaseDrawer open={open} onClose={onClose} title={product.is_free ? 'Get Resource' : 'Buy Now'}>
+      <div className={styles.digitalDrawer}>
+        <div className={styles.digitalHero}>
+          <img src={product.images[0] ?? `https://picsum.photos/seed/${product.id}/200/200`} alt="" className={styles.digitalHeroImg} />
+          <div className={styles.digitalHeroInfo}>
+            <h3 className={styles.digitalHeroName}>{product.name}</h3>
+            <p className={styles.digitalHeroPrice}>{product.is_free ? 'Free' : formatCurrencyFull(product.price)}</p>
+          </div>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {step === 'start' && !product.is_free && (
+            <m.div 
+              key="start"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+            >
+              <div className={styles.paymentBox}>
+                <p className={styles.paymentHint}>Transfer to unlock your download:</p>
+                {bank ? (
+                  <div className={styles.bankCard}>
+                    <div className={styles.bankHeader}>
+                      <span>{bank.bank_name}</span>
+                      <strong className={styles.bankNumber}>{bank.account_number}</strong>
+                    </div>
+                    <p className={styles.bankName}>{bank.account_name}</p>
+                  </div>
+                ) : (
+                  <div className={styles.noBankNotice}>
+                    <AlertTriangle size={14} />
+                    <span>Contact seller on WhatsApp for payment details.</span>
+                  </div>
                 )}
               </div>
-            </div>
+              <button className={`${styles.actionBtn} ${styles.ctaPrimary}`} onClick={() => setStep('form')}>
+                I've Made the Transfer →
+              </button>
+            </m.div>
+          )}
 
-            <m.button
-              className={styles.proofSubmitBtn}
-              onClick={handleSubmit}
-              whileTap={{ scale: 0.97 }}
+          {(step === 'form' || product.is_free) && (
+            <m.div 
+              key="form"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={styles.acquisitionForm}
             >
-              <MessageCircle size={14} />
-              Send Confirmation →
-            </m.button>
-          </m.div>
-        </>
-      )}
-    </AnimatePresence>
+              <div className={styles.fieldGroup}>
+                {!product.is_free && (
+                  <div className={styles.field}>
+                    <label>Full Name</label>
+                    <input type="text" placeholder="e.g. Femi Kuti" value={name} onChange={e => setName(e.target.value)} />
+                  </div>
+                )}
+                <div className={styles.field}>
+                  <label>Email for delivery</label>
+                  <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                </div>
+              </div>
+              <p className={styles.digitalHint}>
+                {product.is_free 
+                  ? "We'll send your download link right away."
+                  : "The seller will verify your payment and unlock the files shortly."}
+              </p>
+              <button 
+                className={`${styles.actionBtn} ${styles.ctaPrimary}`} 
+                onClick={handleAction}
+                disabled={submitting || !email.trim() || (!product.is_free && !name.trim())}
+              >
+                {submitting ? 'Processing...' : product.is_free ? 'Send Me the Files →' : 'Submit Proof →'}
+              </button>
+            </m.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </BaseDrawer>
   );
 }
 
@@ -394,16 +405,19 @@ function PaymentProofModal({
 
 export default function ItemDetailPage() {
   const { handle, item_id } = useParams<{ handle: string; item_id: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Derive merchant and products based on handle
   const { merchant, products } = useMemo(() => {
     if (handle === 'chisombeauty') return { merchant: FIXTURE_HOST_MERCHANT, products: FIXTURE_HOST_PRODUCTS };
     if (handle === 'femicreates') return { merchant: FIXTURE_DIGITAL_MERCHANT, products: FIXTURE_DIGITAL_PRODUCTS };
     if (handle === 'ngozistudio') return { merchant: FIXTURE_STUDIO_MERCHANT, products: FIXTURE_STUDIO_PRODUCTS };
+    if (handle === 'tobieats') return { merchant: FIXTURE_VENDOR_MERCHANT, products: FIXTURE_VENDOR_PRODUCTS };
     return { merchant: FIXTURE_MERCHANT, products: FIXTURE_PRODUCTS };
   }, [handle]);
 
-  const product  = products.find((p) => p.id === item_id);
+  const product  = useMemo(() => products.find((p) => p.id === item_id), [products, item_id]);
   const cfg      = merchant.store_config;
   const { paletteId, isDark } = usePaletteTheme(cfg.palette);
   
@@ -417,62 +431,221 @@ export default function ItemDetailPage() {
     isStudio:    type === 'studio',
   }), [type]);
 
+  // Vendor Window Logic
+  const activeWindow = useMemo(() => {
+    if (!st.isVendor) return null;
+    return FIXTURE_WINDOWS.find(w => w.merchant_id === merchant.id && w.status === 'open');
+  }, [st.isVendor, merchant.id]);
+
+  const windowState = activeWindow ? 'open' : 'closed';
+  
+  const vendorNotifyLink = buildVendorNotifyLink(merchant.whatsapp, merchant.store_name);
+
   const [selectedImage,    setSelectedImage]    = useState(0);
   const [lightboxOpen,     setLightboxOpen]      = useState(false);
   const [selectedVariants, setSelectedVariants]  = useState<Record<string, string>>({});
   const [claimSheetOpen,   setClaimSheetOpen]    = useState(false);
   const [holdSheetOpen,    setHoldSheetOpen]     = useState(false);
+  const [bookingSheetOpen, setBookingSheetOpen]  = useState(false);
+  const [digitalDrawerOpen, setDigitalDrawerOpen] = useState(false);
   const [proofModalOpen,   setProofModalOpen]    = useState(false);
   const [enquirySubmitted, setEnquirySubmitted]  = useState(false);
   const [enquiryForm, setEnquiryForm] = useState({
-    name: '', company: '', budget: '', timeline: '', message: ''
+    name: '', company: '', budget: '', timeline: '', message: '', projectType: ''
   });
   const [claims,           setClaims]            = useState<ClaimRequest[]>(FIXTURE_CLAIMS);
-  const [holds,            setHolds]             = useState<HoldRequest[]>(FIXTURE_HOLDS);
+  const { addHold, getHoldForProduct } = useHoldStore();
 
-  const { add, remove, has } = useBasketStore();
+  const { add, has, clearIfDifferentStore, open: openBasket, items: basketItems } = useBasketStore();
   const { addToast } = useUIStore();
   const inBasket = product ? has(product.id) : false;
 
+  // Phase 3B: Clear bag if different store
+  useEffect(() => {
+    if (merchant.id) {
+      clearIfDifferentStore(merchant.id);
+    }
+  }, [merchant.id, clearIfDifferentStore]);
+
+  // Phase 3G: Recently browsed tracking
+  useEffect(() => {
+    if (!product || !handle) return;
+    
+    const key = `trovea_recent_${handle}`;
+    const now = Date.now();
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    
+    // Filter out old (>24h) and current
+    const filtered = existing.filter((i: any) => 
+      (now - i.timestamp < 86400000) && i.id !== product.id
+    );
+    
+    const newList = [
+      { 
+        id: product.id, 
+        name: product.name, 
+        price: product.price, 
+        image: product.images[0] ?? `https://picsum.photos/seed/${product.id}/300/300`,
+        timestamp: now 
+      },
+      ...filtered
+    ].slice(0, 6);
+    
+    localStorage.setItem(key, JSON.stringify(newList));
+  }, [product, handle]);
+
   const touchStart = useRef<number | null>(null);
+
+  const searchParams = new URLSearchParams(location.search);
+  const autoEnquire = searchParams.get('action') === 'enquire';
+
+  useEffect(() => {
+    if (autoEnquire && st.isStudio && product?.product_type === 'package') {
+      setEnquiryForm(f => ({ ...f, projectType: product.name }));
+      setTimeout(() => {
+        document.querySelector('[data-enquiry-form]')?.scrollIntoView({ behavior: 'smooth' });
+      }, 400);
+    }
+  }, [autoEnquire, product, st.isStudio]);
 
   const collection = useMemo(
     () => product ? FIXTURE_COLLECTIONS.find((c) => c.id === product.collection_id) : null,
     [product]
   );
 
-  const relatedProducts = useMemo(
-    () => products.filter((p) => p.id !== item_id && p.status !== 'hidden').slice(0, 4),
-    [item_id, products]
-  );
+  const relatedProducts = useMemo(() => {
+    const others = products.filter((p) => p.id !== item_id && p.status !== 'hidden');
+    // Phase 3G: Prioritize same collection
+    const sameCollection = collection
+      ? others.filter(p => p.collection_id === collection.id)
+      : [];
+    const rest = others.filter(p => !sameCollection.some(s => s.id === p.id));
+    return [...sameCollection, ...rest].slice(0, 4);
+  }, [item_id, products, collection]);
+
+  const relatedSectionTitle = useMemo(() => {
+    // If we have at least one from same collection, show collection name
+    const fromCollection = collection ? relatedProducts.filter(p => p.collection_id === collection.id) : [];
+    if (fromCollection.length > 0 && collection) {
+      return `More from ${collection.name}`;
+    }
+    return `More from ${merchant.store_name}`;
+  }, [relatedProducts, collection, merchant.store_name]);
 
   const addClaim = useCallback((claim: ClaimRequest) => {
     setClaims((prev) => [claim, ...prev]);
-  }, []);
+    setClaimSheetOpen(false);
+    addToast('Claim submitted! Verification in progress.', 'success');
+  }, [addToast]);
 
-  const addHold = useCallback((hold: HoldRequest) => {
-    setHolds((prev) => [hold, ...prev]);
-  }, []);
+  const onHoldCreated = useCallback((hold: HoldRequest) => {
+    addHold(hold);
+    setHoldSheetOpen(false);
+    addToast('Item placed on hold for you.', 'success');
+  }, [addToast, addHold]);
 
-  const hasPendingClaim = useCallback((productId: string) =>
-    claims.some((c) => c.product_id === productId && (c.status === 'pending' || c.status === 'accepted')),
-    [claims]
+  const hasPendingClaim = useCallback(
+    (productId: string) =>
+      claims.some((c) => c.product_id === productId && c.status === 'pending'),
+    [claims],
   );
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({ title: product?.name ?? '', url: window.location.href }).catch(() => {});
+  const activeHold = useMemo(
+    () => product ? getHoldForProduct(product.id) : null,
+    [product, getHoldForProduct],
+  );
+
+  const isPaused = merchant.is_paused; 
+  const bagEligible = st.isCollector || st.isVendor || st.isDigital;
+  const checkoutEligible = merchant.checkout_enabled && 
+    (st.isCollector || st.isVendor);
+
+  const whatsappContactLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
+  const whatsappBuyLink = product ? buildChatToBuyLink({
+    phone: merchant.whatsapp,
+    itemName: product.name,
+    price: product.price,
+    storeName: merchant.store_name,
+  }) : '#';
+
+  const studioPackageWaLink = st.isStudio && product?.product_type === 'package'
+    ? buildStudioEnquiryLink({
+        phone: merchant.whatsapp,
+        storeName: merchant.store_name,
+        projectName: product.name,
+        clientName: 'Buyer',
+        message: 'I\'m interested in this package.',
+      })
+    : whatsappContactLink;
+
+  const claimCtaLabel = useMemo(() => {
+    if (st.isHost || st.isStudio) return 'Book & Pay Deposit';
+    if (st.isVendor) return 'Claim Pre-order';
+    return 'Claim Piece';
+  }, [st.isHost, st.isStudio, st.isVendor]);
+
+  if (!product) {
+    return (
+      <div className={styles.errorPage}>
+        <div
+          className={`sf-themed ${styles.root}`}
+          data-palette={paletteId}
+          data-dark={isDark}
+        >
+          <div className={styles.notFound}>
+            <h1>Item not found</h1>
+            <Link to={`/store/${handle}`} className={styles.backLink}>Back to Store</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isSoldOut  = product.status === 'sold_out' || product.stock_level === 0;
+  const isLowStock = !isSoldOut && product.stock_level === 1;
+
+  const handleBasketToggle = useCallback(() => {
+    if (!product || isSoldOut) return;
+    if (inBasket) {
+      // Phase 3B: Navigate back and open basket instead of removing
+      navigate(`/store/${handle}`);
+      openBasket();
     } else {
-      navigator.clipboard.writeText(window.location.href).catch(() => {});
+      add({
+        id:    product.id,
+        name:  product.name,
+        price: product.price,
+        image: product.images[0] ?? `https://picsum.photos/seed/${product.id}/300/300`,
+        variantLabel: Object.entries(selectedVariants).map(([k, v]) => `${k}: ${v}`).join(', ') || undefined,
+      }, merchant.id);
     }
-  };
+  }, [product, inBasket, selectedVariants, add, navigate, handle, openBasket, isSoldOut, merchant.id]);
+
+  const variantGroups = useMemo(() => {
+    if (!product.variants?.length) return [];
+    const map = new Map<string, ProductVariant[]>();
+    product.variants.forEach((v) => {
+      if (!map.has(v.label)) map.set(v.label, []);
+      map.get(v.label)!.push(v);
+    });
+    return Array.from(map.entries()).map(([name, opts]) => ({ name, opts }));
+  }, [product.variants]);
 
   const selectVariant = (groupName: string, value: string) =>
     setSelectedVariants((prev) => ({ ...prev, [groupName]: value }));
 
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: product.name, url: window.location.href }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(window.location.href).catch(() => {});
+      addToast('Link copied.', 'info');
+    }
+  };
+
   const onTouchStart = (e: React.TouchEvent) => { touchStart.current = e.touches[0].clientX; };
   const onTouchEnd   = (e: React.TouchEvent) => {
-    if (!product || touchStart.current === null) return;
+    if (touchStart.current === null) return;
     const diff = touchStart.current - e.changedTouches[0].clientX;
     const len  = images.length;
     if (Math.abs(diff) > 40) {
@@ -481,75 +654,9 @@ export default function ItemDetailPage() {
     touchStart.current = null;
   };
 
-  const isSoldOut  = product?.status === 'sold_out' || product?.stock_level === 0;
-  const isLowStock = !isSoldOut && product?.stock_level === 1;
-
-  const handleBasketToggle = useCallback(() => {
-    if (!product || isSoldOut) return;
-    if (inBasket) {
-      remove(product.id);
-    } else {
-      add({
-        id:    product.id,
-        name:  product.name,
-        price: product.price,
-        image: product.images[0] ?? `https://picsum.photos/seed/${product.id}/300/300`,
-        variantLabel: Object.entries(selectedVariants).map(([k, v]) => `${k}: ${v}`).join(', ') || undefined,
-      });
-    }
-  }, [product, inBasket, selectedVariants, add, remove, isSoldOut]);
-
-  const variantGroups = useMemo(() => {
-    if (!product?.variants?.length) return [];
-    const map = new Map<string, ProductVariant[]>();
-    product.variants.forEach((v) => {
-      if (!map.has(v.label)) map.set(v.label, []);
-      map.get(v.label)!.push(v);
-    });
-    return Array.from(map.entries()).map(([name, opts]) => ({ name, opts }));
-  }, [product?.variants]);
-
-  // ── Not found ─────────────────────────────────────────────────────────────
-  if (!product) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.notFound}>
-          <p className={styles.notFoundTitle}>Item not found</p>
-          <p className={styles.notFoundText}>This piece may have been removed or sold.</p>
-          <Link to={`/store/${handle}`} className={styles.notFoundLink}>← Back to store</Link>
-        </div>
-      </div>
-    );
-  }
-
-  const variantString = Object.entries(selectedVariants).map(([k, v]) => `${k}: ${v}`).join(', ');
-
-  const whatsappBuyLink     = buildChatToBuyLink({
-    phone: merchant.whatsapp, itemName: product.name, price: product.price,
-    variantLabel: variantString || undefined, storeName: merchant.store_name,
-  });
-  const whatsappContactLink = buildStoreContactLink(merchant.whatsapp, merchant.store_name);
-
-  // Studio Package Proposal Link
-  const studioPackageWaLink = st.isStudio && product.product_type === 'package'
-    ? `https://wa.me/${merchant.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-        `Hi ${merchant.store_name}, I'm interested in the "${product.name}" package (${product.price_type === 'custom' ? 'Custom Quote' : `From ${formatCurrencyFull(product.price)}`}).`
-      )}`
-    : whatsappContactLink;
-
   const images = product.images.length > 0
     ? product.images
     : [`https://picsum.photos/seed/${product.id}/600/600`];
-
-  // Bag eligibility for this store type
-  const bagEligible = st.isCollector || st.isVendor || st.isDigital;
-
-  // Checkout (Claim) eligibility
-  const checkoutEligible =
-    merchant.checkout_enabled &&
-    product.status === 'live' &&
-    !merchant.is_paused &&
-    !st.isDigital;
 
   // Hold eligibility — Collector and Vendor only
   const holdEligible =
@@ -558,25 +665,13 @@ export default function ItemDetailPage() {
     !merchant.is_paused &&
     (st.isCollector || st.isVendor);
 
-  // Active hold on this product
-  const activeHold = holds.find(
-    (h) => h.product_id === product.id && h.status === 'active',
-  );
-
-  // Payment proof: no structured flows available — show "I've already paid" link
+  // Payment proof
   const showPaymentProof =
     !merchant.checkout_enabled &&
     !merchant.holds_enabled &&
     !isSoldOut &&
     !st.isHost &&
     !st.isStudio;
-
-  // Claim CTA label per store type
-  const claimCtaLabel = (() => {
-    if (st.isVendor) return 'Claim Pre-order';
-    if (st.isHost || st.isStudio) return 'Book & Pay Deposit';
-    return 'Claim This Piece';
-  })();
 
   // Studio Package View
   if (st.isStudio && product.product_type === 'package') {
@@ -621,7 +716,7 @@ export default function ItemDetailPage() {
             <p className={styles.proposalDescription}>{product.scope_description}</p>
           </section>
 
-          <section className={styles.proposalSection}>
+          <section className={styles.proposalSection} data-enquiry-form>
             <h2 className={styles.proposalSectionTitle}>Send Enquiry</h2>
             {enquirySubmitted ? (
               <div className={styles.enquirySuccess}>
@@ -652,24 +747,31 @@ export default function ItemDetailPage() {
                 </div>
                 <div className={styles.enquiryRow}>
                   <div className={styles.enquiryField}>
-                    <label>Package</label>
-                    <input type="text" value={product.name} readOnly className={styles.readOnlyInput} />
-                  </div>
-                  <div className={styles.enquiryField}>
                     <label>Timeline</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Next month" 
+                    <select 
                       value={enquiryForm.timeline}
                       onChange={e => setEnquiryForm(f => ({ ...f, timeline: e.target.value }))}
-                    />
+                    >
+                      <option value="Flexible">Select timeline (Optional)</option>
+                      {['ASAP', 'Within 1 month', 'Next 3 months', 'Planning phase'].map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className={styles.enquiryField}>
+                    <label>Budget</label>
+                    <select 
+                      value={enquiryForm.budget}
+                      onChange={e => setEnquiryForm(f => ({ ...f, budget: e.target.value }))}
+                    >
+                      <option value="Open">Select range (Optional)</option>
+                      {['Under ₦200k', '₦200k–₦500k', '₦500k–₦1.5m', 'Over ₦1.5m'].map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
                   </div>
                 </div>
                 <div className={styles.enquiryField}>
-                  <label>Message *</label>
+                  <label>Brief / Message *</label>
                   <textarea 
                     rows={4} 
-                    placeholder="Tell us about your project..."
+                    placeholder="Tell us about your goals for this project..."
                     value={enquiryForm.message}
                     onChange={e => setEnquiryForm(f => ({ ...f, message: e.target.value }))}
                   />
@@ -678,14 +780,27 @@ export default function ItemDetailPage() {
                   className={styles.proposalSubmitBtn}
                   onClick={() => {
                     if (!enquiryForm.name || !enquiryForm.message) {
-                      addToast('Name and message are required', 'error');
+                      addToast('Name and brief are required', 'error');
                       return;
                     }
+                    
+                    const waLink = buildStudioEnquiryLink({
+                      phone: merchant.whatsapp,
+                      storeName: merchant.store_name,
+                      projectName: product.name,
+                      clientName: enquiryForm.name,
+                      company: enquiryForm.company,
+                      budget: enquiryForm.budget,
+                      timeline: enquiryForm.timeline,
+                      message: enquiryForm.message,
+                    });
+
+                    window.open(waLink, '_blank');
                     setEnquirySubmitted(true);
-                    addToast('Enquiry received', 'success');
+                    addToast('Brief sent via WhatsApp', 'success');
                   }}
                 >
-                  Send Enquiry
+                  Start Consultation →
                 </button>
                 <a 
                   href={studioPackageWaLink}
@@ -710,6 +825,8 @@ export default function ItemDetailPage() {
       </div>
     );
   }
+
+  const variantString = Object.entries(selectedVariants).map(([k, v]) => `${k}: ${v}`).join(', ');
 
   return (
     <div className={`sf-themed ${styles.page}`} data-palette={paletteId} data-dark={isDark}>
@@ -824,7 +941,12 @@ export default function ItemDetailPage() {
             </span>
             {isSoldOut  && <span className={`${styles.stockBadge} ${styles.stockOut}`}>Sold out</span>}
             {isLowStock && <span className={`${styles.stockBadge} ${styles.stockLow}`}>Last one</span>}
-            {product.claim_mode && !isSoldOut && (
+            {st.isVendor && product.stock_level !== null && (
+              <span className={`${styles.stockBadge} ${styles.stockClaim}`}>
+                {product.stock_level} remaining this window
+              </span>
+            )}
+            {product.claim_mode && !isSoldOut && !st.isVendor && (
               <span className={`${styles.stockBadge} ${styles.stockClaim}`}>Claim mode</span>
             )}
             {st.isDigital && getFileTypeBadge(product) && (
@@ -898,34 +1020,65 @@ export default function ItemDetailPage() {
 
           {/* ── Actions (per store type) ── */}
           <div className={styles.actions}>
-            {merchant.is_paused ? (
+            {isPaused ? (
               <div className={styles.pauseBanner}>
                 <AlertTriangle size={13} />
-                <span>Ordering unavailable while this store is paused.</span>
+                <span>
+                  {merchant.is_paused 
+                    ? (merchant.pause_message ?? 'Ordering unavailable while this store is paused.') 
+                    : 'Ordering is currently closed. Check back during our next session.'}
+                </span>
               </div>
 
             ) : isSoldOut ? (
               <span className={`${styles.actionBtn} ${styles.actionBtnDisabled}`}>Sold Out</span>
 
+            ) : st.isVendor && windowState !== 'open' ? (
+              <>
+                <button className={`${styles.actionBtn} ${styles.actionBtnDisabled}`} disabled>
+                  Window Closed
+                </button>
+                <a
+                  href={vendorNotifyLink}
+                  className={`${styles.actionBtn} ${styles.ctaSecondary}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={16} />
+                  Notify me when open
+                </a>
+              </>
+
             ) : st.isHost ? (
-              <a
-                href={`/store/${handle}/book`}
+              <button
                 className={`${styles.actionBtn} ${styles.ctaPrimary}`}
+                onClick={() => setBookingSheetOpen(true)}
               >
                 <Calendar size={16} />
                 Book a Slot
-              </a>
+              </button>
 
             ) : st.isStudio ? (
-              <a
-                href={whatsappContactLink}
-                className={`${styles.actionBtn} ${styles.ctaPrimary}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <MessageCircle size={16} />
-                {product.product_type === 'package' ? 'Book Package' : 'Request Quote'}
-              </a>
+              product.product_type === 'package' && product.price_type !== 'custom' ? (
+                <m.button
+                  className={`${styles.actionBtn} ${styles.ctaPrimary}`}
+                  onClick={() => setClaimSheetOpen(true)}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <Tag size={15} />
+                  Book & Pay Deposit
+                </m.button>
+              ) : (
+                <a
+                  href={whatsappContactLink}
+                  className={`${styles.actionBtn} ${styles.ctaPrimary}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={16} />
+                  {product.product_type === 'package' ? 'Book Package' : 'Request Quote'}
+                </a>
+              )
 
             ) : checkoutEligible ? (
               /* Checkout ON — Claim primary, Bag + Chat secondary */
@@ -944,7 +1097,7 @@ export default function ItemDetailPage() {
                     onClick={handleBasketToggle}
                   >
                     {inBasket
-                      ? <><Check size={15} /> In Bag</>
+                      ? <><Check size={15} /> In Bag ({basketItems.length})</>
                       : <><ShoppingBag size={15} /> Add to Bag</>
                     }
                   </button>
@@ -968,6 +1121,37 @@ export default function ItemDetailPage() {
                 Claim This Piece
               </a>
 
+            ) : st.isDigital ? (
+              <>
+                <button
+                  className={`${styles.actionBtn} ${styles.ctaPrimary}`}
+                  onClick={() => setDigitalDrawerOpen(true)}
+                >
+                  {product.is_free ? (
+                    <><Download size={16} /> Get Free</>
+                  ) : (
+                    <><ShoppingBag size={16} /> Buy Now</>
+                  )}
+                </button>
+                <a
+                  href={whatsappBuyLink}
+                  className={`${styles.actionBtn} ${styles.ctaSecondary}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={16} />
+                  Chat to Buy
+                </a>
+                {!product.is_free && (
+                  <button
+                    className={styles.paidLink}
+                    onClick={() => setProofModalOpen(true)}
+                  >
+                    I've already paid →
+                  </button>
+                )}
+              </>
+
             ) : bagEligible ? (
               <>
                 <button
@@ -975,7 +1159,7 @@ export default function ItemDetailPage() {
                   onClick={handleBasketToggle}
                 >
                   {inBasket
-                    ? <><Check size={15} /> In Bag</>
+                    ? <><Check size={15} /> In Bag ({basketItems.length})</>
                     : <><ShoppingBag size={15} /> {st.isDigital && product.is_free ? 'Get Free' : 'Add to Bag'}</>
                   }
                 </button>
@@ -1025,7 +1209,7 @@ export default function ItemDetailPage() {
               activeHold ? (
                 <div className={styles.holdStatusText}>
                   <Clock size={12} />
-                  On hold · {hoursRemaining(activeHold.expires_at)}h remaining
+                  On hold · {formatHoldTime(activeHold.expires_at)} remaining
                 </div>
               ) : (
                 <m.button
@@ -1089,7 +1273,7 @@ export default function ItemDetailPage() {
       {/* ── More from Archive — below fold ── */}
       {relatedProducts.length > 0 && (
         <div className={`${styles.moreSection} card-${cfg.card_style}`}>
-          <p className={styles.moreSectionTitle}>More from {merchant.store_name}</p>
+          <p className={styles.moreSectionTitle}>{relatedSectionTitle}</p>
           <m.div
             className={styles.moreGrid}
             variants={staggerContainer}
@@ -1122,6 +1306,13 @@ export default function ItemDetailPage() {
       </AnimatePresence>
 
       {/* ── Claim Sheet ── */}
+      <BookingRequestSheet
+        open={bookingSheetOpen}
+        onClose={() => setBookingSheetOpen(false)}
+        service={product}
+        merchant={merchant}
+      />
+
       <ClaimSheet
         open={claimSheetOpen}
         onClose={() => setClaimSheetOpen(false)}
@@ -1129,6 +1320,7 @@ export default function ItemDetailPage() {
         merchant={merchant}
         variantLabel={variantString || null}
         hasPendingClaim={hasPendingClaim(product.id)}
+        isDeposit={st.isStudio && product.product_type === 'package'}
         onClaimSubmitted={addClaim}
       />
 
@@ -1139,13 +1331,21 @@ export default function ItemDetailPage() {
         product={product}
         merchant={merchant}
         hasActiveHold={!!activeHold}
-        onHoldCreated={addHold}
+        onHoldCreated={onHoldCreated}
       />
 
       {/* ── Payment Proof Modal ── */}
       <PaymentProofModal
         open={proofModalOpen}
         onClose={() => setProofModalOpen(false)}
+        product={product}
+        merchant={merchant}
+      />
+
+      {/* ── Digital Acquisition Drawer ── */}
+      <DigitalAcquisitionDrawer
+        open={digitalDrawerOpen}
+        onClose={() => setDigitalDrawerOpen(false)}
         product={product}
         merchant={merchant}
       />

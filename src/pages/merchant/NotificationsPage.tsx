@@ -34,9 +34,8 @@ function deriveNotifications(
       notifs.push({
         id: `notif-receipt-${r.id}`,
         type: 'receipt',
-        title: 'New receipt created',
-        subtitle: `${r.buyer_name} — ${r.line_items[0]?.name ?? 'Unknown item'}`,
-        amount: r.total,
+        title: `${r.buyer_name} is pending payment`,
+        subtitle: `${r.line_items[0]?.name ?? 'Unknown item'} · ${formatCurrencyFull(r.total)}`,
         timestamp: r.created_at,
         unread: new Date(r.created_at).getTime() > Date.now() - 48 * 60 * 60 * 1000,
         linkedId: r.id,
@@ -47,9 +46,8 @@ function deriveNotifications(
       notifs.push({
         id: `notif-paid-${r.id}`,
         type: 'payment',
-        title: 'Payment confirmed',
-        subtitle: `${r.buyer_name} paid for ${r.line_items[0]?.name ?? 'order'}`,
-        amount: r.total,
+        title: `Payment confirmed from ${r.buyer_name}`,
+        subtitle: `${formatCurrencyFull(r.total)} · ${r.line_items[0]?.name ?? 'order'}`,
         timestamp: r.log.find((l) => l.event.startsWith('Payment'))?.timestamp ?? r.updated_at,
         unread: false,
         linkedId: r.id,
@@ -60,8 +58,8 @@ function deriveNotifications(
       notifs.push({
         id: `notif-shipped-${r.id}`,
         type: 'shipping',
-        title: 'Order marked as shipped',
-        subtitle: `${r.buyer_name}'s order is in transit`,
+        title: `Package in transit to ${r.buyer_name}`,
+        subtitle: `${r.line_items[0]?.name ?? 'order'} was dispatched`,
         timestamp: r.log.find((l) => l.event.includes('Shipped'))?.timestamp ?? r.updated_at,
         unread: false,
         linkedId: r.id,
@@ -75,8 +73,8 @@ function deriveNotifications(
       notifs.push({
         id: `notif-claim-${c.id}`,
         type: 'claim',
-        title: 'New claim request',
-        subtitle: `${c.buyer_name} claimed a product`,
+        title: `New claim from ${c.buyer_name}`,
+        subtitle: `Action required to release item`,
         timestamp: c.created_at,
         unread: new Date(c.created_at).getTime() > Date.now() - 72 * 60 * 60 * 1000,
         linkedId: c.product_id,
@@ -228,9 +226,9 @@ export default function NotificationsPage() {
             <div className={styles.emptyIcon} aria-hidden="true">
               <Bell size={26} />
             </div>
-            <p className={styles.emptyTitle}>All clear</p>
+            <p className={styles.emptyTitle}>You're up to date.</p>
             <p className={styles.emptyBody}>
-              {filter === 'unread' ? 'No unread notifications.' : 'No notifications yet.'}
+              {filter === 'unread' ? 'You\'re up to date.' : 'No notifications yet.'}
             </p>
           </m.div>
         ) : (

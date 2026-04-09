@@ -118,7 +118,7 @@ export default function ArchivePage() {
       id: `col-new-${Date.now()}`,
       merchant_id: merchant.id,
       name,
-      color_accent: '#9EA3AE',
+      color_accent: 'var(--color-bg)',
       display_order: collections.length,
       slug: name.toLowerCase().replace(/\s+/g, '-'),
       description: null,

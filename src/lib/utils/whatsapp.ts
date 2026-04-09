@@ -45,13 +45,15 @@ interface ClaimConfirmParams {
   itemName: string;
   price: number;
   storeName: string;
+  buyerName?: string;
 }
 
 export function buildClaimConfirmLink(params: ClaimConfirmParams): string {
-  const { phone, itemName, price, storeName } = params;
+  const { phone, itemName, price, storeName, buyerName } = params;
   const priceStr = formatCurrency(price);
+  const namePart = buyerName ? ` My name is ${buyerName}.` : '';
 
-  const message = `Hi ${storeName}! I just submitted a claim for:\n\n${itemName} — ${priceStr}\n\nPlease confirm my order. Thank you!`;
+  const message = `Hi ${storeName}! I'm claiming ${itemName} (${priceStr}).${namePart}\n\nPlease confirm my order and send payment details.`;
   return encodeWA(phone, message);
 }
 
@@ -140,6 +142,57 @@ export function buildHoldExpiryLink(params: {
 }): string {
   const { phone, buyerName, itemName, expiresIn, storeName } = params;
   const message = `Hi ${buyerName}! Your hold on "${itemName}" at ${storeName} expires in ${expiresIn}.\n\nIf you'd like to complete your purchase, please pay before your hold is released. Reply here if you need help.`;
+  return encodeWA(phone, message);
+}
+
+// Host — Booking request (buyer to merchant)
+export function buildBookingRequestLink(params: {
+  phone: string;
+  storeName: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  deposit: number;
+  buyerName: string;
+}): string {
+  const { phone, storeName, serviceName, date, time, deposit, buyerName } = params;
+  const message = `Hi ${storeName}! I'd like to book ${serviceName}.\n\nDate: ${date}\nTime: ${time}\n\nMy name is ${buyerName}. I understand a deposit of ${formatCurrency(deposit)} is required to confirm.`;
+  return encodeWA(phone, message);
+}
+
+// Studio — Professional Project Enquiry
+export function buildStudioEnquiryLink(params: {
+  phone: string;
+  storeName: string;
+  projectName: string;
+  clientName: string;
+  company?: string;
+  budget?: string;
+  timeline?: string;
+  message: string;
+}): string {
+  const { phone, storeName, projectName, clientName, company, budget, timeline, message } = params;
+  
+  const content = [
+    `*NEW ENQUIRY: ${storeName}*`,
+    `Project: ${projectName}`,
+    '---',
+    `Client: ${clientName}${company ? ` (${company})` : ''}`,
+    budget ? `Budget: ${budget}` : '',
+    timeline ? `Timeline: ${timeline}` : '',
+    '',
+    `*Message:*`,
+    message,
+    '',
+    'Reply to this message to initiate consultation. 🖋️',
+  ].filter(Boolean).join('\n');
+
+  return encodeWA(phone, content);
+}
+
+// Vendor — Notify me when window opens
+export function buildVendorNotifyLink(phone: string, storeName: string): string {
+  const message = `Hi ${storeName}, remind me when your next window opens 🍽️`;
   return encodeWA(phone, message);
 }
 

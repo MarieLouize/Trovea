@@ -6,11 +6,12 @@ import type { StoreConfig } from '@/lib/types';
 import { type LayerId, LAYER_ORDER } from '../../lib/types/architect.types';
 import LayerNav from '../LayerNav/LayerNav';
 import LivePreview from '../LivePreview/LivePreview';
-import PaletteLayer from '../layers/PaletteLayer/PaletteLayer';
-import LayoutLayer from '../layers/LayoutLayer/LayoutLayer';
+import ThemeLayer from '../layers/ThemeLayer/ThemeLayer';
+import ColorLayer from '../layers/ColorLayer/ColorLayer';
 import TypographyLayer from '../layers/TypographyLayer/TypographyLayer';
-import CardStyleLayer from '../layers/CardStyleLayer/CardStyleLayer';
-import SignatureLayer from '../layers/SignatureLayer/SignatureLayer';
+import ShapeLayer from '../layers/ShapeLayer/ShapeLayer';
+import MotionLayer from '../layers/MotionLayer/MotionLayer';
+import LayoutLayer from '../layers/LayoutLayer/LayoutLayer';
 import StoreLayer from '../layers/StoreLayer';
 import styles from './ArchitectShell.module.css';
 
@@ -33,7 +34,7 @@ export default function ArchitectShell({
   onPublish,
   onDiscard,
 }: ArchitectShellProps) {
-  const [activeLayer, setActiveLayer] = useState<LayerId>('palette');
+  const [activeLayer, setActiveLayer] = useState<LayerId>('theme');
   const [prevLayerIndex, setPrevLayerIndex] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -48,11 +49,12 @@ export default function ArchitectShell({
   const layerProps = { draftConfig, onUpdate };
 
   const layerMap: Record<LayerId, React.ReactNode> = {
-    palette:    <PaletteLayer {...layerProps} />,
-    layout:     <LayoutLayer {...layerProps} />,
+    theme:      <ThemeLayer {...layerProps} />,
+    color:      <ColorLayer {...layerProps} />,
     typography: <TypographyLayer {...layerProps} />,
-    card:       <CardStyleLayer {...layerProps} />,
-    signature:  <SignatureLayer {...layerProps} />,
+    shape:      <ShapeLayer {...layerProps} />,
+    motion:     <MotionLayer {...layerProps} />,
+    layout:     <LayoutLayer {...layerProps} />,
     store:      <StoreLayer {...layerProps} />,
   };
 

@@ -21,8 +21,8 @@
   left: 0;
   bottom: 0;
   background: linear-gradient(160deg, var(--color-surface-raised) 0%, var(--color-surface) 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: var(--shadow-raise);
+  border-right: 1px solid var(--color-border);
+  box-shadow: var(--shadow-raise-sm);
   display: none;
   flex-direction: column;
   z-index: var(--z-raised);
@@ -49,7 +49,7 @@
   position: relative;
   z-index: 1;
   padding: var(--space-6) var(--space-5) var(--space-5);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  border-bottom: 1px solid var(--color-border-dim);
   margin-bottom: var(--space-4);
   flex-shrink: 0;
 }
@@ -91,7 +91,7 @@
   width: 100%;
   padding: var(--space-3) var(--space-4);
   background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
-  color: #F0EDE8;
+  color: var(--color-fg); /* Fixed from var(--color-fg) to token */
   border: none;
   border-radius: var(--r-md);
   cursor: pointer;
@@ -99,19 +99,19 @@
   font-size: 10px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  box-shadow: 5px 5px 14px var(--color-accent-glow), -2px -2px 5px rgba(255, 255, 255, 0.04);
+  box-shadow: var(--shadow-raise-sm);
   transition: all var(--duration-fast) var(--ease-spring);
   text-decoration: none;
 }
 
 .terminalCtaBtn:hover {
   transform: translateY(-1px);
-  box-shadow: 8px 8px 20px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 .terminalCtaBtn:active {
   transform: scale(0.98);
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 /* ── Nav sections ── */
@@ -187,14 +187,14 @@
   height: 18px;
   border-radius: var(--r-full);
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg);
   font-family: var(--font-mono);
   font-size: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  box-shadow: 0 2px 8px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
   flex-shrink: 0;
 }
 
@@ -232,8 +232,8 @@
   height: 56px;
   z-index: calc(var(--z-raised) + 1);
   background: linear-gradient(145deg, var(--color-surface-raised) 0%, var(--color-surface) 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-raise-sm);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -293,7 +293,7 @@
   text-decoration: none;
 }
 
-.topBarIconBtn:active { box-shadow: var(--shadow-inset-sm); }
+.topBarIconBtn:active { box-shadow: var(--shadow-raise-sm); }
 
 .topBarBadge {
   position: absolute;
@@ -303,14 +303,14 @@
   height: 14px;
   border-radius: var(--r-full);
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg);
   font-size: 7px;
   font-weight: 700;
   font-family: var(--font-mono);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 /* ── More Dropdown ── */
@@ -325,8 +325,8 @@
   width: 240px;
   background: linear-gradient(145deg, var(--color-surface-raised) 0%, var(--color-surface) 100%);
   border-radius: var(--r-xl);
-  box-shadow: var(--shadow-raise-lg);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-raise-sm);
+  border: 1px solid var(--color-border);
   z-index: var(--z-dropdown);
   overflow: hidden;
   transform-origin: top right;
@@ -361,7 +361,7 @@
 }
 
 .dropdownGroup + .dropdownGroup {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 1px solid var(--color-border-dim);
 }
 
 .dropdownGroupLabel {
@@ -407,7 +407,7 @@
 }
 
 .dropdownItemDanger:hover {
-  background: rgba(57, 0, 7, 0.07);
+  background: var(--color-accent-glow);
   color: var(--color-accent);
   opacity: 1;
 }
@@ -418,22 +418,21 @@
 
 .bottomNav {
   position: fixed;
-  bottom: 0;
+  bottom: var(--space-4);
   left: 50%;
   transform: translateX(-50%);
   z-index: var(--z-raised);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+  gap: var(--space-1);
+  padding: 6px var(--space-2);
   background: linear-gradient(145deg, var(--color-surface-raised) 0%, var(--color-surface) 100%);
-  border-radius: var(--r-xl) var(--r-xl) 0 0;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-bottom: none;
-  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.14);
-  min-width: min(400px, 100vw);
-  max-width: 100vw;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-raise-sm);
+  width: calc(100% - 40px);
+  max-width: 400px;
 }
 
 .bottomNav::before {
@@ -441,8 +440,8 @@
   position: absolute;
   inset: 0;
   background-image: var(--noise);
-  background-size: 200px 200px;
-  opacity: 0.4;
+  background-size: 180px;
+  opacity: 0.45;
   pointer-events: none;
   border-radius: inherit;
 }
@@ -455,82 +454,96 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: var(--space-2) var(--space-4);
+  gap: 1px;
+  padding: 4px;
   border-radius: var(--r-pill);
   text-decoration: none;
   cursor: pointer;
-  min-width: 52px;
-  min-height: 44px;
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
   justify-content: center;
   position: relative;
   z-index: 1;
-  transition: all var(--duration-fast) var(--ease-standard);
+  transition: all var(--duration-normal) var(--ease-spring);
   background: transparent;
   border: none;
 }
 
 .pillNavItemActive {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
   box-shadow: var(--shadow-raise-sm);
 }
 
 .pillNavIcon {
   color: var(--color-fg-muted);
-  transition: color var(--duration-fast);
+  transition: color var(--duration-normal);
 }
 
 .pillNavItemActive .pillNavIcon { color: var(--color-accent); }
 
 .pillNavLabel {
   font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 1.5px;
+  font-size: 7.5px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: var(--color-fg-muted);
+  color: var(--color-fg-ghost);
 }
 
-.pillNavItemActive .pillNavLabel { color: var(--color-accent); }
+.pillNavItemActive .pillNavLabel { color: var(--color-accent); font-weight: 600; }
 
 .pillNavBadge {
   position: absolute;
-  top: 4px;
-  right: 6px;
-  width: 15px;
-  height: 15px;
+  top: -2px;
+  right: 15%;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
   border-radius: var(--r-full);
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg); /* Ivory for contrast on Maroon */
   font-size: 8px;
-  font-weight: 700;
+  font-weight: 800;
   font-family: var(--font-mono);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px var(--color-accent-glow);
+  box-shadow: var(--shadow-raise-sm);
+  z-index: 5;
+  border: 1.5px solid var(--color-surface-raised);
 }
 
 /* Terminal FAB — center of bottom nav */
 .terminalFab {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--r-lg);
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
   background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
-  box-shadow: 4px 4px 12px var(--color-accent-glow), -2px -2px 6px rgba(255, 255, 255, 0.04);
+  box-shadow: var(--shadow-raise-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #F0EDE8;
+  color: var(--color-fg); /* Ivory for contrast on Maroon */
   border: none;
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-spring);
+  transition: all var(--duration-normal) var(--ease-spring);
   position: relative;
-  z-index: 1;
+  z-index: 2;
   text-decoration: none;
   flex-shrink: 0;
+  margin: 0 var(--space-1);
+  top: -10px;
 }
 
-.terminalFab:active { transform: scale(0.95); }
+.terminalFab:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: var(--shadow-raise-sm);
+}
+
+.terminalFab:active { 
+  transform: translateY(0) scale(0.96);
+  box-shadow: var(--shadow-raise-sm);
+}
 
 /* Backdrop for More dropdown */
 .moreBackdrop {
@@ -546,7 +559,7 @@
 .devSwitcher {
   margin-top: auto;
   padding: var(--space-3) var(--space-4) var(--space-4);
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid var(--color-border-dim);
   display: none;
 }
 
@@ -576,7 +589,7 @@
   text-transform: uppercase;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--r-xs);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-fg-ghost);
   cursor: pointer;

@@ -1,0 +1,53 @@
+/* storefront-shapes.css
+   Shape sharpness system for Trovéa storefronts.
+   Applied via [data-shape="X"] on .sf-themed root.
+   Controls border-radius scale + shadow softness across all storefront elements.
+*/
+
+/* Edge — brutalist, editorial, tight corners */
+[data-shape="edge"] {
+  --sf-r-xs:           2px;
+  --sf-r-sm:           3px;
+  --sf-r-md:           5px;
+  --sf-r-lg:           8px;
+  --sf-r-xl:           10px;
+  --sf-r-pill:         6px;
+  --sf-shadow-blur:    8px;
+  --sf-shadow-spread:  0px;
+}
+
+/* Form — balanced, considered (Trovéa default) */
+[data-shape="form"] {
+  --sf-r-xs:           6px;
+  --sf-r-sm:           12px;
+  --sf-r-md:           18px;
+  --sf-r-lg:           24px;
+  --sf-r-xl:           32px;
+  --sf-r-pill:         50px;
+  --sf-shadow-blur:    16px;
+  --sf-shadow-spread:  -2px;
+}
+
+/* Float — airy, approachable, soft */
+[data-shape="float"] {
+  --sf-r-xs:           10px;
+  --sf-r-sm:           18px;
+  --sf-r-md:           26px;
+  --sf-r-lg:           34px;
+  --sf-r-xl:           44px;
+  --sf-r-pill:         60px;
+  --sf-shadow-blur:    24px;
+  --sf-shadow-spread:  -4px;
+}
+
+/* Bubble — playful, Gen-Z, expressive */
+[data-shape="bubble"] {
+  --sf-r-xs:           14px;
+  --sf-r-sm:           24px;
+  --sf-r-md:           34px;
+  --sf-r-lg:           44px;
+  --sf-r-xl:           56px;
+  --sf-r-pill:         9999px;
+  --sf-shadow-blur:    32px;
+  --sf-shadow-spread:  -6px;
+}

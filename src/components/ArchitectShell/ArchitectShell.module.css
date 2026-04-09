@@ -103,20 +103,20 @@
   font-size: 9px;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: #F0EDE8;
+  color: var(--color-fg);
   padding: 0 var(--space-3);
   height: 28px;
   border-radius: var(--r-sm);
   background: var(--color-accent);
   border: none;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(57, 0, 7, 0.3);
+  box-shadow: var(--shadow-raise-sm);
   transition: all 150ms;
   white-space: nowrap;
 }
 
 .publishBtn:hover {
-  box-shadow: 0 4px 12px rgba(57, 0, 7, 0.45);
+  box-shadow: var(--shadow-raise-sm);
   transform: translateY(-1px);
 }
 
@@ -178,8 +178,8 @@
   height: 40px;
   border-radius: var(--r-full);
   background: var(--color-fg);
-  box-shadow: var(--shadow-raise-lg);
-  color: #F0EDE8;
+  box-shadow: var(--shadow-raise-sm);
+  color: var(--color-fg);
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 1.5px;
@@ -221,7 +221,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 .previewSheetHandle {
@@ -276,7 +276,7 @@
   left: var(--space-4);
   right: var(--space-4);
   background: var(--color-fg);
-  box-shadow: var(--shadow-raise-lg);
+  box-shadow: var(--shadow-raise-sm);
   border-radius: var(--r-lg);
   padding: var(--space-3) var(--space-4);
   display: flex;
@@ -317,7 +317,7 @@
   font-size: 9px;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: #F0EDE8;
+  color: var(--color-fg);
   padding: 0 var(--space-3);
   height: 32px;
   border-radius: var(--r-sm);

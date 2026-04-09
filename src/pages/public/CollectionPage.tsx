@@ -6,7 +6,13 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS, FIXTURE_MERCHANT } from '@/lib/fixtures';
+import {
+  FIXTURE_PRODUCTS, FIXTURE_COLLECTIONS, FIXTURE_MERCHANT,
+  FIXTURE_VENDOR_MERCHANT, FIXTURE_VENDOR_PRODUCTS,
+  FIXTURE_HOST_MERCHANT, FIXTURE_HOST_PRODUCTS,
+  FIXTURE_DIGITAL_MERCHANT, FIXTURE_DIGITAL_PRODUCTS,
+  FIXTURE_STUDIO_MERCHANT, FIXTURE_STUDIO_PRODUCTS,
+} from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import { m, staggerContainer, staggerChild } from '@/lib/motion';
 import type { CardStyle } from '@/lib/types';
@@ -49,7 +55,16 @@ function CollectionCard({
 
 export default function CollectionPage() {
   const { handle, collection_slug } = useParams<{ handle: string; collection_slug: string }>();
-  const merchant = FIXTURE_MERCHANT;
+
+  // Derive merchant and products based on handle
+  const { merchant, products } = useMemo(() => {
+    if (handle === 'chisombeauty') return { merchant: FIXTURE_HOST_MERCHANT, products: FIXTURE_HOST_PRODUCTS };
+    if (handle === 'femicreates') return { merchant: FIXTURE_DIGITAL_MERCHANT, products: FIXTURE_DIGITAL_PRODUCTS };
+    if (handle === 'ngozistudio') return { merchant: FIXTURE_STUDIO_MERCHANT, products: FIXTURE_STUDIO_PRODUCTS };
+    if (handle === 'tobieats') return { merchant: FIXTURE_VENDOR_MERCHANT, products: FIXTURE_VENDOR_PRODUCTS };
+    return { merchant: FIXTURE_MERCHANT, products: FIXTURE_PRODUCTS };
+  }, [handle]);
+
   const cfg      = merchant.store_config;
   const { paletteId, isDark } = usePaletteTheme(cfg.palette);
 
@@ -60,8 +75,8 @@ export default function CollectionPage() {
 
   const collectionProducts = useMemo(() => {
     if (!collection) return [];
-    return FIXTURE_PRODUCTS.filter((p) => p.collection_id === collection.id && p.status !== 'hidden');
-  }, [collection]);
+    return products.filter((p) => p.collection_id === collection.id && p.status !== 'hidden');
+  }, [collection, products]);
 
   const otherCollections = useMemo(
     () => FIXTURE_COLLECTIONS.filter((c) => c.id !== collection?.id),

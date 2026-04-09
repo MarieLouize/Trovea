@@ -63,7 +63,7 @@
 
 .tabBadge {
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-fg);
   padding: 1px 5px;
   border-radius: var(--r-full);
   font-size: 9px;
@@ -111,7 +111,7 @@
 }
 
 .depositPaid {
-  color: var(--color-success);
+  color: var(--color-success-text);
   font-weight: 600;
 }
 
@@ -180,7 +180,7 @@
   border-radius: var(--r-xl);
   padding: var(--space-6);
   border: 1px solid rgba(0,0,0,0.06);
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -275,7 +275,7 @@
   letter-spacing: 1.5px;
   text-transform: uppercase;
   border: 1px solid rgba(0,0,0,0.1);
-  background: #fff;
+  background: var(--color-fg);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -290,9 +290,9 @@
 }
 
 .actionBtnWhatsApp {
-  background: #25D366;
-  color: #fff;
-  border-color: #25D366;
+  background: var(--color-whatsapp);
+  color: var(--color-fg);
+  border-color: var(--color-whatsapp);
 }
 
 /* ── COMMON ── */

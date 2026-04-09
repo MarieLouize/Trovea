@@ -70,7 +70,7 @@ function CollectorSettings({ tc, updateTypeConfig }: SectionTypeSettingsProps) {
             <button
               key={opt.value}
               className={`${styles.previewStateCard} ${tc.preview_state === opt.value ? styles.previewStateActive : ''}`}
-              onClick={() => updateTypeConfig({ preview_state: opt.value as any })}
+              onClick={() => updateTypeConfig({ preview_state: opt.value as StoreTypeConfig['preview_state'] })}
             >
               {opt.label}
             </button>
@@ -176,7 +176,7 @@ function HostSettings({ tc, updateTypeConfig }: SectionTypeSettingsProps) {
             { value: 'subdued',  label: 'Subtle' },
           ]}
           active={tc.price_prominence}
-          onSelect={(v) => updateTypeConfig({ price_prominence: v as any })}
+          onSelect={(v) => updateTypeConfig({ price_prominence: v as StoreTypeConfig['price_prominence'] })}
         />
         <div className={styles.priceProminenceDemo}>
           <div className={styles.demoCard}>
@@ -327,7 +327,7 @@ function StudioSettings({ tc, updateTypeConfig }: SectionTypeSettingsProps) {
               { value: 'recent',  label: 'Most recent first' },
             ]}
             active={tc.portfolio_order}
-            onSelect={(v) => updateTypeConfig({ portfolio_order: v as any })}
+            onSelect={(v) => updateTypeConfig({ portfolio_order: v as StoreTypeConfig['portfolio_order'] })}
           />
         </div>
 
@@ -338,7 +338,6 @@ function StudioSettings({ tc, updateTypeConfig }: SectionTypeSettingsProps) {
               values={portfolioImages}
               onReorder={() => {
                 /* Actual reordering of Merchant.portfolio_images is Phase 5 */
-                console.log('Portfolio reorder triggered (implementation Phase 5)');
               }}
               className={styles.reorderGroup}
             >
