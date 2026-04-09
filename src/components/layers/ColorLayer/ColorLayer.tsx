@@ -106,7 +106,7 @@ export default function ColorLayer({ draftConfig, onUpdate }: ColorLayerProps) {
                     aria-label={`Select ${colorId} text color`}
                     aria-pressed={isActive}
                     whileTap={{ scale: 0.97 }}
-                    style={{ background: PALETTES.find(p => p.id === activePalette)?.bg ?? '#000' }}
+                    style={{ background: PALETTES.find(p => p.id === activePalette)?.bg }}
                   >
                     <span
                       className={styles.fontColorSample}

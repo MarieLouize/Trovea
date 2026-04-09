@@ -7,6 +7,7 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  _authListenerSubscription: { unsubscribe: () => void } | null;
 
   // Actions
   signInWithOTP: (phone: string) => Promise<{ error: string | null }>;
@@ -15,11 +16,12 @@ interface AuthState {
   initSession: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   user: null,
   isLoading: true,
   isAuthenticated: false,
+  _authListenerSubscription: null,
 
   signInWithOTP: async (phone) => {
     // Normalise Nigerian phone numbers
@@ -57,11 +59,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signOut: async () => {
+    const { _authListenerSubscription } = get();
+    if (_authListenerSubscription) {
+      _authListenerSubscription.unsubscribe();
+    }
     await supabase.auth.signOut();
-    set({ session: null, user: null, isAuthenticated: false });
+    set({ session: null, user: null, isAuthenticated: false, _authListenerSubscription: null });
   },
 
   initSession: async () => {
+    const state = get();
+    if (state._authListenerSubscription) return; // already initialized
+
     set({ isLoading: true });
     const { data: { session } } = await supabase.auth.getSession();
 
@@ -77,12 +86,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
 
     // Listen for auth state changes
-    supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       set({
         session,
         user: session?.user ?? null,
         isAuthenticated: !!session,
       });
     });
+
+    set({ _authListenerSubscription: subscription });
   },
 }));

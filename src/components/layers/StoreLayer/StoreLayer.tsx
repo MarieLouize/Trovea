@@ -15,6 +15,8 @@ interface StoreLayerProps {
   onUpdate: (patch: Partial<StoreConfig>) => void;
 }
 
+const USD_NGN_RATE = 1200;
+
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
 interface SectionTypeSettingsProps {
@@ -268,7 +270,7 @@ function DigitalSettings({ tc, updateTypeConfig }: SectionTypeSettingsProps) {
           </label>
         </div>
         <p className={styles.conversionRate}>
-          Currency conversion rate: 1 USD = ₦1,200 (used for display only)
+          Currency conversion rate: 1 USD = ₦{USD_NGN_RATE.toLocaleString()} (used for display only)
         </p>
       </div>
 

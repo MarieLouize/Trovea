@@ -13,6 +13,7 @@ function ThemeMinimap({ theme }: { theme: ThemeDefinition }) {
   const { cardStyle, defaultLayout } = theme;
 
   // Render a tiny CSS-only visual representing this theme's card + layout combo
+  // NOTE: cardStyle values are coupled to class names in ThemeLayer.module.css
   return (
     <div className={`${styles.minimap} ${styles[`minimap_${defaultLayout.replace('-', '_')}`]}`} aria-hidden="true">
       {defaultLayout === 'grid-dense' && (

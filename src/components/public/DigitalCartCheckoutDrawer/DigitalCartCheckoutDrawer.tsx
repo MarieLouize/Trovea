@@ -69,8 +69,9 @@ export default function DigitalCartCheckoutDrawer({
           'I have made the transfer for these tools. 🚀',
         ].filter(Boolean).join('\n');
 
-        const cleanPhone = merchant.whatsapp.replace(/[^0-9]/g, '');
-        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+        const clean = merchant.whatsapp.replace(/\D/g, '');
+        const intl = clean.startsWith('0') ? `234${clean.slice(1)}` : clean;
+        window.open(`https://wa.me/${intl}?text=${encodeURIComponent(message)}`, '_blank');
       }
 
       setStep('confirmation');
@@ -223,7 +224,7 @@ export default function DigitalCartCheckoutDrawer({
               </h2>
               <p className={styles.confirmText}>
                 {isAllFree 
-                  ? `We've sent your free tools to ${form.email}. They should arrive in a few seconds!`
+                  ? `Your request is in — ${merchant.store_name} will send your files to ${form.email} shortly.`
                   : `Your request is in. ${merchant.store_name} will verify your payment and send your files to ${form.email} shortly.`
                 }
               </p>

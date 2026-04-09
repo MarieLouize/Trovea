@@ -134,7 +134,14 @@ export default function LayoutLayer({ draftConfig, onUpdate }: LayoutLayerProps)
   };
 
   const ALL_SECTION_KEYS = Object.keys(draftConfig.section_states) as SectionStateKey[];
-  const [sectionOrder, setSectionOrder] = useState<SectionStateKey[]>(ALL_SECTION_KEYS);
+  const [sectionOrder, setSectionOrder] = useState<SectionStateKey[]>(
+    draftConfig.section_order ?? ALL_SECTION_KEYS
+  );
+
+  const handleReorder = (newOrder: SectionStateKey[]) => {
+    setSectionOrder(newOrder);
+    onUpdate({ section_order: newOrder });
+  };
 
   const handleToggleSection = (key: SectionStateKey) => {
     onUpdate({
@@ -212,7 +219,7 @@ export default function LayoutLayer({ draftConfig, onUpdate }: LayoutLayerProps)
           <Reorder.Group
             axis="y"
             values={sectionOrder}
-            onReorder={setSectionOrder}
+            onReorder={handleReorder}
             className={styles.sectionList}
             role="list"
             as="div"

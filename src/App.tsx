@@ -5,6 +5,7 @@ import ToastContainer from '@/components/primitives/Toast/Toast';
 import ErrorBoundary from '@/components/primitives/ErrorBoundary/ErrorBoundary';
 import MerchantShell from '@/components/merchant/MerchantShell/MerchantShell';
 import RequireAuth from '@/components/auth/RequireAuth';
+import RequireAdmin from '@/components/auth/RequireAdmin';
 import ScrollToTop from '@/components/primitives/ScrollToTop/ScrollToTop';
 
 import { useAuthStore } from '@/lib/store/auth.store';
@@ -90,12 +91,7 @@ export default function App() {
       const hasEnv = !!import.meta.env.VITE_SUPABASE_URL && !!import.meta.env.VITE_SUPABASE_ANON_KEY;
       
       if (!hasEnv) {
-        // Dev fallback: load merchant-001 fixtures
-        const { merchant } = useMerchantStore.getState();
-        if (merchant.id === 'merchant-001') {
-          useArchiveStore.getState().initFromDB('merchant-001');
-          useLedgerStore.getState().initFromDB('merchant-001');
-        }
+        // Dev fallback: fixtures are already loaded by default in stores.
         return;
       }
 
@@ -239,7 +235,7 @@ export default function App() {
           />
 
           {/* ── Admin — Phase 2P (nested under AdminShell) ── */}
-          <Route path="/admin" element={<RequireAuth><AdminShell /></RequireAuth>}>
+          <Route path="/admin" element={<RequireAdmin><AdminShell /></RequireAdmin>}>
             <Route index                    element={<ErrorBoundary pageName="admin/overview"><AdminOverviewPage /></ErrorBoundary>} />
             <Route path="stores"            element={<ErrorBoundary pageName="admin/stores"><AdminStoresPage /></ErrorBoundary>} />
             <Route path="reports"           element={<ErrorBoundary pageName="admin/reports"><AdminReportsPage /></ErrorBoundary>} />

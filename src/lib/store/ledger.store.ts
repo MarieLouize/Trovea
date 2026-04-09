@@ -237,6 +237,21 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
         return receipts.filter(
           (r) => r.payment_status === 'paid' && (r.shipment_status === 'received' || r.receipt_type === 'download' || r.receipt_type === 'project')
         );
+      
+      // TODO: Phase 3D — Filter by drop ID
+      case 'drops':
+      // TODO: Phase 3E — Filter by fulfillment type
+      case 'fulfilment':
+      // TODO: Phase 4A — Filter by deposit payment status
+      case 'deposits':
+      // TODO: Phase 3E — Filter by delivery status
+      case 'delivery':
+      // TODO: Phase 4B — Filter by project pipeline stage
+      case 'pipeline':
+      // TODO: Phase 4C — Group by buyer profile
+      case 'buyers':
+      // TODO: Phase 4C — Group by client profile
+      case 'clients':
       default:
         return receipts.filter((r) => r.payment_status !== 'cancelled');
     }

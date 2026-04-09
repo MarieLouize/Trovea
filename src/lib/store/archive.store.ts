@@ -185,10 +185,40 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
 
   filteredProducts: () => {
     const { products, statusFilter, collectionFilter, searchQuery } = get();
-    const simpleStatuses: string[] = ['live', 'hidden', 'sold_out'];
+    
     return products.filter((p) => {
-      if (simpleStatuses.includes(statusFilter) && p.status !== statusFilter) return false;
+      // ── Status Filters ──
+      if (statusFilter === 'live' && p.status !== 'live') return false;
+      if (statusFilter === 'hidden' && p.status !== 'hidden') return false;
+      if (statusFilter === 'sold_out' && p.status !== 'sold_out') return false;
+
+      // Special Refinement Filters
+      if (statusFilter === 'stagnant') {
+        // Updated > 30 days ago (mock logic)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        return new Date(p.updated_at) < thirtyDaysAgo;
+      }
+      if (statusFilter === 'no_preview') {
+        return !p.images || p.images.length === 0;
+      }
+      if (statusFilter === 'in_drop') {
+        // TODO: Wire to drop_config once implemented (Phase 3D)
+        return false; 
+      }
+      if (statusFilter === 'active_window') {
+        // TODO: Wire to vendor_windows once implemented (Phase 3D)
+        return p.status === 'live';
+      }
+      if (statusFilter === 'zero_downloads') {
+        // TODO: Wire to download_stats table (Phase 4A)
+        return p.product_type === 'digital';
+      }
+
+      // ── Collection Filter ──
       if (collectionFilter !== null && p.collection_id !== collectionFilter) return false;
+
+      // ── Search Query ──
       if (
         searchQuery &&
         !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -196,6 +226,7 @@ export const useArchiveStore = create<ArchiveState>((set, get) => ({
       ) {
         return false;
       }
+
       return true;
     });
   },

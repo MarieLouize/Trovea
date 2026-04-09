@@ -148,7 +148,7 @@ export function buildBasketWhatsApp(
     '',
     `Subtotal: ₦${subtotal.toLocaleString()}`,
     fulfillment === 'delivery' ? `Delivery Fee: ₦${deliveryFee.toLocaleString()}` : 'Fulfillment: Pickup',
-    fulfillment === 'delivery' ? `*Total: ${totalFmt}*` : `*Total: ${totalFmt}*`,
+    fulfillment === 'delivery' ? `*Total: ${totalFmt}* (inc. delivery)` : `*Total: ${totalFmt}*`,
     '',
     fulfillment === 'delivery' ? `*Delivery Address:* ${address || 'Not provided'}` : '*Pickup requested*',
     '',
