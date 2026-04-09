@@ -1,7 +1,18 @@
 import { create } from 'zustand';
-import type { Product, ProductVariant, Receipt } from '../types';
+import type { Product, ProductVariant, Receipt, ReceiptType } from '../types';
+import { createReceipt } from '../db/queries';
+import { updateMerchant } from '../db/queries/merchants';
+import { db } from '../db';
+import { useMerchantStore } from './merchant.store';
 
-export type TerminalStage = 'composition' | 'attribution' | 'issuance';
+export type TerminalStage = 
+  | 'composition' 
+  | 'attribution' 
+  | 'review' 
+  | 'submitting' 
+  | 'ceremony_card' 
+  | 'ceremony_code' 
+  | 'ceremony_done';
 
 export interface VisorLineItem {
   productId: string | null;
@@ -19,6 +30,12 @@ interface DiscountState {
   value: number;
 }
 
+interface DepositSplit {
+  totalAmount: number;
+  depositDue: number;
+  balanceDue: number;
+}
+
 interface TerminalState {
   stage: TerminalStage;
   visorItems: VisorLineItem[];
@@ -29,6 +46,13 @@ interface TerminalState {
   deliveryFee: number;
   deliveryFeeExpanded: boolean;
   issuedReceipt: Receipt | null;
+  isPersisting: boolean;
+
+  // New fields from Phase 2.5-F
+  saleNote: string;
+  orderType: 'preorder' | 'walkin' | null;
+  fulfilmentType: 'pickup' | 'delivery' | null;
+  depositSplit: DepositSplit | null;
 
   // Stage navigation
   setStage: (stage: TerminalStage) => void;
@@ -46,6 +70,12 @@ interface TerminalState {
   setBuyerPhone: (phone: string) => void;
   setBuyerEmail: (email: string) => void;
 
+  // New actions from Phase 2.5-F
+  setSaleNote: (note: string) => void;
+  setOrderType: (type: 'preorder' | 'walkin' | null) => void;
+  setFulfilmentType: (type: 'pickup' | 'delivery' | null) => void;
+  setDepositSplit: (split: DepositSplit | null) => void;
+
   // Discount
   setDiscountExpanded: (expanded: boolean) => void;
   setDiscountType: (type: 'flat' | 'percent') => void;
@@ -62,10 +92,19 @@ interface TerminalState {
 
   // Reset
   reset: () => void;
-  setIssuedReceipt: (receipt: Receipt) => void;
+  setIssuedReceipt: (receipt: Receipt, storeType: ReceiptType) => void;
+  persistReceipt: () => Promise<boolean>;
 }
 
-const STAGE_ORDER: TerminalStage[] = ['composition', 'attribution', 'issuance'];
+const STAGE_ORDER: TerminalStage[] = [
+  'composition', 
+  'attribution', 
+  'review', 
+  'submitting', 
+  'ceremony_card', 
+  'ceremony_code', 
+  'ceremony_done'
+];
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
   stage: 'composition',
@@ -77,6 +116,13 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   deliveryFee: 0,
   deliveryFeeExpanded: false,
   issuedReceipt: null,
+  isPersisting: false,
+
+  // New initial state
+  saleNote: '',
+  orderType: null,
+  fulfilmentType: null,
+  depositSplit: null,
 
   setStage: (stage) => set({ stage }),
   nextStage: () => {
@@ -96,7 +142,8 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   addItem: (product, variant = null) => {
     const variantLabel = variant?.label ?? null;
-    const price = product.price;
+    // FIX: use variant price_override if set, otherwise fall back to product.price
+    const price = variant?.price_override ?? product.price;
 
     set((state) => {
       const existingIdx = state.visorItems.findIndex(
@@ -158,6 +205,11 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   setBuyerPhone: (phone) => set({ buyerPhone: phone }),
   setBuyerEmail: (email) => set({ buyerEmail: email }),
 
+  setSaleNote: (note) => set({ saleNote: note }),
+  setOrderType: (type) => set({ orderType: type }),
+  setFulfilmentType: (type) => set({ fulfilmentType: type }),
+  setDepositSplit: (split) => set({ depositSplit: split }),
+
   setDiscountExpanded: (expanded) =>
     set((state) => ({ discount: { ...state.discount, expanded } })),
   setDiscountType: (type) =>
@@ -192,7 +244,68 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       deliveryFee: 0,
       deliveryFeeExpanded: false,
       issuedReceipt: null,
+      isPersisting: false,
+      saleNote: '',
+      orderType: null,
+      fulfilmentType: null,
+      depositSplit: null,
     }),
 
-  setIssuedReceipt: (receipt) => set({ issuedReceipt: receipt }),
+  setIssuedReceipt: (receipt, storeType) => {
+    const state = get();
+    const enrichedReceipt: Receipt = {
+      ...receipt,
+      receipt_type: storeType,
+      sale_note: state.saleNote || null,
+      order_type: state.orderType || null,
+      fulfilment_type: state.fulfilmentType || null,
+      delivery_status: state.buyerEmail ? 'pending' : (receipt.delivery_status || null),
+    };
+    set({ issuedReceipt: enrichedReceipt });
+  },
+
+  persistReceipt: async () => {
+    const { issuedReceipt, visorItems } = get();
+    if (!issuedReceipt) return false;
+
+    set({ isPersisting: true });
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id: _id, created_at: _ca, updated_at: _ua, ...receiptData } = issuedReceipt;
+      const saved = await createReceipt(receiptData);
+      if (saved) {
+        // Atomic stock decrement
+        await Promise.allSettled(
+          visorItems.map((item) => {
+            if (!item.productId) return Promise.resolve();
+            return db.rpc('decrement_stock', {
+              p_product_id: item.productId,
+              p_quantity: item.quantity,
+            });
+          })
+        ).then((results) => {
+          results.forEach((r) => {
+            if (r.status === 'rejected') console.warn('Failed to decrement stock', r.reason);
+          });
+        });
+
+        // Update first_seal_issued if needed
+        const merchantStore = useMerchantStore.getState();
+        const merchant = merchantStore.merchant;
+        if (merchant.id && !merchant.first_seal_issued) {
+          await updateMerchant(merchant.id, { first_seal_issued: true });
+          merchantStore.setMerchant({ ...merchant, first_seal_issued: true });
+        }
+
+        set({ issuedReceipt: saved, isPersisting: false });
+        return true;
+      }
+      set({ isPersisting: false });
+      return false;
+    } catch (err) {
+      console.error('Failed to persist receipt:', err);
+      set({ isPersisting: false });
+      return false;
+    }
+  },
 }));

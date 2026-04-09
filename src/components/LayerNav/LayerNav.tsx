@@ -1,4 +1,4 @@
-import { Palette, LayoutGrid, Type, Square, Layers, SlidersHorizontal } from 'lucide-react';
+import { Wand2, Palette, Type, Octagon, Zap, LayoutGrid, SlidersHorizontal } from 'lucide-react';
 import { m } from '@/lib/motion';
 import type { LayerId } from '../../lib/types/architect.types';
 import styles from './LayerNav.module.css';
@@ -9,12 +9,13 @@ interface LayerNavProps {
 }
 
 const LAYERS: { id: LayerId; label: string; Icon: React.ElementType }[] = [
-  { id: 'palette',    label: 'Palette',    Icon: Palette },
-  { id: 'layout',     label: 'Layout',     Icon: LayoutGrid },
-  { id: 'typography', label: 'Typography', Icon: Type },
-  { id: 'card',       label: 'Card Style', Icon: Square },
-  { id: 'signature',  label: 'Signature',  Icon: Layers },
-  { id: 'store',      label: 'Store',      Icon: SlidersHorizontal },
+  { id: 'theme',      label: 'Theme',  Icon: Wand2 },
+  { id: 'color',      label: 'Color',  Icon: Palette },
+  { id: 'typography', label: 'Type',   Icon: Type },
+  { id: 'shape',      label: 'Shape',  Icon: Octagon },
+  { id: 'motion',     label: 'Motion', Icon: Zap },
+  { id: 'layout',     label: 'Layout', Icon: LayoutGrid },
+  { id: 'store',      label: 'Store',  Icon: SlidersHorizontal },
 ];
 
 export default function LayerNav({ activeLayer, onSelectLayer }: LayerNavProps) {

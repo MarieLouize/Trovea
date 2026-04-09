@@ -1,0 +1,230 @@
+/* ThemeLayer.module.css */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sectionTitle { color: var(--color-fg); font-size: 20px; margin: 0; }
+.sectionDesc  { color: var(--color-fg-muted); margin: 0; font-size: 13px; }
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--r-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-raise-sm);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  transition: all var(--duration-fast);
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-raise-md);
+}
+
+.cardActive {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+}
+
+.noise {
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise);
+  background-size: 200px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* ── Minimap ── */
+
+.minimap {
+  height: 68px;
+  border-radius: var(--r-sm);
+  background: var(--color-surface-inset);
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.minimapGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 4px;
+  height: 100%;
+}
+
+.minimapGridAiry {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  padding: 4px;
+  height: 100%;
+}
+
+.minimapEditorial {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px;
+  height: 100%;
+}
+
+.minimapEditorialRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  flex: 1;
+}
+
+.minimapMasonry {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 4px;
+  height: 100%;
+}
+
+.minimapMasonryCol {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  height: 100%;
+}
+
+.minimapMinimal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  height: 100%;
+  justify-content: center;
+}
+
+.minimapListRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.minimapListThumb {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background: var(--color-fg-ghost);
+}
+
+.minimapListText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.minimapCell {
+  background: var(--color-fg-ghost);
+  flex: 1;
+  min-height: 0;
+  border-radius: 2px;
+}
+
+.minimapCellTall { flex: 1.7; }
+.minimapCellHero { height: 24px; flex: none; }
+.minimapCellWide { height: 14px; flex: none; }
+
+.minimapTextLine {
+  height: 4px;
+  background: var(--color-fg-ghost);
+  border-radius: 2px;
+}
+
+.minimapTextLineShort { width: 60%; }
+
+/* Card style radius overrides on minimap cells */
+.card_polaroid        { border-radius: 1px; }
+.card_clean_square    { border-radius: 2px; }
+.card_film_strip      { border-radius: 0; }
+.card_rounded_float   { border-radius: 5px; }
+.card_minimal_line    { border-radius: 1px; border-bottom: 1px solid var(--color-fg-ghost); background: transparent; }
+
+/* ── Info ── */
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  position: relative;
+  z-index: 1;
+}
+
+.infoTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.infoText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.themeName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-fg);
+  line-height: 1.2;
+}
+
+.themeTagline {
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.activeBadge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  font-weight: 600;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.descriptorChip {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--color-surface-inset);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}

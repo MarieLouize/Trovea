@@ -79,23 +79,23 @@
   padding: 0 var(--space-5);
   border-radius: var(--r-full);
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg);
   font-family: var(--font-mono);
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
   border: none;
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-raise-sm);
   transition: box-shadow var(--duration-fast) var(--ease-standard),
               opacity var(--duration-fast) var(--ease-standard);
 }
 
 .errorFallback button:hover {
-  box-shadow: var(--shadow-raise-lg);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 .errorFallback button:active {
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: var(--shadow-raise-sm);
   opacity: 0.85;
 }

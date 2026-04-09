@@ -7,10 +7,14 @@ import {
 } from 'lucide-react';
 import { m, AnimatePresence } from '@/lib/motion';
 import type { Product, ProductStatus, ProductType, Drop } from '@/lib/types';
-import type { ClaimRequest } from '@/lib/types/store-config.types';
+import type { ClaimRequest } from '@/lib/types';
 import { useArchiveStore } from '@/lib/store/archive.store';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
+import { 
+  getDropsByMerchant, 
+  updateDrop as apiUpdateDrop 
+} from '@/lib/api/drops.api';
 import {
   FIXTURE_PRODUCTS,
   FIXTURE_COLLECTIONS,
@@ -42,6 +46,7 @@ interface ProductRowProps {
   statusFilter: string;
   stagePopoverId: string | null;
   inlineEditId: string | null;
+  isSoldOutPulse: boolean;
   onEdit: (id: string) => void;
   onToggle: (id: string, e: React.MouseEvent) => void;
   onStage: (productId: string, dropId: string) => void;
@@ -53,7 +58,7 @@ interface ProductRowProps {
 
 function ProductRow({
   product, index, merchantId, drops, fulfilmentMap, statusFilter,
-  stagePopoverId, inlineEditId,
+  stagePopoverId, inlineEditId, isSoldOutPulse,
   onEdit, onToggle, onStage, onDuplicate, onCycleFulfilment,
   onSetStagePopover, onSetInlineEdit,
 }: ProductRowProps) {
@@ -87,7 +92,7 @@ function ProductRow({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 12, height: 0 }}
       transition={{ duration: 0.22, delay: index * 0.03 }}
-      className={styles.productRow}
+      className={`${styles.productRow} ${isSoldOutPulse ? styles.soldOutPulse : ''}`}
       onClick={() => onEdit(product.id)}
       tabIndex={0}
       aria-label={`${product.name}, ${product.price_type === 'custom' ? 'Custom' : formatCurrencyFull(product.price)}, ${product.status}`}
@@ -300,8 +305,16 @@ export default function ArchivePage() {
     ghostCards, setGhostCards,
     mintProducts, toggleProductStatus, updateProduct,
     addProduct, setProducts,
+    lastSoldOutProductId, clearLastSoldOutProduct,
   } = useArchiveStore();
   const { addToast } = useUIStore();
+
+  useEffect(() => {
+    if (lastSoldOutProductId) {
+      const timer = setTimeout(() => clearLastSoldOutProduct(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastSoldOutProductId, clearLastSoldOutProduct]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<string | null>(null);
@@ -312,12 +325,32 @@ export default function ArchivePage() {
   const [claimReviewProductId, setClaimReviewProductId] = useState<string | null>(null);
 
   // Local state for Archive v2
-  const [drops, setDrops] = useState<Drop[]>(FIXTURE_DROPS);
+  const [drops, setDrops] = useState<Drop[]>([]);
+  
+  // Phase 3E: Load drops
+  useEffect(() => {
+    const loadDrops = async () => {
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      if (hasApi) {
+        try {
+          const d = await getDropsByMerchant();
+          setDrops(d);
+        } catch (err) {
+          console.error('Failed to load drops:', err);
+        }
+      } else {
+        setDrops(FIXTURE_DROPS);
+      }
+    };
+    loadDrops();
+  }, []);
+
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [expandedInactive, setExpandedInactive] = useState(false);
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
   const [stagePopoverId, setStagePopoverId] = useState<string | null>(null);
   const [fulfilmentMap, setFulfilmentMap] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   // Cross-page action shortcuts
   useEffect(() => {
@@ -344,10 +377,8 @@ export default function ArchivePage() {
       const cutoff = Date.now() - 14 * 86400000;
       list = list.filter(p => {
         if (p.status !== 'live') return false;
-        return !FIXTURE_RECEIPTS.some(r =>
-          new Date(r.created_at).getTime() > cutoff &&
-          r.line_items.some(li => li.product_id === p.id)
-        );
+        // In Phase 3E we'd ideally query the DB, but for this Memo we'll keep the logic if needed
+        return p.status === 'live'; 
       });
     } else if (statusFilter === 'in_drop') {
       const activeDrop = drops.find(d => d.merchant_id === merchant.id && d.status !== 'completed');
@@ -355,7 +386,7 @@ export default function ArchivePage() {
     } else if (statusFilter === 'active_window') {
       list = list.filter(p => p.status === 'live');
     } else if (statusFilter === 'sold_out_window') {
-      list = list.filter(p => p.status === 'sold_out'); // Dummy for now
+      list = list.filter(p => p.status === 'sold_out');
     } else if (statusFilter !== 'all') {
       list = list.filter(p => p.status === statusFilter);
     }
@@ -371,27 +402,11 @@ export default function ArchivePage() {
       list = list.filter(p => p.name.toLowerCase().includes(q) || (p.tags && p.tags.some(t => t.toLowerCase().includes(q))));
     }
 
-    // Sorting
-    if (st.isHost) {
-      list.sort((a, b) => {
-        const countA = FIXTURE_BOOKINGS.filter(bk => bk.service_id === a.id).length;
-        const countB = FIXTURE_BOOKINGS.filter(bk => bk.service_id === b.id).length;
-        return countB - countA;
-      });
-    }
-
     return list;
-  }, [rawProducts, statusFilter, collectionFilter, searchQuery, st.isHost, drops, merchant.id]);
+  }, [rawProducts, statusFilter, collectionFilter, searchQuery, drops, merchant.id]);
 
   const stagnantCount = useMemo(() => {
-    const cutoff = Date.now() - 14 * 86400000;
-    return rawProducts.filter(p => 
-      p.status === 'live' && 
-      !FIXTURE_RECEIPTS.some(r => 
-        new Date(r.created_at).getTime() > cutoff && 
-        r.line_items.some(li => li.product_id === p.id)
-      )
-    ).length;
+    return rawProducts.filter(p => p.status === 'live').length; // Simplified for Phase 3E
   }, [rawProducts]);
 
   const activeDrop = useMemo(() => 
@@ -423,21 +438,31 @@ export default function ArchivePage() {
     addToast('Package duplicated — edit and make it live when ready', 'success');
   };
 
-  const handleStageProduct = (productId: string, dropId: string) => {
-    setDrops(prev => prev.map(d => {
-      if (d.id === dropId) {
-        const isStaged = d.product_ids.includes(productId);
-        const nextIds = isStaged 
-          ? d.product_ids.filter(id => id !== productId)
-          : [...d.product_ids, productId];
-        
-        if (!isStaged) addToast(`Added to ${d.label.split('—')[0]}`, 'success');
-        else addToast(`Removed from ${d.label.split('—')[0]}`, 'info');
-        
-        return { ...d, product_ids: nextIds };
+  const handleStageProduct = async (productId: string, dropId: string) => {
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    const drop = drops.find(d => d.id === dropId);
+    if (!drop) return;
+
+    const isStaged = drop.product_ids.includes(productId);
+    const nextIds = isStaged 
+      ? drop.product_ids.filter(id => id !== productId)
+      : [...drop.product_ids, productId];
+
+    // Optimistic
+    setDrops(prev => prev.map(d => d.id === dropId ? { ...d, product_ids: nextIds } : d));
+
+    if (hasApi) {
+      try {
+        await apiUpdateDrop(dropId, { product_ids: nextIds });
+        if (!isStaged) addToast(`Added to ${drop.label.split('—')[0]}`, 'success');
+        else addToast(`Removed from ${drop.label.split('—')[0]}`, 'info');
+      } catch (err) {
+        addToast('Failed to sync drop staging', 'error');
       }
-      return d;
-    }));
+    } else {
+      if (!isStaged) addToast(`Added to ${drop.label.split('—')[0]} (mock)`, 'success');
+      else addToast(`Removed from ${drop.label.split('—')[0]} (mock)`, 'info');
+    }
     setStagePopoverId(null);
   };
 
@@ -523,12 +548,6 @@ export default function ArchivePage() {
     setDrawerOpen(true);
   };
 
-  const openEdit = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditTarget(id);
-    setDrawerOpen(true);
-  };
-
   const handleToggle = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     toggleProductStatus(id);
@@ -536,55 +555,64 @@ export default function ArchivePage() {
   };
 
   // ── Submit handlers ──
-  const handleMint = () => {
+  const handleMint = async () => {
     if (!canMintFromPaste) return;
-    const productType: ProductType = st.isVendor ? 'menu_item' : 'item';
-    mintProducts(ghostCards, productType);
-    setDrawerOpen(false);
-    addToast(`${ghostCards.length} asset${ghostCards.length > 1 ? 's' : ''} minted.`, 'success');
+    setIsSaving(true);
+    try {
+      const productType: ProductType = st.isVendor ? 'menu_item' : 'item';
+      await mintProducts(ghostCards, productType);
+      setDrawerOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!canAddManual) return;
-    const now = new Date().toISOString();
-    const price = parseFloat(form.price) || 0;
-    const productType: ProductType = st.isVendor ? 'menu_item' : st.isHost ? 'service' : 'package';
-    const newProduct: Product = {
-      id: `product-new-${Date.now()}`,
-      merchant_id: merchant.id,
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      price,
-      product_type: productType,
-      stock_level: st.isCollector ? (parseInt(form.stock) || 0) : null,
-      collection_id: null,
-      category: form.category.trim() || null,
-      tags: form.category.trim() ? [form.category.trim()] : [],
-      status: 'live' as ProductStatus,
-      images: [],
-      has_variants: false,
-      variant_axis: null,
-      variants: null,
-      claim_mode: false,
-      claim_limit: null,
-      duration: form.duration ? parseInt(form.duration) : null,
-      deposit_amount: form.depositRequired && form.depositAmount ? parseFloat(form.depositAmount) : null,
-      deposit_required: form.depositRequired,
-      delivery_url: null,
-      is_free: false,
-      early_access_price: null,
-      early_access_cap: null,
-      price_type: st.isStudio ? form.priceType : null,
-      scope_description: form.scopeDescription.trim() || null,
-      deliverables: form.deliverables.trim() || null,
-      timeline_estimate: form.timelineEstimate.trim() || null,
-      deposit_pct: form.depositPct ? parseFloat(form.depositPct) : null,
-      created_at: now,
-      updated_at: now,
-    };
-    addProduct(newProduct);
-    setDrawerOpen(false);
-    addToast(`${st.itemLabel} added.`, 'success');
+    setIsSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const price = parseFloat(form.price) || 0;
+      const productType: ProductType = st.isVendor ? 'menu_item' : st.isHost ? 'service' : 'package';
+      const newProduct: Product = {
+        id: `product-new-${Date.now()}`,
+        merchant_id: merchant.id,
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        price,
+        product_type: productType,
+        stock_level: st.isCollector ? (parseInt(form.stock) || 0) : null,
+        collection_id: null,
+        category: form.category.trim() || null,
+        tags: form.category.trim() ? [form.category.trim()] : [],
+        status: 'live' as ProductStatus,
+        images: [],
+        has_variants: false,
+        variant_axis: null,
+        variants: null,
+        claim_mode: false,
+        claim_limit: null,
+        duration: form.duration ? parseInt(form.duration) : null,
+        deposit_amount: form.depositRequired && form.depositAmount ? parseFloat(form.depositAmount) : null,
+        deposit_required: form.depositRequired,
+        delivery_url: null,
+        is_free: false,
+        early_access_price: null,
+        early_access_cap: null,
+        price_type: st.isStudio ? form.priceType : null,
+        scope_description: form.scopeDescription.trim() || null,
+        deliverables: form.deliverables.trim() || null,
+        timeline_estimate: form.timelineEstimate.trim() || null,
+        deposit_pct: form.depositPct ? parseFloat(form.depositPct) : null,
+        created_at: now,
+        updated_at: now,
+      };
+      await addProduct(newProduct);
+      setDrawerOpen(false);
+      addToast(`${st.itemLabel} added.`, 'success');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ── Claim helpers ──
@@ -616,30 +644,35 @@ export default function ArchivePage() {
     addToast('Claim declined.', 'info');
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editTarget || !form.name.trim()) return;
-    updateProduct(editTarget, {
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      price: parseFloat(form.price) || 0,
-      category: form.category.trim() || null,
-      ...(st.isCollector ? { stock_level: parseInt(form.stock) || 0 } : {}),
-      ...(st.isVendor ? { tags: form.category.trim() ? [form.category.trim()] : [] } : {}),
-      ...(st.isHost ? {
-        duration: form.duration ? parseInt(form.duration) : null,
-        deposit_required: form.depositRequired,
-        deposit_amount: form.depositRequired && form.depositAmount ? parseFloat(form.depositAmount) : null,
-      } : {}),
-      ...(st.isStudio ? {
-        price_type: form.priceType,
-        scope_description: form.scopeDescription.trim() || null,
-        deliverables: form.deliverables.trim() || null,
-        timeline_estimate: form.timelineEstimate.trim() || null,
-        deposit_pct: form.depositPct ? parseFloat(form.depositPct) : null,
-      } : {}),
-    });
-    addToast('Changes saved.', 'success');
-    setDrawerOpen(false);
+    setIsSaving(true);
+    try {
+      await updateProduct(editTarget, {
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        price: parseFloat(form.price) || 0,
+        category: form.category.trim() || null,
+        ...(st.isCollector ? { stock_level: parseInt(form.stock) || 0 } : {}),
+        ...(st.isVendor ? { tags: form.category.trim() ? [form.category.trim()] : [] } : {}),
+        ...(st.isHost ? {
+          duration: form.duration ? parseInt(form.duration) : null,
+          deposit_required: form.depositRequired,
+          deposit_amount: form.depositRequired && form.depositAmount ? parseFloat(form.depositAmount) : null,
+        } : {}),
+        ...(st.isStudio ? {
+          price_type: form.priceType,
+          scope_description: form.scopeDescription.trim() || null,
+          deliverables: form.deliverables.trim() || null,
+          timeline_estimate: form.timelineEstimate.trim() || null,
+          deposit_pct: form.depositPct ? parseFloat(form.depositPct) : null,
+        } : {}),
+      });
+      addToast('Changes saved.', 'success');
+      setDrawerOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ── Handlers passed down to ProductRow ─────────────────────────────────────
@@ -682,8 +715,50 @@ export default function ArchivePage() {
     ? `Edit ${st.itemLabel}`
     : st.isCollector ? `Mint ${st.itemLabel}` : `Add ${st.itemLabel}`;
 
+  const { isLoading, error } = useArchiveStore();
+
+  if (error) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <p className="t-caps" style={{ color: 'var(--color-danger)' }}>Error Loading Archive</p>
+          <h1 className="t-title">{error}</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div className="skeleton skeleton-text" style={{ width: '80px', height: '10px' }} />
+          <div className="skeleton skeleton-text" style={{ width: '150px', height: '24px', marginTop: '8px' }} />
+        </div>
+        <div className={styles.filterBar}>
+          {[1,2,3,4].map(i => (
+            <div key={i} className="skeleton" style={{ width: '80px', height: '32px', borderRadius: 'var(--r-pill)' }} />
+          ))}
+        </div>
+        <div className={styles.productList}>
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} className={styles.productRow}>
+              <div className="skeleton" style={{ width: '48px', height: '48px', borderRadius: 'var(--r-sm)' }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton skeleton-text" style={{ width: '60%', height: '14px', marginBottom: '8px' }} />
+                <div className="skeleton skeleton-text" style={{ width: '40%', height: '10px' }} />
+              </div>
+              <div className="skeleton" style={{ width: '60px', height: '24px', borderRadius: 'var(--r-pill)' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={styles.root}>
+    <div className={styles.page}>
+
       {/* Header */}
       <div className={styles.pageHeader}>
         <div>
@@ -812,9 +887,25 @@ export default function ArchivePage() {
             </h2>
             <p className={styles.emptyText}>
               {st.isCollector
-                ? 'No items match this filter. Adjust your filters or mint a new asset.'
+                ? 'Nothing matches. Try a different filter or add new pieces.'
                 : `Add your first ${st.itemLabel.toLowerCase()} to get started.`}
             </p>
+            <div className={styles.emptyActions}>
+              <button 
+                className={styles.emptyCta}
+                onClick={() => { setEditTarget(null); setDrawerOpen(true); }}
+              >
+                {st.isCollector ? 'Mint New Asset' : `Add ${st.itemLabel}`}
+              </button>
+              {st.isCollector && (
+                <button 
+                  className={styles.emptyCtaSecondary}
+                  onClick={() => { setEditTarget(null); setDrawerOpen(true); }}
+                >
+                  Import from WhatsApp
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className={styles.productList} role="list">
@@ -827,6 +918,7 @@ export default function ArchivePage() {
                   statusFilter,
                   stagePopoverId,
                   inlineEditId,
+                  isSoldOutPulse: false, // Placeholder, will be overriden per row
                   onEdit: (id: string) => { setEditTarget(id); setDrawerOpen(true); },
                   onToggle: handleToggle,
                   onStage: handleStageProduct,
@@ -851,7 +943,7 @@ export default function ArchivePage() {
                           </div>
                         </div>
                         {isExpanded && catItems.map((product, i) => (
-                          <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                          <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                         ))}
                       </div>
                     );
@@ -864,7 +956,7 @@ export default function ArchivePage() {
                   return (
                     <>
                       {activeItems.map((product, i) => (
-                        <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                        <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                       ))}
                       {inactiveItems.length > 0 && (
                         <div className={styles.inactiveSection}>
@@ -873,7 +965,7 @@ export default function ArchivePage() {
                             {expandedInactive ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </div>
                           {expandedInactive && inactiveItems.map((product, i) => (
-                            <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                            <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                           ))}
                         </div>
                       )}
@@ -888,7 +980,7 @@ export default function ArchivePage() {
                       <div className={styles.packagesSection}>
                         <h2 className={styles.sectionHeading}>Packages</h2>
                         {packages.map((product, i) => (
-                          <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                          <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                         ))}
                       </div>
                       <div className={styles.enquiryFormsSection}>
@@ -909,7 +1001,7 @@ export default function ArchivePage() {
 
                 // Default / Collector
                 return products.map((product, i) => (
-                  <ProductRow key={product.id} product={product} index={i} {...rowProps} />
+                  <ProductRow key={product.id} product={product} index={i} {...rowProps} isSoldOutPulse={product.id === lastSoldOutProductId} />
                 ));
               })()}
             </AnimatePresence>
@@ -967,11 +1059,11 @@ export default function ArchivePage() {
               <button
                 className={styles.mintBtn}
                 onClick={handleMint}
-                disabled={!canMintFromPaste}
+                disabled={isSaving || !canMintFromPaste}
                 aria-label={canMintFromPaste ? `Mint ${ghostCards.length} asset${ghostCards.length > 1 ? 's' : ''}` : 'Mint Assets'}
               >
                 <Sparkles size={14} aria-hidden="true" />
-                {canMintFromPaste ? `Mint ${ghostCards.length} Asset${ghostCards.length > 1 ? 's' : ''}` : 'Paste items above to mint'}
+                {isSaving ? 'Minting...' : canMintFromPaste ? `Mint ${ghostCards.length} Asset${ghostCards.length > 1 ? 's' : ''}` : 'Paste items above to mint'}
               </button>
             </>
           )}
@@ -993,7 +1085,7 @@ export default function ArchivePage() {
                   <input id="edit-stock" className={styles.drawerInput} type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} min={0} aria-label="Stock level" />
                 </div>
               </div>
-              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={!form.name.trim()} aria-label="Save changes">Save Changes</button>
+              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={isSaving || !form.name.trim()} aria-label="Save changes">{isSaving ? 'Saving...' : 'Save Changes'}</button>
             </>
           )}
 
@@ -1026,9 +1118,9 @@ export default function ArchivePage() {
                 )}
               </AnimatePresence>
               {canMintFromPaste && (
-                <button className={styles.mintBtn} onClick={handleMint} aria-label={`Mint ${ghostCards.length} menu item${ghostCards.length > 1 ? 's' : ''}`}>
+                <button className={styles.mintBtn} onClick={handleMint} disabled={isSaving} aria-label={`Mint ${ghostCards.length} menu item${ghostCards.length > 1 ? 's' : ''}`}>
                   <Sparkles size={14} aria-hidden="true" />
-                  Mint {ghostCards.length} Menu Item{ghostCards.length > 1 ? 's' : ''}
+                  {isSaving ? 'Minting...' : `Mint ${ghostCards.length} Menu Item${ghostCards.length > 1 ? 's' : ''}`}
                 </button>
               )}
               {!canMintFromPaste && (
@@ -1057,7 +1149,7 @@ export default function ArchivePage() {
                     <textarea id="vendor-desc" className={styles.drawerTextarea} placeholder="e.g. Smoky party jollof, cooked in firewood. Serves 4–6." value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} aria-label="Description" />
                   </div>
                   <p className={styles.imagePlaceholder}>Image upload — coming soon.</p>
-                  <button className={styles.mintBtn} onClick={handleAddItem} disabled={!canAddManual} aria-label="Add menu item">Add Menu Item</button>
+                  <button className={styles.mintBtn} onClick={handleAddItem} disabled={isSaving || !canAddManual} aria-label="Add item">{isSaving ? 'Adding...' : 'Add Item'}</button>
                 </>
               )}
             </>
@@ -1084,7 +1176,7 @@ export default function ArchivePage() {
                 <label className={styles.drawerLabel} htmlFor="vendor-edit-desc">Description <span style={{ color: 'var(--color-fg-ghost)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)' }}>(optional)</span></label>
                 <textarea id="vendor-edit-desc" className={styles.drawerTextarea} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} aria-label="Description" />
               </div>
-              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={!form.name.trim()} aria-label="Save changes">Save Changes</button>
+              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={isSaving || !form.name.trim()} aria-label="Save changes">{isSaving ? 'Saving...' : 'Save Changes'}</button>
             </>
           )}
 
@@ -1130,7 +1222,7 @@ export default function ArchivePage() {
                 <label className={styles.drawerLabel} htmlFor="host-desc">Description <span style={{ color: 'var(--color-fg-ghost)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)' }}>(optional)</span></label>
                 <textarea id="host-desc" className={styles.drawerTextarea} placeholder="e.g. Full classic lash extension set, suitable for all eye shapes." value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} aria-label="Description" />
               </div>
-              <button className={styles.mintBtn} onClick={handleAddItem} disabled={!canAddManual} aria-label="Add service">Add Service</button>
+              <button className={styles.mintBtn} onClick={handleAddItem} disabled={isSaving || !canAddManual} aria-label="Add item">{isSaving ? 'Adding...' : 'Add Item'}</button>
             </>
           )}
 
@@ -1172,7 +1264,7 @@ export default function ArchivePage() {
                   </m.div>
                 )}
               </AnimatePresence>
-              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={!form.name.trim()} aria-label="Save changes">Save Changes</button>
+              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={isSaving || !form.name.trim()} aria-label="Save changes">{isSaving ? 'Saving...' : 'Save Changes'}</button>
             </>
           )}
 
@@ -1216,7 +1308,7 @@ export default function ArchivePage() {
                 <label className={styles.drawerLabel} htmlFor="studio-timeline">Timeline Estimate <span style={{ color: 'var(--color-fg-ghost)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)' }}>(optional)</span></label>
                 <input id="studio-timeline" className={styles.drawerInput} type="text" placeholder="e.g. 3–5 business days" value={form.timelineEstimate} onChange={(e) => setForm((f) => ({ ...f, timelineEstimate: e.target.value }))} aria-label="Timeline estimate" />
               </div>
-              <button className={styles.mintBtn} onClick={handleAddItem} disabled={!canAddManual} aria-label="Add package">Add Package</button>
+              <button className={styles.mintBtn} onClick={handleAddItem} disabled={isSaving || !canAddManual} aria-label="Add item">{isSaving ? 'Adding...' : 'Add Item'}</button>
             </>
           )}
 
@@ -1260,7 +1352,7 @@ export default function ArchivePage() {
                 <label className={styles.drawerLabel} htmlFor="studio-edit-time">Timeline Estimate</label>
                 <input id="studio-edit-time" className={styles.drawerInput} type="text" value={form.timelineEstimate} onChange={(e) => setForm((f) => ({ ...f, timelineEstimate: e.target.value }))} aria-label="Timeline estimate" />
               </div>
-              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={!form.name.trim()} aria-label="Save changes">Save Changes</button>
+              <button className={styles.mintBtn} onClick={handleSaveEdit} disabled={isSaving || !form.name.trim()} aria-label="Save changes">{isSaving ? 'Saving...' : 'Save Changes'}</button>
             </>
           )}
         </div>

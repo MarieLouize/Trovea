@@ -1,99 +1,101 @@
 import { create } from 'zustand';
-import type { AdminLogEntry, ReportStatus } from '@/lib/types';
+import type { AdminLogEntry, ReportStatus, Merchant } from '@/lib/types';
 import { FIXTURE_ADMIN_LOG } from '@/lib/fixtures';
-import { DEV_MERCHANTS } from './merchant.store';
+import { 
+  getAllMerchants, 
+  suspendMerchant as apiSuspendMerchant, 
+  unsuspendMerchant as apiUnsuspendMerchant,
+  setVerificationTier as apiSetVerificationTier,
+  getAdminReports,
+  getAdminLog
+} from '../api/admin.api';
+import { useUIStore } from './ui.store';
 
 export type AdminVerificationTier = 'unverified' | 'verified' | 'trusted';
 
-// ── Build initial tier map from fixture merchants ──
-const initialTiers: Record<string, AdminVerificationTier> = {};
-DEV_MERCHANTS.forEach((m) => {
-  initialTiers[m.id] = m.verification_tier;
-});
-
 interface AdminState {
-  suspendedMerchantIds: string[];
+  merchants: Merchant[];
   adminLog: AdminLogEntry[];
-  merchantTiers: Record<string, AdminVerificationTier>;
-  reportStatuses: Record<string, ReportStatus>;
+  reports: any[];
+  isLoading: boolean;
+  error: string | null;
 
-  suspendMerchant(merchantId: string, storeName: string, note?: string): void;
-  unsuspendMerchant(merchantId: string, storeName: string): void;
-  setMerchantTier(merchantId: string, tier: AdminVerificationTier, storeName: string): void;
-  setReportStatus(reportId: string, status: ReportStatus, storeName: string, note?: string): void;
+  suspendMerchant(merchantId: string, note: string): Promise<void>;
+  unsuspendMerchant(merchantId: string): Promise<void>;
+  setMerchantTier(merchantId: string, tier: AdminVerificationTier): Promise<void>;
+  
+  initFromDB(): Promise<void>;
 }
 
-let logIdCounter = FIXTURE_ADMIN_LOG.length + 1;
-
-function nextLogId(): string {
-  return `log-admin-${String(logIdCounter++).padStart(3, '0')}`;
-}
-
-export const useAdminStore = create<AdminState>((set) => ({
-  suspendedMerchantIds: [],
+export const useAdminStore = create<AdminState>((set, get) => ({
+  merchants: [],
   adminLog: [...FIXTURE_ADMIN_LOG],
-  merchantTiers: { ...initialTiers },
-  reportStatuses: {},
+  reports: [],
+  isLoading: false,
+  error: null,
 
-  suspendMerchant(merchantId, storeName, note) {
-    const entry: AdminLogEntry = {
-      id: nextLogId(),
-      action: 'Store suspended',
-      target_merchant_id: merchantId,
-      actor: 'admin',
-      timestamp: new Date().toISOString(),
-      note: note ?? `${storeName} suspended by admin.`,
-    };
-    set((s) => ({
-      suspendedMerchantIds: s.suspendedMerchantIds.includes(merchantId)
-        ? s.suspendedMerchantIds
-        : [...s.suspendedMerchantIds, merchantId],
-      adminLog: [entry, ...s.adminLog],
-    }));
+  suspendMerchant: async (merchantId, note) => {
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    if (hasApi) {
+      try {
+        const updated = await apiSuspendMerchant(merchantId, note);
+        set((s) => ({
+          merchants: s.merchants.map(m => m.id === merchantId ? updated : m)
+        }));
+        useUIStore.getState().addToast('Merchant suspended', 'info');
+        await get().initFromDB(); // Refresh log
+      } catch (err) {
+        useUIStore.getState().addToast('Failed to suspend merchant', 'error');
+      }
+    }
   },
 
-  unsuspendMerchant(merchantId, storeName) {
-    const entry: AdminLogEntry = {
-      id: nextLogId(),
-      action: 'Store unsuspended',
-      target_merchant_id: merchantId,
-      actor: 'admin',
-      timestamp: new Date().toISOString(),
-      note: `${storeName} unsuspended by admin.`,
-    };
-    set((s) => ({
-      suspendedMerchantIds: s.suspendedMerchantIds.filter((id) => id !== merchantId),
-      adminLog: [entry, ...s.adminLog],
-    }));
+  unsuspendMerchant: async (merchantId) => {
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    if (hasApi) {
+      try {
+        const updated = await apiUnsuspendMerchant(merchantId);
+        set((s) => ({
+          merchants: s.merchants.map(m => m.id === merchantId ? updated : m)
+        }));
+        useUIStore.getState().addToast('Merchant unsuspended', 'success');
+        await get().initFromDB(); // Refresh log
+      } catch (err) {
+        useUIStore.getState().addToast('Failed to unsuspend merchant', 'error');
+      }
+    }
   },
 
-  setMerchantTier(merchantId, tier, storeName) {
-    const entry: AdminLogEntry = {
-      id: nextLogId(),
-      action: `Verification tier set to ${tier}`,
-      target_merchant_id: merchantId,
-      actor: 'admin',
-      timestamp: new Date().toISOString(),
-      note: `${storeName} tier changed to ${tier}.`,
-    };
-    set((s) => ({
-      merchantTiers: { ...s.merchantTiers, [merchantId]: tier },
-      adminLog: [entry, ...s.adminLog],
-    }));
+  setMerchantTier: async (merchantId, tier) => {
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    if (hasApi) {
+      try {
+        const updated = await apiSetVerificationTier(merchantId, tier);
+        set((s) => ({
+          merchants: s.merchants.map(m => m.id === merchantId ? updated : m)
+        }));
+        useUIStore.getState().addToast(`Tier updated to ${tier}`, 'success');
+        await get().initFromDB(); // Refresh log
+      } catch (err) {
+        useUIStore.getState().addToast('Failed to update tier', 'error');
+      }
+    }
   },
 
-  setReportStatus(reportId, status, storeName, note) {
-    const entry: AdminLogEntry = {
-      id: nextLogId(),
-      action: `Report ${status}`,
-      target_merchant_id: null,
-      actor: 'admin',
-      timestamp: new Date().toISOString(),
-      note: note ?? `Report on ${storeName} marked as ${status}.`,
-    };
-    set((s) => ({
-      reportStatuses: { ...s.reportStatuses, [reportId]: status },
-      adminLog: [entry, ...s.adminLog],
-    }));
+  initFromDB: async () => {
+    const hasApi = !!import.meta.env.VITE_API_URL;
+    if (!hasApi) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const [merchants, reports, log] = await Promise.all([
+        getAllMerchants(),
+        getAdminReports(),
+        getAdminLog()
+      ]);
+      set({ merchants, reports, adminLog: log, isLoading: false });
+    } catch (err) {
+      set({ error: (err as Error).message, isLoading: false });
+    }
   },
 }));

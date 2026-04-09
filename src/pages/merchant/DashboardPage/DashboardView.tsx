@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { m, AnimatePresence, staggerContainer, staggerChild } from '@/lib/motion';
 import {
   Share2, ExternalLink, Copy, MessageCircle, Instagram,
-  Clock, AlertTriangle, CheckCircle, TrendingUp,
+  AlertTriangle, CheckCircle, TrendingUp,
 } from 'lucide-react';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
 import { useArchiveStore } from '@/lib/store/archive.store';
+import { getDropsByMerchant } from '@/lib/api/drops.api';
+import { getWindowsByMerchant } from '@/lib/api/bookings.api';
 import { formatCurrencyFull, formatDate } from '@/lib/utils/format';
+import type { Product } from '@/lib/types';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import DropCardGenerator from '@/components/merchant/DropCardGenerator';
 import {
@@ -50,7 +54,7 @@ const calculateTimeLeft = (targetDate: string) => {
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
-function Countdown({ targetDate, onFinish }: { targetDate: string; onFinish?: () => void }) {
+function Countdown({ targetDate, onFinish, isUrgent }: { targetDate: string; onFinish?: () => void; isUrgent?: boolean }) {
   const [timeLeft, setTimeLeft] = useState(() => calculateTimeLeft(targetDate));
 
   useEffect(() => {
@@ -65,7 +69,7 @@ function Countdown({ targetDate, onFinish }: { targetDate: string; onFinish?: ()
   if (!timeLeft) return null;
 
   return (
-    <div className={styles.dropCountdown}>
+    <div className={`${styles.dropCountdown} ${isUrgent ? styles.dropCountdownUrgent : ''}`}>
       <div className={styles.countdownBlock}>
         <span className={styles.countdownNum}>{String(timeLeft.d).padStart(2, '0')}</span>
         <span className={styles.countdownUnit}>d</span>
@@ -93,10 +97,63 @@ export default function DashboardPage() {
   const merchant = useMerchantStore((s) => s.merchant);
   const { addToast } = useUIStore();
   const st = useStoreType();
-  const { products } = useArchiveStore();
+  const { products, lastSoldOutProductId, clearLastSoldOutProduct } = useArchiveStore();
   const [shareOpen, setShareOpen] = useState(false);
   const [devPaused, setDevPaused] = useState(false);
   const [devMenuOpen, setDevMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [soldOutNotification, setSoldOutNotification] = useState<Product | null>(null);
+  
+  const [drops, setDrops] = useState<Drop[]>([]);
+  const [windows, setWindows] = useState<AvailabilityWindow[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+
+  // Phase 3E: Initial data load
+  useEffect(() => {
+    const loadData = async () => {
+      const hasApi = !!import.meta.env.VITE_API_URL;
+      if (!hasApi) {
+        setDrops(FIXTURE_DROPS);
+        setWindows(FIXTURE_WINDOWS);
+        setBookings(FIXTURE_BOOKINGS);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const [d, w, b] = await Promise.all([
+          getDropsByMerchant(),
+          getWindowsByMerchant(),
+          getBookingsByMerchant()
+        ]);
+        setDrops(d);
+        setWindows(w);
+        setBookings(b);
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Sold out listener
+  useEffect(() => {
+    if (lastSoldOutProductId) {
+      const p = products.find(x => x.id === lastSoldOutProductId);
+      if (p) {
+        setSoldOutNotification(p);
+        const timer = setTimeout(() => {
+          setSoldOutNotification(null);
+          clearLastSoldOutProduct();
+        }, 4000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [lastSoldOutProductId, products, clearLastSoldOutProduct]);
 
   const storeUrl = `trovea.store/${merchant.handle}`;
 
@@ -110,13 +167,20 @@ export default function DashboardPage() {
   // ── Render Helpers ──
 
   const renderCollector = () => {
-    const activeDrop = FIXTURE_DROPS.find(
+    const activeDrop = drops.find(
       d => d.merchant_id === merchant.id && (d.status === 'scheduled' || d.status === 'live')
     ) ?? null;
 
-    const dropState = !activeDrop ? 'none'
-      : activeDrop.status === 'live' || Date.now() >= new Date(activeDrop.scheduled_at).getTime() ? 'live'
-      : 'pre';
+    const lastCompletedDrop = [...drops]
+      .filter(d => d.merchant_id === merchant.id && d.status === 'completed')
+      .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())[0] ?? null;
+
+    const dropState = activeDrop 
+      ? (activeDrop.status === 'live' || Date.now() >= new Date(activeDrop.scheduled_at).getTime() ? 'live' : 'pre')
+      : (lastCompletedDrop ? 'post' : 'none');
+
+    const dropTimeLeft = activeDrop ? new Date(activeDrop.scheduled_at).getTime() - Date.now() : Infinity;
+    const isUrgent = dropState === 'pre' && dropTimeLeft > 0 && dropTimeLeft < 86400000;
 
     const today = new Date().toDateString();
     const todayPaidReceipts = FIXTURE_RECEIPTS.filter(
@@ -128,289 +192,268 @@ export default function DashboardPage() {
     const uniqueBuyersToday = new Set(todayPaidReceipts.map(r => r.buyer_name)).size;
 
     // Inventory health
-    const liveItems = products.filter(p => p.status === 'live').length;
     const lowStockItems = products.filter(p => p.stock_level !== null && p.stock_level > 0 && p.stock_level <= 3).length;
-    const stagnantItems = products.filter(p => {
-      const created = new Date(p.created_at).getTime();
-      const ageDays = (Date.now() - created) / 86400000;
-      return ageDays >= 14 && p.status === 'live'; // Simplified stagnant logic
-    }).length;
 
     return (
       <>
-        {/* Top Module: Drop Status */}
-        <div className={styles.moduleCard}>
-          <div className={styles.dropModule}>
+        {/* ── FEATURE: DROP STATUS ── */}
+        <m.section className={styles.featureSection} variants={staggerChild}>
+          <div className={`${styles.featureCard} ${isUrgent ? styles.dropUrgent : ''}`}>
+            <div className={styles.featureAccent} />
             {dropState === 'none' ? (
+              <div className="empty-state" style={{ background: 'transparent', border: 'none', padding: 0, alignItems: 'flex-start', textAlign: 'left' }}>
+                <span className={styles.vitalTitle}>Inventory</span>
+                <h2 className={styles.featureTitle} style={{ marginBottom: 12 }}>Next drop awaiting plan</h2>
+                <p className={styles.vitalSub}>Curate your next collection to drive engagement.</p>
+              </div>
+            ) : dropState === 'post' ? (
               <>
-                <h2 className={styles.dropLabel}>No drop scheduled</h2>
-                <p className={styles.vitalSub}>Plan your next drop to drive sales.</p>
-                <button className={styles.shareBtn} onClick={() => navigate('/archive')} style={{ alignSelf: 'flex-start', marginTop: 8 }}>
-                  Plan a Drop
-                </button>
+                <span className={styles.vitalTitle}>Recent Release</span>
+                <h2 className={styles.featureTitle}>{lastCompletedDrop?.label}</h2>
+                <div className={styles.dropMetrics} style={{ marginTop: 24 }}>
+                  <span className={styles.dropMetric}>{formatCurrencyFull(1420000)} revenue</span>
+                  <span className={styles.dropMetric}>31 orders total</span>
+                </div>
               </>
             ) : (
               <>
-                <div className={styles.dropHeader}>
-                  <h2 className={styles.dropLabel}>{activeDrop?.label}</h2>
-                  <span className={`${styles.dropStatus} ${dropState === 'live' ? styles.dropLive : ''}`}>
-                    {dropState === 'live' ? <><span className={styles.pulseDot} /> DROP LIVE</> : `Going live ${formatDate(activeDrop!.scheduled_at, 'relative')}`}
-                  </span>
+                <span className={styles.vitalTitle}>Live Production</span>
+                <h2 className={styles.featureTitle}>{activeDrop?.label}</h2>
+                <div className={`${styles.dropStatus} ${dropState === 'live' ? styles.dropLive : ''}`} style={{ marginTop: 8 }}>
+                  {dropState === 'live' ? <><span className={styles.pulseDot} /> COLLECTING ORDERS</> : isUrgent ? 'RELEASE IMMINENT' : `Scheduled for ${formatDate(activeDrop!.scheduled_at, 'relative')}`}
                 </div>
-                {dropState === 'pre' && <Countdown targetDate={activeDrop!.scheduled_at} />}
-                <div className={styles.dropMetrics}>
+                {dropState === 'pre' && (
+                  <div className={styles.countdownOverlay}>
+                    <Countdown targetDate={activeDrop!.scheduled_at} isUrgent={isUrgent} />
+                  </div>
+                )}
+                <div className={styles.dropMetrics} style={{ marginTop: 24 }}>
                   <span className={styles.dropMetric}>{activeDrop?.product_ids.length} items staged</span>
                   {dropState === 'live' && (
-                    <>
-                      <span className={styles.dropMetric}>14 orders this session</span>
-                      <span className={styles.dropMetric}>3 items remaining</span>
-                    </>
+                    <span className={styles.dropMetric}>14 orders this session</span>
                   )}
                 </div>
               </>
             )}
           </div>
-        </div>
+        </m.section>
 
-        {/* Middle Module: Inventory Health */}
-        <div className={styles.moduleCard}>
-          <span className={styles.sectionTitle}>Inventory Health</span>
-          <div className={styles.inventoryStrip}>
-            <div className={styles.inventoryMetric}>
-              <span className={styles.inventoryValue}>{liveItems}</span>
-              <span className={styles.inventoryLabel}>live items</span>
-            </div>
-            <div className={styles.inventoryMetric}>
-              <span className={styles.inventoryValue}>{lowStockItems}</span>
-              <span className={styles.inventoryLabel}>≤3 stock</span>
-            </div>
-            <div className={styles.inventoryMetric}>
-              <span className={styles.inventoryValue}>{stagnantItems}</span>
-              <span className={styles.inventoryLabel}>14+ days, no sale</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Vitals */}
-        <div className={styles.vitalsGrid}>
-          <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Revenue Today</span>
-            <span className={styles.vitalValue}>{formatCurrencyFull(revenueToday)}</span>
-            <span className={styles.vitalSub}>+23% vs yesterday</span>
+        {/* ── VITALS SPREAD ── */}
+        <m.section className={styles.vitalsSpread} variants={staggerChild}>
+          <div className={styles.heroVital}>
+            <span className={styles.vitalTitle}>Today's Volume</span>
+            <div className={styles.vitalDisplay}>{formatCurrencyFull(revenueToday)}</div>
+            <p className={styles.vitalSub} style={{ marginTop: 8 }}>{uniqueBuyersToday} unique buyers · +23% vs prev.</p>
           </div>
           <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Top Item Today</span>
-            <span className={styles.vitalValue} style={{ fontSize: 18 }}>{topItemToday}</span>
+            <span className={styles.vitalTitle}>Best Seller</span>
+            <div className={styles.vitalDisplay} style={{ fontSize: 24 }}>{topItemToday}</div>
           </div>
           <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Unique Buyers</span>
-            <span className={styles.vitalValue}>{uniqueBuyersToday}</span>
+            <span className={styles.vitalTitle}>Stock Alerts</span>
+            <div className={styles.vitalDisplay} style={{ fontSize: 24 }}>{lowStockItems} low stock</div>
           </div>
-        </div>
+        </m.section>
 
-        {/* Action Desk */}
-        <div className={styles.actionDesk}>
-          {dropState === 'pre' && (
-            <>
-              <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => {}}>
-                <span className={styles.actionBtnLabel}>Set Drop Live</span>
-                <span className={styles.actionBtnSub}>Go public now</span>
-              </button>
-              <button className={styles.actionBtn} onClick={() => navigate('/archive')}>
-                <span className={styles.actionBtnLabel}>Manage Items</span>
-                <span className={styles.actionBtnSub}>Edit stage</span>
-              </button>
-            </>
-          )}
-          {dropState === 'live' && (
-            <>
-              <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => navigate('/ledger')}>
-                <span className={styles.actionBtnLabel}>View Pre-orders</span>
-                <span className={styles.actionBtnSub}>Handle fulfilment</span>
-              </button>
-              <button className={styles.actionBtn} onClick={() => navigate('/terminal')}>
-                <span className={styles.actionBtnLabel}>Terminal</span>
-                <span className={styles.actionBtnSub}>Record a sale</span>
-              </button>
-            </>
-          )}
-          {dropState === 'none' && (
-            <>
-              <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => navigate('/archive')}>
-                <span className={styles.actionBtnLabel}>Plan Drop</span>
-                <span className={styles.actionBtnSub}>Stage new items</span>
-              </button>
-              <button className={styles.actionBtn} onClick={() => navigate('/archive')}>
-                <span className={styles.actionBtnLabel}>Add Item</span>
-                <span className={styles.actionBtnSub}>Single upload</span>
-              </button>
-            </>
-          )}
-          <button className={styles.actionBtn} onClick={() => window.open(`https://${storeUrl}`, '_blank')}>
-            <span className={styles.actionBtnLabel}>View Store</span>
-            <span className={styles.actionBtnSub}>Customer view</span>
-          </button>
-        </div>
+        {/* ── DIRECTORY: ACTIONS ── */}
+        <m.nav className={styles.directory} variants={staggerChild}>
+          {[
+            {
+              show: dropState === 'pre',
+              label: 'Go Live',
+              sub: 'Publish drop to your public store',
+              onClick: () => {}
+            },
+            {
+              show: dropState === 'live',
+              label: 'Fulfillment',
+              sub: 'Handle 14 active orders',
+              onClick: () => navigate('/ledger')
+            },
+            {
+              show: true,
+              label: 'Archive',
+              sub: `Manage your full inventory (${products.length} items)`,
+              onClick: () => navigate('/archive')
+            },
+            {
+              show: true,
+              label: 'View Store',
+              sub: 'Customer-facing experience',
+              onClick: () => window.open(`https://${storeUrl}`, '_blank')
+            }
+          ].filter(i => i.show).map((item, idx) => (
+            <button key={item.label} className={styles.directoryItem} onClick={item.onClick}>
+              <span className={styles.directoryIndex}>{(idx + 1).toString().padStart(2, '0')}</span>
+              <div className={styles.directoryContent}>
+                <span className={styles.directoryLabel}>{item.label}</span>
+                <p className={styles.directorySub}>{item.sub}</p>
+              </div>
+              <span className={styles.directoryArrow}>→</span>
+            </button>
+          ))}
+        </m.nav>
 
-        {/* Activity Log */}
-        <div className={styles.moduleCard}>
-          <span className={styles.sectionTitle}>Recent Activity</span>
-          <div className={styles.activityLog}>
-            {FIXTURE_RECEIPTS.filter(r => r.merchant_id === merchant.id).slice(0, 5).map(r => (
-              <div key={r.id} className={styles.activityEntry}>
-                <div className={`${styles.pulseDot} ${r.payment_status === 'paid' ? styles.statusPaid : ''}`} style={{ backgroundColor: r.payment_status === 'paid' ? '#2ECB75' : '#C9A84C' }} />
-                <span>
-                  <Link to={`/ledger?tab=buyers&buyer=${r.buyer_name}`} className={styles.activityLink}>{r.buyer_name}</Link>
-                  {' bought '}
+        {/* ── SIDEBAR: ACTIVITY ── */}
+        <m.aside className={styles.sidebar} variants={staggerChild}>
+          <h3 className={styles.sidebarTitle}>The Journal</h3>
+          <div className={styles.sidebarList}>
+            {FIXTURE_RECEIPTS.filter(r => r.merchant_id === merchant.id).slice(0, 6).map(r => (
+              <div key={r.id} className={styles.sidebarEntry}>
+                <p className={styles.sidebarText}>
+                  <Link to={`/ledger?tab=buyers&buyer=${r.buyer_name}`} className={styles.sidebarLink}>{r.buyer_name}</Link>
+                  {' acquired '}
                   {r.line_items[0] ? (
-                    <Link to={`/archive?focus=${r.line_items[0].product_id}`} className={styles.activityLink}>{r.line_items[0].name}</Link>
+                    <Link to={`/archive?focus=${r.line_items[0].product_id}`} className={styles.sidebarLink}>{r.line_items[0].name}</Link>
                   ) : (
-                    'an item'
+                    'a new piece'
                   )}
-                </span>
+                  {'.'}
+                </p>
+                <span className={styles.sidebarMeta}>{formatDate(r.updated_at, 'relative')}</span>
               </div>
             ))}
           </div>
-        </div>
+        </m.aside>
       </>
     );
   };
 
   const renderVendor = () => {
-    const activeWindow = FIXTURE_WINDOWS.find(
+    const activeWindow = windows.find(
       w => w.merchant_id === merchant.id && w.status === 'open'
     ) ?? null;
-    const nextWindow = FIXTURE_WINDOWS
-      .filter(w => w.merchant_id === merchant.id && w.status === 'scheduled')
+    const nextWindow = windows
+      .filter(w => w.merchant_id === merchant.id && w.status === 'upcoming')
       .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())[0] ?? null;
     const windowState = activeWindow ? 'open' : nextWindow ? 'closed' : 'dormant';
 
+    const windowTimeLeft = activeWindow ? new Date(activeWindow.closes_at).getTime() - Date.now() : Infinity;
+    const isClosingSoon = windowState === 'open' && windowTimeLeft > 0 && windowTimeLeft < 7200000; // < 2h
+
     return (
       <>
-        {/* Top Module: Window State Banner */}
-        <div className={`${styles.windowBanner} ${windowState === 'open' ? styles.windowOpen : windowState === 'closed' ? styles.windowClosed : styles.windowDormant}`}>
-          <span className={styles.windowStatusLine}>
-            {windowState === 'open' && `● WINDOW OPEN · Closes ${formatDate(activeWindow!.closes_at, 'relative')}`}
-            {windowState === 'closed' && `● CLOSED · Next window: ${formatDate(nextWindow!.opens_at, 'long')}`}
-            {windowState === 'dormant' && 'No window scheduled'}
-          </span>
-          <span className={styles.windowSub}>
-            {windowState === 'open' && '12 items active · 14 orders so far'}
-            {windowState === 'closed' && 'Prepare your menu for the next window'}
-            {windowState === 'dormant' && 'Create a window to start taking orders'}
-          </span>
-        </div>
-
-        {/* Middle Module: Per-Item Demand Bar (Open only) */}
-        {windowState === 'open' && (
-          <div className={styles.moduleCard}>
-            <span className={styles.sectionTitle}>Per-Item Demand</span>
-            <div className={styles.demandBars}>
-              {[
-                { name: 'Jollof Rice', count: 8, cap: 20 },
-                { name: 'Small Chops', count: 20, cap: 20 },
-                { name: 'Peppered Snail', count: 4, cap: 15 }
-              ].map(item => {
-                const pct = (item.count / item.cap) * 100;
-                const isSoldOut = item.count === item.cap;
-                const isGold = pct >= 80 && !isSoldOut;
-                return (
-                  <div key={item.name} className={styles.demandRow}>
-                    <div className={styles.demandHeader}>
-                      <span className={styles.demandName}>{item.name}</span>
-                      <span className={styles.demandCount}>
-                        {isSoldOut ? 'SOLD OUT' : `${item.count}/${item.cap} orders`}
-                      </span>
-                    </div>
-                    <div className={styles.demandBar}>
-                      <div 
-                        className={`${styles.demandBarFill} ${isGold ? styles.demandBarGold : ''} ${isSoldOut ? styles.demandSoldOut : ''}`} 
-                        style={{ width: `${pct}%` }} 
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+        {/* ── FEATURE: WINDOW STATE ── */}
+        <m.section className={styles.featureSection} variants={staggerChild}>
+          <div className={`${styles.featureCard} ${windowState === 'open' ? (isClosingSoon ? styles.windowClosingSoon : styles.windowOpen) : ''}`}>
+            <div className={styles.featureAccent} />
+            <span className={styles.vitalTitle}>Order Window</span>
+            <h2 className={styles.featureTitle}>
+              {windowState === 'open' ? 'Currently Accepting Orders' : windowState === 'closed' ? 'Window Closed' : 'No Window Scheduled'}
+            </h2>
+            <div className={styles.dropStatus} style={{ marginTop: 8 }}>
+              {windowState === 'open' && (isClosingSoon ? `● CLOSING IMMINENT · ${formatDate(activeWindow!.closes_at, 'relative')}` : `● OPEN · Closes ${formatDate(activeWindow!.closes_at, 'relative')}`)}
+              {windowState === 'closed' && `● NEXT SESSION: ${formatDate(nextWindow!.opens_at, 'long')}`}
+            </div>
+            <div className={styles.dropMetrics} style={{ marginTop: 24 }}>
+              {windowState === 'open' && (
+                <>
+                  <span className={styles.dropMetric}>12 items active</span>
+                  <span className={styles.dropMetric}>14 orders collected</span>
+                </>
+              )}
+              {windowState === 'closed' && <span className={styles.dropMetric}>31 orders total in last session</span>}
             </div>
           </div>
-        )}
+        </m.section>
 
-        {/* Vitals */}
-        <div className={styles.vitalsGrid}>
-          <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Active Orders</span>
-            <span className={styles.vitalValue}>14</span>
-            <span className={styles.vitalSub}>8 for pickup · 6 for delivery</span>
+        {/* ── VITALS SPREAD ── */}
+        <m.section className={styles.vitalsSpread} variants={staggerChild}>
+          <div className={styles.heroVital}>
+            <span className={styles.vitalTitle}>Active Fulfillment</span>
+            <div className={styles.vitalDisplay}>42% Complete</div>
+            <p className={styles.vitalSub} style={{ marginTop: 8 }}>6 of 14 orders processed · 8 pickup · 6 delivery</p>
           </div>
-          <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Fulfilment</span>
-            <span className={styles.vitalValue}>42%</span>
-            <span className={styles.vitalSub}>6/14 completed</span>
-          </div>
-          <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Sold Out</span>
-            <span className={styles.vitalValue}>1</span>
-            <span className={styles.vitalSub}>Small Chops</span>
-          </div>
-        </div>
-
-        {/* Action Desk */}
-        <div className={styles.actionDesk}>
-          {windowState === 'open' ? (
-            <>
-              <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => {}}>
-                <span className={styles.actionBtnLabel}>Close Window Early</span>
-                <span className={styles.actionBtnSub}>Stop taking orders</span>
-              </button>
-              <button className={styles.actionBtn} onClick={() => navigate('/ledger')}>
-                <span className={styles.actionBtnLabel}>Manage Pre-orders</span>
-                <span className={styles.actionBtnSub}>View list</span>
-              </button>
-            </>
-          ) : windowState === 'closed' ? (
-            <>
-              <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => navigate('/schedule')}>
-                <span className={styles.actionBtnLabel}>Schedule Next Window</span>
-                <span className={styles.actionBtnSub}>Plan for next week</span>
-              </button>
-              <button className={styles.actionBtn} onClick={() => {}}>
-                <span className={styles.actionBtnLabel}>View Last Summary</span>
-                <span className={styles.actionBtnSub}>31 orders total</span>
-              </button>
-            </>
-          ) : (
-            <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => navigate('/schedule')}>
-              <span className={styles.actionBtnLabel}>Create Window</span>
-              <span className={styles.actionBtnSub}>Open for orders</span>
-            </button>
+          {windowState === 'open' && (
+            <div className={styles.vitalCard}>
+              <span className={styles.vitalTitle}>High Demand</span>
+              <div className={styles.vitalDisplay} style={{ fontSize: 24 }}>Small Chops</div>
+              <p className={styles.vitalSub}>Sold out</p>
+            </div>
           )}
-          <button className={styles.actionBtn} onClick={() => window.open(`https://${storeUrl}`, '_blank')}>
-            <span className={styles.actionBtnLabel}>View Menu</span>
-            <span className={styles.actionBtnSub}>Customer view</span>
-          </button>
-        </div>
+        </m.section>
+
+        {/* ── DIRECTORY: ACTIONS ── */}
+        <m.nav className={styles.directory} variants={staggerChild}>
+          {[
+            {
+              show: windowState === 'open',
+              label: 'Close Window',
+              sub: 'Stop taking new orders early',
+              onClick: () => {}
+            },
+            {
+              show: windowState !== 'open',
+              label: 'Schedule Window',
+              sub: 'Set your next availability',
+              onClick: () => navigate('/schedule')
+            },
+            {
+              show: true,
+              label: 'Orders',
+              sub: 'Manage active fulfillment list',
+              onClick: () => navigate('/ledger')
+            },
+            {
+              show: true,
+              label: 'View Menu',
+              sub: 'Public storefront experience',
+              onClick: () => window.open(`https://${storeUrl}`, '_blank')
+            }
+          ].filter(i => i.show).map((item, idx) => (
+            <button key={item.label} className={styles.directoryItem} onClick={item.onClick}>
+              <span className={styles.directoryIndex}>{(idx + 1).toString().padStart(2, '0')}</span>
+              <div className={styles.directoryContent}>
+                <span className={styles.directoryLabel}>{item.label}</span>
+                <p className={styles.directorySub}>{item.sub}</p>
+              </div>
+              <span className={styles.directoryArrow}>→</span>
+            </button>
+          ))}
+        </m.nav>
+
+        {/* ── SIDEBAR: ACTIVITY ── */}
+        <m.aside className={styles.sidebar} variants={staggerChild}>
+          <h3 className={styles.sidebarTitle}>Order Feed</h3>
+          <div className={styles.sidebarList}>
+            {FIXTURE_RECEIPTS.filter(r => r.merchant_id === merchant.id).slice(0, 6).map(r => (
+              <div key={r.id} className={styles.sidebarEntry}>
+                <p className={styles.sidebarText}>
+                  <span className={styles.sidebarLink}>{r.buyer_name}</span>
+                  {' placed an order for '}
+                  <strong>{r.line_items.length} items</strong>
+                  {'.'}
+                </p>
+                <span className={styles.sidebarMeta}>{formatDate(r.updated_at, 'relative')}</span>
+              </div>
+            ))}
+          </div>
+        </m.aside>
       </>
     );
   };
 
   const renderHost = () => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const todaysBookings = FIXTURE_BOOKINGS
+    const todaysBookings = bookings
       .filter(b => b.merchant_id === merchant.id && b.scheduled_at.startsWith(todayStr) && b.status === 'confirmed')
       .sort((a,b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
-    const pendingConfirmation = FIXTURE_BOOKINGS.filter(b => b.merchant_id === merchant.id && b.status === 'pending').length;
+    const pendingConfirmation = bookings.filter(b => b.merchant_id === merchant.id && b.status === 'pending').length;
     const unpaidDeposits = 1; // Mocked
-    const upcomingNoDeposit = 0; // Mocked
 
     return (
       <>
-        {/* Top Module: Today's Appointments */}
-        <div className={styles.moduleCard}>
-          <span className={styles.sectionTitle}>Today's Schedule</span>
-          {todaysBookings.length > 0 ? (
-            <div className={styles.appointmentStrip}>
-              {todaysBookings.map(b => (
+        {/* ── FEATURE: TODAY'S SCHEDULE ── */}
+        <m.section className={styles.featureSection} variants={staggerChild}>
+          <div className={styles.featureCard}>
+            <div className={styles.featureAccent} />
+            <span className={styles.vitalTitle}>Daily Schedule</span>
+            <h2 className={styles.featureTitle}>
+              {todaysBookings.length > 0 ? `${todaysBookings.length} confirmed appointments` : 'Clear Schedule'}
+            </h2>
+            <div className={styles.appointmentStrip} style={{ marginTop: 24 }}>
+              {todaysBookings.slice(0, 3).map(b => (
                 <div key={b.id} className={styles.appointmentRow} onClick={() => navigate(`/bookings?id=${b.id}`)}>
                   <span className={styles.apptTime}>
                     {new Date(b.scheduled_at).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', hour12: false })}
@@ -419,76 +462,84 @@ export default function DashboardPage() {
                     <span className={styles.apptService}>{b.service_name}</span>
                     <span className={styles.apptClient}>{b.buyer_name}</span>
                   </div>
-                  <div className={`${styles.apptStatus} ${b.deposit_paid > 0 ? styles.statusPaid : styles.statusAwaited}`}>
-                    {b.deposit_paid > 0 ? <><CheckCircle size={10} /> Deposit paid</> : <><Clock size={10} /> Deposit awaited</>}
-                  </div>
                 </div>
               ))}
-            </div>
-          ) : (
-            <p className={styles.vitalSub}>No appointments today — your schedule is clear.</p>
-          )}
-        </div>
-
-        {/* Middle Module: Pending Actions */}
-        <div className={styles.moduleCard}>
-          <span className={styles.sectionTitle}>Pending Actions</span>
-          <div className={styles.pendingActions}>
-            <div className={styles.pendingRow} onClick={() => navigate('/bookings?tab=pending')}>
-              <span><span className={styles.pendingCount}>{pendingConfirmation}</span> Bookings awaiting confirmation</span>
-              <span className={styles.pendingLink}>Review ›</span>
-            </div>
-            <div className={styles.pendingRow} onClick={() => navigate('/bookings?tab=pending')}>
-              <span><span className={styles.pendingCount}>{unpaidDeposits}</span> Deposits requested but unpaid</span>
-              <span className={styles.pendingLink}>Chase ›</span>
-            </div>
-            <div className={styles.pendingRow}>
-              <span><span className={styles.pendingCount} style={{ backgroundColor: '#2ECB75' }}>{upcomingNoDeposit}</span> Upcoming without deposit (&lt;48h)</span>
-              <span className={styles.pendingLink} style={{ color: '#2ECB75' }}>✓ All clear</span>
+              {todaysBookings.length > 3 && (
+                <p className={styles.vitalSub}>+ {todaysBookings.length - 3} more today</p>
+              )}
             </div>
           </div>
-          <div style={{ marginTop: 16, fontSize: 13, color: 'var(--color-fg-muted)' }}>
-            Next available: Thu 10am · <button onClick={() => { handleCopy(); }} style={{ background: 'none', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', padding: 0 }}>Copy booking link</button>
-          </div>
-        </div>
+        </m.section>
 
-        {/* Vitals */}
-        <div className={styles.vitalsGrid}>
-          <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Revenue today</span>
-            <span className={styles.vitalValue}>₦12,500</span>
-            <span className={styles.vitalSub}>from confirmed deposits</span>
+        {/* ── VITALS SPREAD ── */}
+        <m.section className={styles.vitalsSpread} variants={staggerChild}>
+          <div className={styles.heroVital}>
+            <span className={styles.vitalTitle}>Yield this week</span>
+            <div className={styles.vitalDisplay}>85% Fill Rate</div>
+            <p className={styles.vitalSub} style={{ marginTop: 8 }}>High demand for morning slots.</p>
           </div>
           <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Bookings</span>
-            <span className={styles.vitalValue}>4</span>
-            <span className={styles.vitalSub}>today</span>
+            <span className={styles.vitalTitle}>Revenue</span>
+            <div className={styles.vitalDisplay} style={{ fontSize: 24 }}>₦12,500</div>
+            <p className={styles.vitalSub}>Confirmed deposits</p>
           </div>
-          <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Fill Rate</span>
-            <span className={styles.vitalValue}>85%</span>
-            <span className={styles.vitalSub}>this week</span>
-          </div>
-        </div>
+        </m.section>
 
-        {/* Action Desk */}
-        <div className={styles.actionDesk}>
-          {pendingConfirmation > 0 ? (
-            <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => navigate('/bookings?tab=pending')}>
-              <span className={styles.actionBtnLabel}>Review Pending</span>
-              <span className={styles.actionBtnSub}>{pendingConfirmation} new requests</span>
+        {/* ── DIRECTORY: ACTIONS ── */}
+        <m.nav className={styles.directory} variants={staggerChild}>
+          {[
+            {
+              label: 'Calendar',
+              sub: 'Full schedule management',
+              onClick: () => navigate('/bookings')
+            },
+            {
+              show: pendingConfirmation > 0,
+              label: `Requests (${pendingConfirmation})`,
+              sub: 'Review new booking requests',
+              onClick: () => navigate('/bookings?tab=pending'),
+              isAccent: true
+            },
+            {
+              label: 'Terminal',
+              sub: 'Record walk-in bookings',
+              onClick: () => navigate('/terminal')
+            },
+            {
+              label: 'Settings',
+              sub: 'Availability & rules',
+              onClick: () => navigate('/settings')
+            }
+          ].filter(i => i.show !== false).map((item, idx) => (
+            <button key={item.label} className={styles.directoryItem} onClick={item.onClick}>
+              <span className={styles.directoryIndex}>{(idx + 1).toString().padStart(2, '0')}</span>
+              <div className={styles.directoryContent}>
+                <span className={styles.directoryLabel} style={item.isAccent ? { color: 'var(--color-accent)' } : undefined}>
+                  {item.label}
+                </span>
+                <p className={styles.directorySub}>{item.sub}</p>
+              </div>
+              <span className={styles.directoryArrow}>→</span>
             </button>
-          ) : (
-            <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => navigate('/bookings')}>
-              <span className={styles.actionBtnLabel}>View Schedule</span>
-              <span className={styles.actionBtnSub}>Check calendar</span>
-            </button>
-          )}
-          <button className={styles.actionBtn} onClick={() => navigate('/terminal')}>
-            <span className={styles.actionBtnLabel}>Terminal</span>
-            <span className={styles.actionBtnSub}>Manual booking</span>
-          </button>
-        </div>
+          ))}
+        </m.nav>
+
+        {/* ── SIDEBAR: ACTIVITY ── */}
+        <m.aside className={styles.sidebar} variants={staggerChild}>
+          <h3 className={styles.sidebarTitle}>Queue Notes</h3>
+          <div className={styles.sidebarList}>
+            <div className={styles.sidebarEntry}>
+              <p className={styles.sidebarText}>
+                There are <strong>{pendingConfirmation}</strong> bookings currently awaiting your confirmation.
+              </p>
+            </div>
+            <div className={styles.sidebarEntry}>
+              <p className={styles.sidebarText}>
+                <strong>{unpaidDeposits}</strong> clients have not yet fulfilled their deposit requirements.
+              </p>
+            </div>
+          </div>
+        </m.aside>
       </>
     );
   };
@@ -496,71 +547,83 @@ export default function DashboardPage() {
   const renderDigital = () => {
     return (
       <>
-        {/* Top Module: Earnings Ticker */}
-        <div className={styles.moduleCard}>
-          <div className={styles.earningsTicker}>
-            <span className={styles.sectionTitle}>Earnings Today</span>
-            <h2 className={styles.earningsHeadline}>₦47,500</h2>
-            <div className={styles.trendRow}>
-              <span className={styles.trendUp}><TrendingUp size={14} /> ₦12,000</span>
-              <span className={styles.vitalSub}>vs yesterday</span>
+        {/* ── FEATURE: EARNINGS ── */}
+        <m.section className={styles.featureSection} variants={staggerChild}>
+          <div className={styles.featureCard}>
+            <div className={styles.featureAccent} />
+            <span className={styles.vitalTitle}>Yield Today</span>
+            <h2 className={styles.featureTitle}>₦47,500</h2>
+            <div className={styles.trendRow} style={{ marginTop: 12 }}>
+              <span className={styles.trendUp}><TrendingUp size={14} /> +₦12,000</span>
+              <span className={styles.vitalSub}>since yesterday</span>
             </div>
-            <span className={styles.earningsSub}>3 downloads · 2 new buyers</span>
+            <div className={styles.dropMetrics} style={{ marginTop: 24 }}>
+              <span className={styles.dropMetric}>3 downloads today</span>
+              <span className={styles.dropMetric}>2 new buyers</span>
+            </div>
           </div>
-        </div>
+        </m.section>
 
-        {/* Middle Module: Catalogue Health */}
-        <div className={styles.moduleCard}>
-          <span className={styles.sectionTitle}>Catalogue Health</span>
-          <div className={styles.catalogueHealth}>
-            {[
-              { name: 'Brand Starter Kit', downloads: 47, revenue: 564000, flag: null, live: true },
-              { name: 'Lightroom Preset Pack', downloads: 12, revenue: 54000, flag: '0 downloads in 14 days', live: false },
-              { name: 'Notion Dashboard', downloads: 8, revenue: 60000, flag: null, live: true },
-              { name: 'Social Kit (Free)', downloads: 23, revenue: 0, flag: 'No preview asset', live: false, free: true }
-            ].map(p => (
-              <div key={p.name} className={styles.healthRow}>
-                <span className={styles.healthName}>{p.name}</span>
-                <span className={styles.healthStat}>{p.downloads} {p.free ? 'claims' : 'dl'}</span>
-                <span className={styles.healthStat}>{p.free ? 'Free' : formatCurrencyFull(p.revenue)}</span>
-                {p.flag ? (
-                  <span className={styles.healthFlag}><AlertTriangle size={10} /> {p.flag}</span>
-                ) : (
-                  <span className={styles.vitalDelta} style={{ color: '#2ECB75', fontSize: 10 }}>● Live</span>
-                )}
+        {/* ── VITALS SPREAD ── */}
+        <m.section className={styles.vitalsSpread} variants={staggerChild}>
+          <div className={styles.heroVital}>
+            <span className={styles.vitalTitle}>Top Geography</span>
+            <div className={styles.vitalDisplay}>United Kingdom</div>
+            <p className={styles.vitalSub} style={{ marginTop: 8 }}>22% of total lifetime sales.</p>
+          </div>
+          <div className={styles.vitalCard}>
+            <span className={styles.vitalTitle}>Retention</span>
+            <div className={styles.vitalDisplay} style={{ fontSize: 24 }}>14%</div>
+            <p className={styles.vitalSub}>Repeat buyers this month</p>
+          </div>
+        </m.section>
+
+        {/* ── DIRECTORY: ACTIONS ── */}
+        <m.nav className={styles.directory} variants={staggerChild}>
+          {[
+            {
+              label: 'Upload',
+              sub: 'Mint new digital asset',
+              onClick: () => {}
+            },
+            {
+              label: 'Catalogue',
+              sub: 'Manage digital listings',
+              onClick: () => navigate('/catalogue')
+            },
+            {
+              label: 'Public Store',
+              sub: 'Customer experience',
+              onClick: () => window.open(`https://${storeUrl}`, '_blank')
+            }
+          ].map((item, idx) => (
+            <button key={item.label} className={styles.directoryItem} onClick={item.onClick}>
+              <span className={styles.directoryIndex}>{(idx + 1).toString().padStart(2, '0')}</span>
+              <div className={styles.directoryContent}>
+                <span className={styles.directoryLabel}>{item.label}</span>
+                <p className={styles.directorySub}>{item.sub}</p>
               </div>
-            ))}
-          </div>
-          <p style={{ marginTop: 16, fontSize: 12, color: 'var(--color-fg-ghost)' }}>
-            62% of downloads today are from outside Nigeria.
-          </p>
-        </div>
+              <span className={styles.directoryArrow}>→</span>
+            </button>
+          ))}
+        </m.nav>
 
-        {/* Vitals */}
-        <div className={styles.vitalsGrid}>
-          <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Top Geography</span>
-            <span className={styles.vitalValue}>UK</span>
-            <span className={styles.vitalSub}>22% of sales</span>
+        {/* ── SIDEBAR: ACTIVITY ── */}
+        <m.aside className={styles.sidebar} variants={staggerChild}>
+          <h3 className={styles.sidebarTitle}>Global Analytics</h3>
+          <div className={styles.sidebarList}>
+            <div className={styles.sidebarEntry}>
+              <p className={styles.sidebarText}>
+                62% of your downloads today originated from <strong>outside Nigeria</strong>.
+              </p>
+            </div>
+            <div className={styles.sidebarEntry}>
+              <p className={styles.sidebarText}>
+                Instagram referral traffic has increased by <strong>12%</strong> this week.
+              </p>
+            </div>
           </div>
-          <div className={styles.vitalCard}>
-            <span className={styles.vitalLabel}>Repeat Buyers</span>
-            <span className={styles.vitalValue}>14%</span>
-            <span className={styles.vitalSub}>this month</span>
-          </div>
-        </div>
-
-        {/* Action Desk */}
-        <div className={styles.actionDesk}>
-          <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => {}}>
-            <span className={styles.actionBtnLabel}>Upload Product</span>
-            <span className={styles.actionBtnSub}>New digital asset</span>
-          </button>
-          <button className={styles.actionBtn} onClick={() => navigate('/catalogue')}>
-            <span className={styles.actionBtnLabel}>View Catalogue</span>
-            <span className={styles.actionBtnSub}>Manage listings</span>
-          </button>
-        </div>
+        </m.aside>
       </>
     );
   };
@@ -570,93 +633,157 @@ export default function DashboardPage() {
     const pendingDepositsCount = FIXTURE_ENQUIRIES.filter(e => e.status === 'active_project' && (e.deposit_paid || 0) < (e.package_value || 0)).length;
     const outstandingDepositValue = FIXTURE_ENQUIRIES.filter(e => e.status === 'active_project' && (e.deposit_paid || 0) < (e.package_value || 0)).reduce((acc, e) => acc + ((e.package_value || 0) - (e.deposit_paid || 0)), 0);
 
-    const stages = [
-      { id: 'new', label: 'New Enquiries', color: '#C9A84C' },
-      { id: 'in_discussion', label: 'In Discussion', color: 'var(--color-accent)' },
-      { id: 'active_project', label: 'Active Projects', color: '#2ECB75' }
-    ];
-
     const oldestNew = FIXTURE_ENQUIRIES.filter(e => e.status === 'new').sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
     const waitingHours = oldestNew ? Math.floor((Date.now() - new Date(oldestNew.created_at).getTime()) / 3600000) : 0;
 
     return (
       <>
-        {/* Top Module: Pending Value */}
-        <div className={styles.pendingValue}>
-          <span className={styles.sectionTitle}>Pipeline Status</span>
-          <h2 className={styles.pipelineValue}>{formatCurrencyFull(pipelineValue)} in active pipeline</h2>
-          <span className={styles.outstandingText}>
-            {pendingDepositsCount} projects pending deposit ({formatCurrencyFull(outstandingDepositValue)} outstanding)
-          </span>
-        </div>
-
-        {/* Middle Module: Pipeline */}
-        <div className={styles.pipeline}>
-          {stages.map(stage => {
-            const items = FIXTURE_ENQUIRIES.filter(e => e.status === stage.id);
-            return (
-              <div key={stage.id} className={styles.pipelineColumn}>
-                <h3 className={styles.pipelineColumnTitle}>{stage.label} ({items.length})</h3>
-                {items.map(e => (
-                  <div key={e.id} className={styles.pipelineCard} onClick={() => navigate(`/bookings?enquiry=${e.id}`)}>
-                    <span className={styles.pipelineClient}>{e.client_name}</span>
-                    <span className={styles.pipelineProject}>{e.project_type}</span>
-                    {e.package_value && <span className={styles.pipelinePrice}>{formatCurrencyFull(e.package_value)}</span>}
-                    <div className={styles.pipelineMeta}>
-                      <span>{formatDate(e.created_at, 'relative')}</span>
-                      {e.status === 'active_project' && (
-                        <span style={{ color: (e.deposit_paid || 0) >= (e.package_value || 0) / 2 ? '#2ECB75' : '#C9A84C' }}>
-                          Deposit: { (e.deposit_paid || 0) >= (e.package_value || 0) / 2 ? '✓ Paid' : '⚡ Awaited' }
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Response Timer Alert */}
-        {waitingHours >= 24 && (
-          <div className={styles.responseTimer}>
-            <Clock size={14} />
-            <span>⏱ 1 enquiry awaiting reply — {waitingHours} hours</span>
+        {/* ── FEATURE: PIPELINE ── */}
+        <m.section className={styles.featureSection} variants={staggerChild}>
+          <div className={styles.featureCard}>
+            <div className={styles.featureAccent} />
+            <span className={styles.vitalTitle}>Active Pipeline</span>
+            <h2 className={styles.featureTitle}>
+              {formatCurrencyFull(pipelineValue)} in production
+            </h2>
+            <div className={styles.dropMetrics} style={{ marginTop: 24 }}>
+              <span className={styles.dropMetric}>{pendingDepositsCount} projects pending deposit</span>
+              <span className={styles.dropMetric}>{formatCurrencyFull(outstandingDepositValue)} outstanding</span>
+            </div>
           </div>
-        )}
+        </m.section>
 
-        {/* Action Desk */}
-        <div className={styles.actionDesk}>
-          {FIXTURE_ENQUIRIES.some(e => e.status === 'new') ? (
-            <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => navigate('/bookings')}>
-              <span className={styles.actionBtnLabel}>Reply to Enquiry</span>
-              <span className={styles.actionBtnSub}>1 unread message</span>
-            </button>
-          ) : (
-            <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={() => navigate('/archive')}>
-              <span className={styles.actionBtnLabel}>View Portfolio</span>
-              <span className={styles.actionBtnSub}>Public display</span>
-            </button>
+        {/* ── VITALS SPREAD ── */}
+        <m.section className={styles.vitalsSpread} variants={staggerChild}>
+          <div className={styles.heroVital}>
+            <span className={styles.vitalTitle}>Project Load</span>
+            <div className={styles.vitalDisplay}>{FIXTURE_ENQUIRIES.filter(e => e.status === 'active_project').length} Active</div>
+            <p className={styles.vitalSub} style={{ marginTop: 8 }}>Optimal capacity reached.</p>
+          </div>
+          {waitingHours >= 24 && (
+            <div className={styles.vitalCard} style={{ background: 'var(--color-gold-dim)' }}>
+              <span className={styles.vitalTitle} style={{ color: 'var(--color-gold-text)' }}>Attention</span>
+              <div className={styles.vitalDisplay} style={{ fontSize: 24, color: 'var(--color-gold-text)' }}>{waitingHours}h delay</div>
+              <p className={styles.vitalSub}>Enquiry awaiting reply</p>
+            </div>
           )}
-          <button className={styles.actionBtn} onClick={() => navigate('/archive')}>
-            <span className={styles.actionBtnLabel}>Upload to Portfolio</span>
-            <span className={styles.actionBtnSub}>Add new work</span>
-          </button>
-        </div>
+        </m.section>
+
+        {/* ── DIRECTORY: ACTIONS ── */}
+        <m.nav className={styles.directory} variants={staggerChild}>
+          {[
+            {
+              label: 'Inbox',
+              sub: 'Reply to new enquiries',
+              onClick: () => navigate('/bookings'),
+              isAccent: FIXTURE_ENQUIRIES.some(e => e.status === 'new')
+            },
+            {
+              label: 'Portfolio',
+              sub: 'Manage public case studies',
+              onClick: () => navigate('/archive')
+            },
+            {
+              label: 'New Quote',
+              sub: 'Generate custom proposal',
+              onClick: () => navigate('/terminal')
+            }
+          ].map((item, idx) => (
+            <button key={item.label} className={styles.directoryItem} onClick={item.onClick}>
+              <span className={styles.directoryIndex}>{(idx + 1).toString().padStart(2, '0')}</span>
+              <div className={styles.directoryContent}>
+                <span className={styles.directoryLabel} style={item.isAccent ? { color: 'var(--color-accent)' } : undefined}>
+                  {item.label}
+                </span>
+                <p className={styles.directorySub}>{item.sub}</p>
+              </div>
+              <span className={styles.directoryArrow}>→</span>
+            </button>
+          ))}
+        </m.nav>
+
+        {/* ── SIDEBAR: ACTIVITY ── */}
+        <m.aside className={styles.sidebar} variants={staggerChild}>
+          <h3 className={styles.sidebarTitle}>Interest Log</h3>
+          <div className={styles.sidebarList}>
+            {FIXTURE_ENQUIRIES.filter(e => e.status === 'new').slice(0, 4).map(e => (
+              <div key={e.id} className={styles.sidebarEntry}>
+                <p className={styles.sidebarText}>
+                  <strong>{e.client_name}</strong>
+                  {' inquired about '}
+                  <em>{e.project_type}</em>
+                  {'.'}
+                </p>
+                <span className={styles.sidebarMeta}>{formatDate(e.created_at, 'relative')}</span>
+              </div>
+            ))}
+          </div>
+        </m.aside>
       </>
     );
   };
 
-  return (
-    <div className={styles.root}>
+  if (isLoading) {
+    return (
+      <div className={styles.root}>
+        <div className={styles.topBar}>
+          <div className={styles.greeting}>
+            <div className="skeleton skeleton-text" style={{ width: '120px', height: '12px', marginBottom: '16px' }} />
+            <div className="skeleton skeleton-text" style={{ width: '320px', height: '64px' }} />
+          </div>
+        </div>
+        <div className={styles.featureSection}>
+          <div className="skeleton" style={{ width: '100%', height: '240px', borderRadius: 'var(--r-xl)' }} />
+        </div>
+        <div className={styles.vitalsSpread}>
+          <div className="skeleton" style={{ width: '100%', height: '160px', borderRadius: 'var(--r-lg)' }} />
+          <div className="skeleton" style={{ width: '100%', height: '160px', borderRadius: 'var(--r-lg)' }} />
+        </div>
+        <div className={styles.directory}>
+          {[1,2,3].map(i => (
+            <div key={i} className="skeleton" style={{ width: '100%', height: '80px', marginBottom: '12px', borderRadius: 'var(--r-sm)' }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-      {/* ── Top Bar (Slot 1: Header) ── */}
-      <div className={styles.topBar}>
+  return (
+    <m.div 
+      className={styles.root}
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      <AnimatePresence>
+        {soldOutNotification && (
+          <m.div 
+            className={styles.soldOutTile}
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          >
+            <div className={styles.soldOutIcon}>
+              <AlertTriangle size={20} />
+            </div>
+            <div className={styles.soldOutInfo}>
+              <p className={styles.soldOutLabel}>Item Sold Out</p>
+              <h3 className={styles.soldOutName}>{soldOutNotification.name}</h3>
+              <p className={styles.soldOutUnits}>All units have been claimed.</p>
+            </div>
+            <CheckCircle size={20} style={{ color: 'var(--color-success-text)' }} />
+          </m.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MASTHEAD ── */}
+      <m.header className={styles.topBar} variants={staggerChild}>
         <div className={styles.greeting}>
           <span className={styles.greetingTime}>
             {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' })}
           </span>
-          <h1 className={styles.greetingName}>
+          <h1 className={styles.mastheadTitle}>
             {merchant.store_name}
           </h1>
         </div>
@@ -666,13 +793,13 @@ export default function DashboardPage() {
             onClick={() => setShareOpen(true)}
             aria-label="Share store"
           >
-            <Share2 size={14} aria-hidden="true" />
-            Share Store
+            <Share2 size={12} aria-hidden="true" />
+            Share Journal
           </button>
         </div>
-      </div>
+      </m.header>
 
-      {/* ── DASHBOARD SLOTS 2-5 ── */}
+      {/* ── DASHBOARD CONTENT ── */}
       {st.isCollector && renderCollector()}
       {st.isVendor && renderVendor()}
       {st.isHost && renderHost()}
@@ -680,23 +807,23 @@ export default function DashboardPage() {
       {st.isStudio && renderStudio()}
 
       {/* ── Share Drawer ── */}
-      <BaseDrawer open={shareOpen} onClose={() => setShareOpen(false)} title="Share Your Store">
+      <BaseDrawer open={shareOpen} onClose={() => setShareOpen(false)} title="Share Store">
         <div className={styles.shareDrawerContent}>
           <div className={styles.shareUrlBox}>
             <span className={styles.shareUrl}>{storeUrl}</span>
-            <button className={styles.copyBtn} onClick={handleCopy} aria-label="Copy store link">
-              Copy
+            <button className={styles.copyBtn} onClick={handleCopy} aria-label="Copy store URL">
+              Copy URL
             </button>
           </div>
           <div className={styles.shareOptions}>
             {[
               {
-                icon: <MessageCircle size={18} style={{ color: '#25D366' }} />,
+                icon: <MessageCircle size={18} style={{ color: 'var(--color-whatsapp)' }} />,
                 label: 'WhatsApp',
                 action: () => { window.open(`https://wa.me/?text=Shop%20my%20store%20at%20https%3A%2F%2F${storeUrl}`, '_blank'); },
               },
               {
-                icon: <Instagram size={18} style={{ color: '#E1306C' }} />,
+                icon: <Instagram size={18} style={{ color: 'var(--color-pink)' }} />,
                 label: 'Instagram',
                 action: handleCopy,
               },
@@ -769,6 +896,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-    </div>
+    </m.div>
   );
 }

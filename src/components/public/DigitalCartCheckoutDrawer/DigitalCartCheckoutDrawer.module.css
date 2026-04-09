@@ -1,0 +1,258 @@
+.root {
+  padding: 0 var(--space-5) var(--space-10);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+}
+
+.stepCenter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-10) 0;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: transparent;
+  border: none;
+  color: var(--sf-fg-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  margin-bottom: var(--space-6);
+  padding: 0;
+}
+
+.stepTitle {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  color: var(--sf-fg);
+  margin-bottom: var(--space-2);
+  line-height: 1.2;
+}
+
+.stepSub {
+  font-family: var(--font-serif-alt);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--sf-fg-muted);
+  margin-bottom: var(--space-8);
+}
+
+.itemsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.itemRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  background: var(--sf-surface-raised);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-raise-sm);
+}
+
+.itemThumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--sf-surface-inset);
+}
+
+.itemInfo {
+  flex: 1;
+}
+
+.itemName {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  color: var(--sf-fg);
+}
+
+.itemPrice {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--sf-accent);
+  margin-top: 2px;
+}
+
+.freeLabel {
+  color: var(--color-success-text);
+  font-weight: 600;
+}
+
+.paymentBox {
+  background: var(--sf-surface-inset);
+  padding: var(--space-6);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--space-8);
+  text-align: center;
+  border: 1px solid var(--sf-divider);
+}
+
+.paymentHeading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--sf-fg-ghost);
+  margin-bottom: var(--space-2);
+}
+
+.totalAmount {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  color: var(--sf-fg);
+  margin-bottom: var(--space-6);
+}
+
+.bankCard {
+  background: var(--sf-surface-raised);
+  padding: var(--space-4);
+  border-radius: var(--r-md);
+  text-align: left;
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-raise-sm);
+}
+
+.bankRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--sf-fg-muted);
+  margin-bottom: 4px;
+}
+
+.bankAccount {
+  font-size: 14px;
+  color: var(--sf-fg);
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.accountName {
+  font-size: 13px;
+  color: var(--sf-fg);
+  font-weight: 500;
+}
+
+.paymentNote {
+  font-size: 12px;
+  color: var(--sf-fg-ghost);
+  line-height: 1.5;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-bottom: var(--space-10);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--sf-fg-ghost);
+}
+
+.field input {
+  background: var(--sf-surface-inset);
+  border: 1px solid var(--sf-divider);
+  border-radius: var(--r-md);
+  padding: var(--space-4);
+  color: var(--sf-fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.field input:focus {
+  border-color: var(--sf-accent);
+}
+
+.inputError {
+  border-color: var(--color-error-light) !important;
+}
+
+.errorText {
+  font-size: 11px;
+  color: var(--color-error-light);
+  margin-top: 2px;
+}
+
+.primaryBtn {
+  width: 100%;
+  padding: var(--space-4) var(--space-6);
+  background: var(--sf-accent);
+  color: var(--color-fg);
+  border: none;
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-raise-sm);
+  transition: all 0.2s;
+}
+
+.primaryBtn:active {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+.successIcon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-success-glow);
+  color: var(--color-success-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-6);
+}
+
+.confirmTitle {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  color: var(--sf-fg);
+  margin-bottom: var(--space-4);
+}
+
+.confirmText {
+  font-family: var(--font-serif-alt);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--sf-fg-muted);
+  line-height: 1.5;
+  margin-bottom: var(--space-10);
+}

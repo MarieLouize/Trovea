@@ -3,7 +3,13 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-8);
+}
+
+.subSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .header {
@@ -12,7 +18,15 @@
   gap: var(--space-1);
 }
 
-.sectionTitle { color: var(--color-fg); margin: 0; }
+.sectionTitle { color: var(--color-fg); font-size: 20px; margin: 0; }
+.subSectionTitle {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  margin: 0;
+}
 .sectionDesc { color: var(--color-fg-muted); margin: 0; font-size: 13px; }
 
 .list {
@@ -26,26 +40,26 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   border-radius: var(--r-lg);
-  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
-  box-shadow: var(--shadow-raise);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-raise-sm);
   border: 1.5px solid transparent;
   cursor: pointer;
   text-align: left;
   overflow: hidden;
-  transition: box-shadow 150ms, border-color 150ms;
+  transition: all var(--duration-fast);
   min-height: 88px;
 }
 
 .card:hover {
-  box-shadow: var(--shadow-raise-lg);
+  box-shadow: var(--shadow-raise-sm);
+  transform: translateY(-1px);
 }
 
 .cardActive {
-  box-shadow: var(--shadow-inset);
   border-color: var(--color-accent);
-  background: linear-gradient(145deg, var(--color-surface), var(--color-surface-inset));
+  background: var(--color-surface);
 }
 
 .noise {
@@ -53,20 +67,20 @@
   inset: 0;
   background-image: var(--noise);
   background-size: 200px;
-  opacity: 0.38;
+  opacity: 0.35;
   pointer-events: none;
 }
 
 /* ── Minimap container ── */
 .minimap {
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   border-radius: var(--r-md);
   background: var(--color-surface-inset);
-  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid rgba(0,0,0,0.05);
   overflow: hidden;
   flex-shrink: 0;
-  padding: 8px;
+  padding: 6px;
   position: relative;
   z-index: 1;
 }
@@ -76,7 +90,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
   position: relative;
   z-index: 1;
 }
@@ -84,34 +98,39 @@
 .infoTop {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: space-between;
 }
 
 .layoutName {
-  font-size: 14px;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
   color: var(--color-fg);
 }
 
 .activeBadge {
-  font-size: 8px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
   font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
   color: var(--color-accent);
+  background: var(--color-gold-dim);
+  padding: 2px 6px;
+  border-radius: var(--r-pill);
 }
 
 .layoutDesc {
   font-size: 12px;
   color: var(--color-fg-muted);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 /* ── Minimap visuals ── */
 .minimapCell {
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 2px;
-  flex-shrink: 0;
+  background: var(--color-fg-ghost);
+  opacity: 0.4;
+  border-radius: 1.5px;
 }
 
 /* Grid Dense */
@@ -121,10 +140,7 @@
   gap: 3px;
   height: 100%;
 }
-.minimapGrid .minimapCell {
-  aspect-ratio: 1;
-  border-radius: 2px;
-}
+.minimapGrid .minimapCell { aspect-ratio: 1; }
 
 /* Grid Airy */
 .minimapGridAiry {
@@ -142,14 +158,14 @@
   gap: 3px;
   height: 100%;
 }
-.minimapCellHero { height: 36%; border-radius: 3px; }
+.minimapCellHero { height: 36%; opacity: 0.6; }
 .minimapEditorialRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 3px;
   flex: 1;
 }
-.minimapCellWide { height: 24%; border-radius: 2px; opacity: 0.6; }
+.minimapCellWide { height: 24%; opacity: 0.3; }
 
 /* Masonry */
 .minimapMasonry {
@@ -177,16 +193,13 @@
   height: 100%;
   justify-content: center;
 }
-.minimapListRow {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
+.minimapListRow { display: flex; gap: 4px; align-items: center; }
 .minimapListThumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 2px;
-  background: rgba(255,255,255,0.25);
+  width: 12px;
+  height: 12px;
+  border-radius: 1.5px;
+  background: var(--color-fg-ghost);
+  opacity: 0.4;
   flex-shrink: 0;
 }
 .minimapListText {
@@ -196,8 +209,115 @@
   flex: 1;
 }
 .minimapTextLine {
-  height: 3px;
-  background: rgba(255,255,255,0.25);
-  border-radius: 2px;
+  height: 2.5px;
+  background: var(--color-fg-ghost);
+  opacity: 0.3;
+  border-radius: 1px;
 }
-.minimapTextLineShort { width: 55%; opacity: 0.6; }
+.minimapTextLineShort { width: 55%; opacity: 0.2; }
+
+/* ── Section Editor (Part B) ── */
+.sectionEditorCard {
+  position: relative;
+  border-radius: var(--r-xl);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-raise-sm);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  padding: var(--space-2) 0;
+}
+
+.sectionList {
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border-dim);
+  position: relative;
+  z-index: 1;
+  background: var(--color-surface-raised);
+}
+
+.sectionRow:last-child {
+  border-bottom: none;
+}
+
+.dragHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--color-fg-ghost);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  transition: all 120ms;
+  flex-shrink: 0;
+}
+
+.dragHandle:hover {
+  color: var(--color-fg-muted);
+  background: rgba(0,0,0,0.04);
+}
+
+.sectionLabel {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-fg);
+}
+
+/* ── Toggle ── */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggleInput {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.toggleSlider {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  background: var(--color-surface-inset);
+  transition: background 200ms;
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.toggleSlider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-fg-muted);
+  box-shadow: var(--shadow-raise-sm);
+  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toggleSliderOn {
+  background: var(--color-accent);
+  border-color: transparent;
+}
+
+.toggleSliderOn::after {
+  transform: translateX(18px);
+  background: var(--color-fg);
+}

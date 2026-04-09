@@ -1,28 +1,31 @@
+import { useEffect } from 'react';
 import { m, AnimatePresence } from '@/lib/motion';
 import { ShieldOff } from 'lucide-react';
 import { useAdminStore } from '@/lib/store/admin.store';
-import { useUIStore } from '@/lib/store/ui.store';
-import { DEV_MERCHANTS } from '@/lib/store/merchant.store';
 import { formatRelativeDate } from '@/lib/utils/format';
 import styles from './AdminSuspensionsPage.module.css';
 
 export default function AdminSuspensionsPage() {
-  const { suspendedMerchantIds, adminLog, unsuspendMerchant } = useAdminStore();
-  const { addToast } = useUIStore();
+  const { merchants, adminLog, unsuspendMerchant, initFromDB, isLoading } = useAdminStore();
 
-  const suspendedMerchants = DEV_MERCHANTS.filter((m) =>
-    suspendedMerchantIds.includes(m.id),
-  );
+  useEffect(() => {
+    initFromDB();
+  }, [initFromDB]);
 
-  const handleUnsuspend = (merchantId: string, storeName: string) => {
-    unsuspendMerchant(merchantId, storeName);
-    addToast(`${storeName} has been unsuspended.`, 'success');
+  const suspendedMerchants = merchants.filter((m) => m.is_suspended);
+
+  const handleUnsuspend = async (merchantId: string) => {
+    await unsuspendMerchant(merchantId);
   };
 
   const merchantName = (merchantId: string | null) => {
     if (!merchantId) return 'Platform';
-    return DEV_MERCHANTS.find((m) => m.id === merchantId)?.store_name ?? merchantId;
+    return merchants.find((m) => m.id === merchantId)?.store_name ?? merchantId;
   };
+
+  if (isLoading && merchants.length === 0) {
+    return <div className={styles.page}><div className="skeleton" style={{ height: '300px' }} /></div>;
+  }
 
   return (
     <div className={styles.page}>
@@ -76,7 +79,7 @@ export default function AdminSuspensionsPage() {
                   </div>
                   <m.button
                     className={styles.unsuspendBtn}
-                    onClick={() => handleUnsuspend(merchant.id, merchant.store_name)}
+                    onClick={() => handleUnsuspend(merchant.id)}
                     whileTap={{ scale: 0.97 }}
                     aria-label={`Unsuspend ${merchant.store_name}`}
                   >
@@ -105,7 +108,7 @@ export default function AdminSuspensionsPage() {
               <div key={entry.id} className={styles.logTableRow} role="row">
                 <span className={styles.logAction}>{entry.action}</span>
                 <span className={styles.logStore}>{merchantName(entry.target_merchant_id)}</span>
-                <span className={styles.logTime}>{formatRelativeDate(entry.timestamp)}</span>
+                <span className={styles.logTime}>{formatRelativeDate(entry.created_at)}</span>
                 <span className={styles.logNote}>{entry.note ?? '—'}</span>
               </div>
             ))}

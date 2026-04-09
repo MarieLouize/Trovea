@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Wand2, Lock, ExternalLink } from 'lucide-react';
+import { ChevronRight, Wand2, Lock, ExternalLink, ChevronDown } from 'lucide-react';
 import { m, AnimatePresence } from '@/lib/motion';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import { useStoreType } from '@/lib/hooks/use-store-type';
@@ -9,6 +9,7 @@ import { formatPhone } from '@/lib/utils/format';
 import styles from './SettingsPage.module.css';
 
 const HOLD_DURATIONS = [2, 6, 12, 24] as const;
+const RESPONSE_TIME_OPTIONS = [2, 4, 8, 12, 24, 48, 72];
 
 const NIGERIAN_BANKS = [
   'Opay', 'PalmPay', 'Moniepoint', 'GTBank', 'Access Bank',
@@ -18,8 +19,54 @@ const NIGERIAN_BANKS = [
 const DEFAULT_WA_TEMPLATE =
   "Hi {store_name}! I'm interested in {item_name} (₦{price}). Is it still available?";
 
+function CustomDropdown({ 
+  value, 
+  options, 
+  onChange, 
+  label 
+}: { 
+  value: number; 
+  options: number[]; 
+  onChange: (v: number) => void; 
+  label: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div className={styles.customDropdown}>
+      <button 
+        className={styles.dropdownToggle} 
+        onClick={() => setIsOpen(!isOpen)}
+        type="button"
+      >
+        <span>{value} {label}</span>
+        <ChevronDown size={14} />
+      </button>
+      <AnimatePresence>
+        {isOpen && (
+          <m.div 
+            className={styles.dropdownMenu}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            {options.map(opt => (
+              <button 
+                key={opt} 
+                className={styles.dropdownItem}
+                onClick={() => { onChange(opt); setIsOpen(false); }}
+              >
+                {opt} {label}
+              </button>
+            ))}
+          </m.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
-  const { merchant } = useMerchantStore();
+  const { merchant, updateMerchant } = useMerchantStore();
   const st = useStoreType();
   const { addToast } = useUIStore();
 
@@ -33,6 +80,17 @@ export default function SettingsPage() {
   const [storeOpen, setStoreOpen] = useState(merchant.store_open);
   const [whatsappTemplate, setWhatsappTemplate] = useState(
     merchant.whatsapp_template ?? DEFAULT_WA_TEMPLATE
+  );
+
+  // Ceremony state
+  const [showFirstLiveCeremony, setShowFirstLiveCeremony] = useState(false);
+  const [hasCopied, setHasCopied] = useState(false);
+
+  // ── NEW STATE (Phase 2.5-K) ──────────────────────────────────────
+  const [arrivalNotes, setArrivalNotes] = useState(merchant.arrival_notes ?? '');
+  const [responseTimeHours, setResponseTimeHours] = useState(merchant.response_time_hours ?? 24);
+  const [portfolioOrder, setPortfolioOrder] = useState<'curated' | 'recent'>(
+    merchant.store_config.store_type_config.portfolio_order ?? 'curated'
   );
 
   // Notification toggles (local-only, no merchant field)
@@ -65,6 +123,8 @@ export default function SettingsPage() {
   const [modalPauseMessage, setModalPauseMessage] = useState('');
   const [modalReturnDate, setModalReturnDate] = useState('');
 
+  const [isSaving, setIsSaving] = useState(false);
+
   // ── DIRTY STATE ──────────────────────────────────────────────────
   const initialWaTemplate = merchant.whatsapp_template ?? DEFAULT_WA_TEMPLATE;
 
@@ -83,6 +143,9 @@ export default function SettingsPage() {
     accountName !== (merchant.bank_account?.account_name ?? '') ||
     holdsEnabled !== merchant.holds_enabled ||
     holdDuration !== merchant.hold_duration_hours ||
+    arrivalNotes !== (merchant.arrival_notes ?? '') ||
+    responseTimeHours !== (merchant.response_time_hours ?? 24) ||
+    portfolioOrder !== (merchant.store_config.store_type_config.portfolio_order ?? 'curated') ||
     cancellationPolicy !== '' ||
     studioLocation !== '' ||
     deliveryEmailEnabled !== false ||
@@ -91,10 +154,74 @@ export default function SettingsPage() {
     notifyClaims !== true ||
     notifyLowStock !== false;
 
+  const isFirstLiveTrigger = !merchant.has_gone_live && storeOpen && storeOpen !== merchant.store_open;
+
   // ── ACTIONS ──────────────────────────────────────────────────────
-  const handleSave = () => {
-    addToast('Changes saved', 'success');
+  const handleSave = async () => {
+    const isFirstLive = !merchant.has_gone_live && storeOpen;
+    setIsSaving(true);
+    
+    // Snapshot current merchant for potential rollback
+    const snapshot = { ...merchant };
+
+    updateMerchant({
+      display_name: displayName,
+      store_name: storeName,
+      bio,
+      whatsapp,
+      social_links: { instagram, twitter: merchant.social_links.twitter, tiktok },
+      store_open: storeOpen,
+      has_gone_live: merchant.has_gone_live || storeOpen,
+      whatsapp_template: whatsappTemplate,
+      checkout_enabled: checkoutEnabled,
+      bank_account: checkoutEnabled ? { bank_name: bankName, account_number: accountNumber, account_name: accountName } : merchant.bank_account,
+      holds_enabled: holdsEnabled,
+      hold_duration_hours: holdDuration,
+      arrival_notes: arrivalNotes,
+      response_time_hours: responseTimeHours,
+      is_paused: isPaused,
+      pause_message: modalPauseMessage || null,
+      pause_return_date: modalReturnDate || null,
+      store_config: {
+        ...merchant.store_config,
+        store_type_config: {
+          ...merchant.store_config.store_type_config,
+          portfolio_order: portfolioOrder,
+        }
+      }
+    });
+
+    const { saveMerchant } = useMerchantStore.getState();
+    const success = await saveMerchant();
+
+    if (success) {
+      if (isFirstLive) {
+        setShowFirstLiveCeremony(true);
+        setTimeout(() => setShowFirstLiveCeremony(false), 2500);
+      }
+      addToast('Changes saved', 'success');
+    } else {
+      // Rollback
+      updateMerchant(snapshot);
+      addToast('Failed to save changes. Please try again.', 'error');
+    }
+    setIsSaving(false);
   };
+
+  const handleCopyUrl = () => {
+    const url = `trovea.store/${merchant.handle}`;
+    navigator.clipboard.writeText(url);
+    setHasCopied(true);
+    setTimeout(() => setHasCopied(false), 2000);
+    addToast('Link copied', 'success');
+  };
+
+  const handleShareWhatsApp = () => {
+    const url = `trovea.store/${merchant.handle}`;
+    const text = `Check out my store on Trovéa: ${url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
 
   const handleDiscard = () => {
     setDisplayName(merchant.display_name);
@@ -112,6 +239,9 @@ export default function SettingsPage() {
     setAccountNumberTouched(false);
     setHoldsEnabled(merchant.holds_enabled);
     setHoldDuration(merchant.hold_duration_hours);
+    setArrivalNotes(merchant.arrival_notes ?? '');
+    setResponseTimeHours(merchant.response_time_hours ?? 24);
+    setPortfolioOrder(merchant.store_config.store_type_config.portfolio_order ?? 'curated');
     setCancellationPolicy('');
     setStudioLocation('');
     setDeliveryEmailEnabled(false);
@@ -245,6 +375,19 @@ export default function SettingsPage() {
             <div className={styles.settingLeft}>
               <p className={styles.settingLabel}>Store Status</p>
               <p className={styles.settingDesc}>Control whether buyers can visit your storefront.</p>
+              <AnimatePresence>
+                {showFirstLiveCeremony && (
+                  <m.p
+                    className={styles.goLiveMessage}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    Your store is live
+                  </m.p>
+                )}
+              </AnimatePresence>
             </div>
             <div className={`${styles.openBadge} ${storeOpen ? styles.openBadgeOpen : styles.openBadgeClosed}`}>
               <span className={`${styles.openDot} ${storeOpen ? styles.openDotOpen : styles.openDotClosed}`} />
@@ -258,9 +401,46 @@ export default function SettingsPage() {
                 onChange={(e) => setStoreOpen(e.target.checked)}
                 aria-label="Toggle store open"
               />
-              <span className={styles.toggleSlider} />
+              <m.span 
+                className={styles.toggleSlider} 
+                transition={isFirstLiveTrigger ? { duration: 0.375 } : undefined}
+              />
             </label>
           </div>
+
+          <AnimatePresence>
+            {showFirstLiveCeremony && (
+              <m.div
+                className={styles.urlPanel}
+                initial={{ scaleY: 0, opacity: 0, originY: 'top' }}
+                animate={{ scaleY: 1, opacity: 1 }}
+                exit={{ scaleY: 0, opacity: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <div className={styles.urlDisplay}>
+                  <div className={styles.urlInset}>
+                    <span className={styles.urlText}>trovea.store/{merchant.handle}</span>
+                  </div>
+                  <div className={styles.urlActions}>
+                    <button 
+                      className={styles.urlActionBtn} 
+                      onClick={handleCopyUrl}
+                      aria-label="Copy store URL"
+                    >
+                      {hasCopied ? 'Check' : 'Copy'}
+                    </button>
+                    <button 
+                      className={styles.urlActionBtn} 
+                      onClick={handleShareWhatsApp}
+                      aria-label="Share store URL on WhatsApp"
+                    >
+                      Share
+                    </button>
+                  </div>
+                </div>
+              </m.div>
+            )}
+          </AnimatePresence>
 
           <div className={styles.formRow}>
             <label className={styles.formLabel} htmlFor="storeName">Store Name</label>
@@ -311,6 +491,81 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── ARRIVAL NOTES (Host only) ── */}
+      {st.isHost && (
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Arrival Instructions</p>
+          <div className={styles.card}>
+            <div className={styles.formRow}>
+              <textarea
+                className={`${styles.inputField} ${styles.arrivalNotesField}`}
+                value={arrivalNotes}
+                onChange={(e) => setArrivalNotes(e.target.value.slice(0, 200))}
+                placeholder="Please arrive 5 minutes early. Ring doorbell on arrival."
+                maxLength={200}
+              />
+              <p className={styles.fieldHint}>Shown on every booking confirmation. Max 200 characters.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── RESPONSE TIME (Studio only) ── */}
+      {st.isStudio && (
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Typical Response Time</p>
+          <div className={styles.card}>
+            <div className={styles.formRow}>
+              <CustomDropdown 
+                value={responseTimeHours} 
+                options={RESPONSE_TIME_OPTIONS}
+                onChange={setResponseTimeHours}
+                label="hours"
+              />
+              <p className={styles.fieldHint}>"Usually responds within {responseTimeHours} hours". Shown in your store header and on enquiries.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PORTFOLIO ORDER (Studio + Host) ── */}
+      {(st.isStudio || st.isHost) && (
+        <div className={styles.section}>
+          <p className={styles.sectionTitle}>Portfolio Gallery Order</p>
+          <div className={styles.card}>
+            <div className={styles.settingRow}>
+              <div className={styles.settingLeft}>
+                <p className={styles.settingLabel}>Order Mode</p>
+                <p className={styles.settingDesc}>Choose how your portfolio images are sorted.</p>
+              </div>
+              <div className={styles.portfolioOrderSetting}>
+                <button 
+                  className={`${styles.orderBtn} ${portfolioOrder === 'curated' ? styles.orderBtnActive : ''}`}
+                  onClick={() => setPortfolioOrder('curated')}
+                >
+                  Curator
+                </button>
+                <button 
+                  className={`${styles.orderBtn} ${portfolioOrder === 'recent' ? styles.orderBtnActive : ''}`}
+                  onClick={() => setPortfolioOrder('recent')}
+                >
+                  Recent
+                </button>
+              </div>
+            </div>
+            <div className={styles.formRow}>
+              <button 
+                className={styles.rearrangeBtn}
+                onClick={() => addToast('Portfolio management coming soon', 'info')}
+              >
+                [Rearrange photos]
+              </button>
+              <p className={styles.fieldHint}>Note: Photo rearrangement available in a future update.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── WHATSAPP TEMPLATE ── */}
       <div className={styles.section}>
@@ -748,10 +1003,11 @@ export default function SettingsPage() {
               <m.button
                 className={styles.saveChangesBtn}
                 onClick={handleSave}
+                disabled={isSaving}
                 whileTap={{ scale: 0.97 }}
                 aria-label="Save changes"
               >
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </m.button>
             </div>
           </m.div>

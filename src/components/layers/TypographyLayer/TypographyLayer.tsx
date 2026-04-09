@@ -1,5 +1,5 @@
 import { m } from '@/lib/motion';
-import type { StoreConfig, StoreTypography } from '@/lib/types/store-config.types';
+import type { StoreConfig, StoreTypography } from '@/lib/types';
 import { TYPOGRAPHY_STACKS } from '@/lib/constants/typography';
 import { useMerchantStore } from '@/lib/store/merchant.store';
 import styles from './TypographyLayer.module.css';

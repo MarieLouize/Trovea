@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
-import { m, AnimatePresence } from '@/lib/motion';
+import { m } from '@/lib/motion';
 import type { StoreType } from '@/lib/types';
+import { useOnboardingStore } from '@/lib/store/onboarding.store';
 import styles from './StoreTypePage.module.css';
 
 // ─── Store type definitions ────────────────────────────────────────────────
@@ -69,11 +70,12 @@ const cardVariants = {
 
 export default function StoreTypePage() {
   const navigate = useNavigate();
+  const { setStoreType } = useOnboardingStore();
   const [selected, setSelected] = useState<StoreType | null>(null);
 
   const handleContinue = () => {
     if (!selected) return;
-    // Phase 2C: wire selected to merchantStore
+    setStoreType(selected);
     navigate('/onboarding/setup-store');
   };
 

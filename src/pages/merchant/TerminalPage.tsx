@@ -1,10 +1,11 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   X, Plus, ArrowLeft, ArrowRight, ChevronDown, Package,
-  Calendar, Clock,
+  Calendar, Clock, Check, MessageSquare,
+  FileText, ShoppingBag, Zap,
 } from 'lucide-react';
-import { m, AnimatePresence, useDragControls } from '@/lib/motion';
+import { m, AnimatePresence, useMotionValue, useTransform } from '@/lib/motion';
 import type { Product, ProductVariant, ReceiptType } from '@/lib/types';
 import { useTerminalStore } from '@/lib/store/terminal.store';
 import { useMerchantStore } from '@/lib/store/merchant.store';
@@ -20,6 +21,7 @@ import {
   FIXTURE_BOOKINGS,
 } from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
+import { buildOrderConfirmedLink } from '@/lib/utils/whatsapp';
 import { useUIStore } from '@/lib/store/ui.store';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
 import styles from './TerminalPage.module.css';
@@ -114,13 +116,15 @@ export default function TerminalPage() {
     stage, visorItems,
     buyerName, buyerPhone, buyerEmail,
     discount, deliveryFee, deliveryFeeExpanded,
+    saleNote, orderType, fulfilmentType, depositSplit,
     subtotal, discountAmount, total,
     addItem, removeItem, addQuickItem,
     nextStage, prevStage,
     setBuyerName, setBuyerPhone, setBuyerEmail,
+    setSaleNote, setOrderType, setFulfilmentType, setDepositSplit,
     setDiscountExpanded, setDiscountType, setDiscountValue,
     setDeliveryFee, setDeliveryFeeExpanded,
-    setIssuedReceipt, reset,
+    issuedReceipt, setIssuedReceipt, reset,
   } = useTerminalStore();
   const { addToast } = useUIStore();
 
@@ -136,31 +140,47 @@ export default function TerminalPage() {
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
   const [quickName, setQuickName] = useState('');
   const [quickPrice, setQuickPrice] = useState('');
-  const [quickNameLocked, setQuickNameLocked] = useState(false); // Studio: name pre-filled
+  const [quickNameLocked, setQuickNameLocked] = useState(false); 
 
   // ── Host slot picker ──
   const [hostStep, setHostStep] = useState<1 | 2>(1);
   const [hostService, setHostService] = useState<Product | null>(null);
-  const [hostDate, setHostDate] = useState<Date | null>(null);
+
+  // ── Digital Creator ──
+  const [isBundleMode, setIsBundleMode] = useState(false);
+  const [manualDelivery, setManualDelivery] = useState(false);
+
+  // ── Studio ──
+  const [studioEntryPath, setStudioEntryPath] = useState<'package' | 'custom' | null>(null);
 
   // ── Attribution ──
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
 
   // ── Issuance slider ──
-  const [sliderX, setSliderX] = useState(0);
   const [isCeremony, setIsCeremony] = useState(false);
   const sliderTrackRef = useRef<HTMLDivElement>(null);
-  const dragControls = useDragControls();
+  const [trackWidth, setTrackWidth] = useState(0);
+  const sliderX = useMotionValue(0);
+  
+  useEffect(() => {
+    if (sliderTrackRef.current) {
+      setTrackWidth(sliderTrackRef.current.offsetWidth);
+    }
+  }, [stage]);
+
+  // Dynamic fill based on thumb position
+  const sliderFillWidth = useTransform(sliderX, [0, trackWidth - 52], ["48px", `${trackWidth}px`]);
+  const sliderOpacity = useTransform(sliderX, [0, trackWidth / 2], [1, 0]);
 
   // ─── Computed data ─────────────────────────────────────────────────────────
 
-  const weekdays = useMemo(() => getNextWeekdays(3), []);
+  const weekdays = useMemo(() => getNextWeekdays(5), []);
 
   const vendorWindow = useMemo(
-    () => FIXTURE_WINDOWS.find(
+    () => (merchant ? FIXTURE_WINDOWS.find(
       (w) => w.merchant_id === merchant.id && w.status === 'open'
-    ) ?? null,
-    [merchant.id]
+    ) : null) ?? null,
+    [merchant]
   );
 
   const showDeliveryFee = st.isCollector || st.isVendor || st.isStudio;
@@ -170,16 +190,37 @@ export default function TerminalPage() {
     st.isStudio ? 'Logistics fee' :
     'Delivery fee';
 
-  // Visor title
-  const visorTitle = `${st.receiptLabel} Visor`;
+  // Terminal/Visor Name
+  const terminalName = 
+    st.isCollector ? 'Sale Terminal' :
+    st.isVendor    ? 'Order Terminal' :
+    st.isHost      ? 'Booking Terminal' :
+    st.isDigital   ? 'Purchase Terminal' :
+    'Project Terminal';
+
+  const visorTitle = `${terminalName} Visor`;
 
   const canProceed = visorItems.length > 0;
-  const canIssue =
-    buyerName.trim().length > 0 && visorItems.length > 0;
+  
+  const isEmailValid = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  
+  const canIssue = useMemo(() => {
+    if (visorItems.length === 0) return false;
+    if (!buyerName.trim()) return false;
+    if (st.isDigital && !isEmailValid(buyerEmail)) return false;
+    return true;
+  }, [visorItems.length, buyerName, buyerEmail, st.isDigital]);
 
   const discountDisplay = discountAmount() > 0
     ? `−${formatCurrencyFull(discountAmount())}`
     : null;
+
+  const returningClientBookings = useMemo(() => {
+    if (!buyerPhone || buyerPhone.length < 8 || !merchant) return 0;
+    return FIXTURE_BOOKINGS.filter(
+      (b) => b.buyer_phone === buyerPhone && b.merchant_id === merchant.id
+    ).length;
+  }, [buyerPhone, merchant]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -194,6 +235,9 @@ export default function TerminalPage() {
       setVariantDrawerOpen(true);
     } else {
       addItem(product);
+      if (st.isDigital && !isBundleMode) {
+        goNext();
+      }
     }
   };
 
@@ -204,12 +248,14 @@ export default function TerminalPage() {
     setVariantDrawerOpen(false);
     setSelectedProduct(null);
     setSelectedVariant(null);
+    if (st.isDigital && !isBundleMode) {
+      goNext();
+    }
   };
 
   // Host: Step 1 service select
   const handleHostServiceSelect = (service: Product) => {
     setHostService(service);
-    setHostDate(null);
     setHostStep(2);
   };
 
@@ -240,6 +286,16 @@ export default function TerminalPage() {
       setQuickDrawerOpen(true);
     } else {
       addItem(pkg);
+      
+      // Calculate deposit split
+      const depositAmount = Math.round((pkg.price * (pkg.deposit_pct ?? 50)) / 100);
+      setDepositSplit({
+        totalAmount: pkg.price,
+        depositDue: depositAmount,
+        balanceDue: pkg.price - depositAmount,
+      });
+      
+      goNext();
     }
   };
 
@@ -259,6 +315,17 @@ export default function TerminalPage() {
     }
     addQuickItem(name, price);
     setQuickDrawerOpen(false);
+    
+    if (st.isStudio) {
+      // Manual deposit split for custom items
+      setDepositSplit({
+        totalAmount: price,
+        depositDue: Math.round(price * 0.5),
+        balanceDue: Math.round(price * 0.5),
+      });
+      goNext();
+    }
+    
     setQuickName('');
     setQuickPrice('');
     setQuickNameLocked(false);
@@ -266,12 +333,13 @@ export default function TerminalPage() {
 
   // Issuance
   const handleSliderDragEnd = () => {
-    const trackWidth = sliderTrackRef.current?.offsetWidth ?? 300;
-    const threshold = trackWidth * 0.8;
-    if (sliderX >= threshold - 48) {
+    const currentX = sliderX.get();
+    const threshold = trackWidth - 64;
+
+    if (currentX >= threshold) {
       triggerCeremony();
     } else {
-      setSliderX(0);
+      sliderX.set(0);
     }
   };
 
@@ -296,11 +364,17 @@ export default function TerminalPage() {
       delivery_fee: deliveryFee > 0 ? deliveryFee : null,
     };
 
-    setIssuedReceipt(mockReceipt);
+    setIssuedReceipt(mockReceipt, receiptType);
     setIsCeremony(false);
-    reset();
     navigate(`/receipt/${baseReceipt.id}`);
   };
+
+  // Reset on unmount
+  useEffect(() => {
+    return () => {
+      // reset(); 
+    };
+  }, [reset]);
 
   // ─── Visor breakdown ───────────────────────────────────────────────────────
 
@@ -317,7 +391,7 @@ export default function TerminalPage() {
           <span className={styles.visorTitle}>{visorTitle}</span>
           {visorItems.length > 0 && (
             <span className={styles.visorItemCount}>
-              {visorItems.length} item{visorItems.length > 1 ? 's' : ''}
+              {visorItems.length} {st.isDigital && isBundleMode ? 'products in bundle' : `item${visorItems.length > 1 ? 's' : ''}`}
             </span>
           )}
         </div>
@@ -328,7 +402,7 @@ export default function TerminalPage() {
               {st.isHost
                 ? 'Select a service and slot below'
                 : st.isStudio
-                  ? 'Tap a package below to add'
+                  ? 'Choose an entry path below'
                   : 'Tap items below to add to sale'}
             </div>
           ) : (
@@ -343,10 +417,20 @@ export default function TerminalPage() {
                   transition={{ duration: 0.2 }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className={styles.visorItemName}>{item.name}</div>
-                    {item.variantLabel && (
-                      <div className={styles.visorItemVariant}>{item.variantLabel}</div>
-                    )}
+                    <div className={styles.visorItemName}>
+                      {st.isDigital && isBundleMode && <Zap size={10} style={{ marginRight: 4, color: 'var(--color-gold-light)' }} />}
+                      {item.name}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {item.variantLabel && (
+                        <div className={styles.visorItemVariant}>{item.variantLabel}</div>
+                      )}
+                      {item.quantity > 1 && (
+                        <div className={styles.visorItemVariant} style={{ opacity: 0.5 }}>
+                          ({formatCurrencyFull(item.unitPrice)})
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <span className={styles.visorItemQty}>×{item.quantity}</span>
                   <span className={styles.visorItemPrice}>{formatCurrencyFull(item.totalPrice)}</span>
@@ -417,7 +501,7 @@ export default function TerminalPage() {
               </div>
               {deliveryFee > 0 && (
                 <div className={styles.visorBreakdownRow}>
-                  <span>Delivery</span>
+                  <span>{deliveryFeeLabel}</span>
                   <span>+{formatCurrencyFull(deliveryFee)}</span>
                 </div>
               )}
@@ -497,6 +581,9 @@ export default function TerminalPage() {
                         .filter((p) => p.status === 'live')
                         .map((product) => {
                           const stockOk = product.stock_level === null || product.stock_level > 0;
+                          const isLastOne = product.stock_level === 1;
+                          const isLowStock = product.stock_level !== null && product.stock_level >= 2 && product.stock_level <= 3;
+                          
                           return (
                             <m.div
                               key={product.id}
@@ -517,20 +604,26 @@ export default function TerminalPage() {
                                     <Package size={20} />
                                   </div>
                                 )}
+                                
+                                {/* Stock Badges */}
+                                {!stockOk ? (
+                                  <span className={`${styles.stockBadge} ${styles.stockBadgeSold}`}>Sold Out</span>
+                                ) : isLastOne ? (
+                                  <span className={`${styles.stockBadge} ${styles.stockBadgeLow}`}>Last one ⚠</span>
+                                ) : isLowStock ? (
+                                  <span className={`${styles.stockBadge} ${styles.stockBadgeLow}`}>{product.stock_level} left</span>
+                                ) : null}
+
                                 {product.claim_mode && (
                                   <span className={styles.claimBadge} aria-label="Claim mode">Claim</span>
                                 )}
                               </div>
                               <div className={styles.inventoryBody}>
                                 <div className={styles.inventoryName}>{product.name}</div>
+                                {product.description && (
+                                  <div className={styles.inventoryDesc}>{product.description}</div>
+                                )}
                                 <div className={styles.inventoryPrice}>{formatCurrencyFull(product.price)}</div>
-                                <div className={styles.inventoryStock}>
-                                  {!stockOk
-                                    ? 'Out of stock'
-                                    : product.stock_level !== null
-                                      ? `${product.stock_level} left`
-                                      : 'In stock'}
-                                </div>
                               </div>
                             </m.div>
                           );
@@ -555,7 +648,7 @@ export default function TerminalPage() {
                 {/* ── VENDOR ── */}
                 {st.isVendor && (
                   <>
-                    {vendorWindow ? (
+                    {vendorWindow && merchant ? (
                       <>
                         <div className={styles.windowBanner} aria-label="Active window">
                           <span className={styles.windowBannerLabel}>Window</span>
@@ -567,7 +660,7 @@ export default function TerminalPage() {
 
                         <div className={styles.inventoryGrid} role="list" aria-label="Menu items">
                           {FIXTURE_VENDOR_PRODUCTS
-                            .filter((p) => p.status === 'live')
+                            .filter((p) => p.status === 'live' && p.product_type === 'menu_item')
                             .map((product) => (
                               <m.div
                                 key={product.id}
@@ -590,6 +683,9 @@ export default function TerminalPage() {
                                 </div>
                                 <div className={styles.inventoryBody}>
                                   <div className={styles.inventoryName}>{product.name}</div>
+                                  {product.description && (
+                                    <div className={styles.inventoryDesc}>{product.description}</div>
+                                  )}
                                   <div className={styles.inventoryPrice}>{formatCurrencyFull(product.price)}</div>
                                 </div>
                               </m.div>
@@ -614,12 +710,13 @@ export default function TerminalPage() {
                         <div className={styles.noWindowIcon} aria-hidden="true">
                           <Clock size={36} />
                         </div>
-                        <h2 className={styles.noWindowTitle}>No active window.</h2>
+                        <h2 className={styles.noWindowTitle}>Window is not open</h2>
                         <p className={styles.noWindowText}>
-                          Open a window in Schedule to start taking orders.
+                          You cannot record orders outside an active window.
+                          Pre-orders are only accepted during a live window.
                         </p>
                         <Link to="/schedule" className={styles.noWindowCta}>
-                          Go to Schedule
+                          Open Schedule
                         </Link>
                       </div>
                     )}
@@ -678,19 +775,19 @@ export default function TerminalPage() {
                       </>
                     )}
 
-                    {hostStep === 2 && hostService && (
+                    {hostStep === 2 && hostService && merchant && (
                       <>
                         <div className={styles.deckHeader}>
                           <m.button
                             className={styles.hostBackBtn}
-                            onClick={() => { setHostStep(1); setHostDate(null); }}
+                            onClick={() => { setHostStep(1); }}
                             aria-label="Back to service selection"
                             whileTap={{ scale: 0.95 }}
                           >
                             <ArrowLeft size={14} aria-hidden="true" />
                           </m.button>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <span className={styles.deckTitle}>Select Slot — {hostService.name}</span>
+                            <span className={styles.deckTitle}>Available slots for {hostService.name}</span>
                           </div>
                           <span className={styles.deckSubtitle}>Step 2 of 2</span>
                         </div>
@@ -734,49 +831,88 @@ export default function TerminalPage() {
                 {/* ── DIGITAL CREATOR ── */}
                 {st.isDigital && (
                   <>
-                    <div className={styles.deckHeader}>
+                    <div className={styles.bundleHeader}>
                       <span className={styles.deckTitle}>Catalogue</span>
+                      <div className={styles.bundleToggle}>
+                        <button 
+                          className={`${styles.bundleToggleBtn} ${!isBundleMode ? styles.active : ''}`}
+                          onClick={() => setIsBundleMode(false)}
+                        >
+                          Single
+                        </button>
+                        <button 
+                          className={`${styles.bundleToggleBtn} ${isBundleMode ? styles.active : ''}`}
+                          onClick={() => setIsBundleMode(true)}
+                        >
+                          Bundle
+                        </button>
+                      </div>
                     </div>
+                    
                     <div className={styles.inventoryGrid} role="list" aria-label="Digital products">
                       {FIXTURE_DIGITAL_PRODUCTS
                         .filter((p) => p.status !== 'hidden')
-                        .map((product) => (
-                          <m.div
-                            key={product.id}
-                            role="listitem"
-                            className={styles.inventoryCard}
-                            whileTap={{ scale: 0.94 }}
-                            onClick={() => handleProductTap(product)}
-                            tabIndex={0}
-                            aria-label={`${product.name}, ${product.is_free ? 'Free' : formatCurrencyFull(product.price)}`}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleProductTap(product); }}
-                          >
-                            <div className={styles.inventoryThumb} aria-hidden="true">
-                              {product.images[0] ? (
-                                <img src={product.images[0]} alt={product.name} loading="lazy" />
-                              ) : (
-                                <div className={styles.inventoryThumbPlaceholder}>
-                                  <Package size={20} />
-                                </div>
-                              )}
-                              {product.is_free && (
-                                <span className={styles.freeBadge} aria-label="Free product">Free</span>
-                              )}
-                            </div>
-                            <div className={styles.inventoryBody}>
-                              <div className={styles.inventoryName}>{product.name}</div>
-                              <div className={styles.inventoryPrice}>
-                                {product.is_free ? (
-                                  <span className={styles.freePrice}>Free</span>
+                        .map((product) => {
+                          const isSelected = visorItems.some(item => item.productId === product.id);
+                          return (
+                            <m.div
+                              key={product.id}
+                              role="listitem"
+                              className={`${styles.inventoryCard} ${isSelected && isBundleMode ? styles.selected : ''}`}
+                              whileTap={{ scale: 0.94 }}
+                              onClick={() => handleProductTap(product)}
+                              tabIndex={0}
+                              aria-label={`${product.name}, ${product.is_free ? 'Free' : formatCurrencyFull(product.price)}`}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleProductTap(product); }}
+                            >
+                              <div className={styles.inventoryThumb} aria-hidden="true">
+                                {product.images[0] ? (
+                                  <img src={product.images[0]} alt={product.name} loading="lazy" />
                                 ) : (
-                                  formatCurrencyFull(product.price)
+                                  <div className={styles.inventoryThumbPlaceholder}>
+                                    <Package size={20} />
+                                  </div>
+                                )}
+                                {isSelected && isBundleMode && (
+                                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(57,0,7,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}>
+                                    <Check color="var(--color-fg)" size={24} />
+                                  </div>
+                                )}
+                                {product.is_free && (
+                                  <span className={styles.freeBadge} aria-label="Free product">Free</span>
                                 )}
                               </div>
-                            </div>
-                          </m.div>
-                        ))}
+                              <div className={styles.inventoryBody}>
+                                <div className={styles.inventoryName}>{product.name}</div>
+                                {product.description && (
+                                  <div className={styles.inventoryDesc}>{product.description}</div>
+                                )}
+                                <div className={styles.inventoryPrice}>
+                                  {product.is_free ? (
+                                    <span className={styles.freePrice}>Free</span>
+                                  ) : (
+                                    formatCurrencyFull(product.price)
+                                  )}
+                                </div>
+                              </div>
+
+                            </m.div>
+                          );
+                        })}
                     </div>
+                    
                     <div className={styles.nextBtnWrap}>
+                      {isBundleMode && visorItems.length >= 2 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)', padding: 'var(--space-2)', background: 'rgba(0,0,0,0.03)', borderRadius: 'var(--r-sm)' }}>
+                          <span style={{ fontSize: 11, color: 'var(--color-fg-muted)' }}>Apply bundle discount?</span>
+                          <button 
+                            className={styles.discountToggle}
+                            onClick={() => setDiscountExpanded(true)}
+                          >
+                            Add
+                          </button>
+                        </div>
+                      )}
                       <m.button
                         className={styles.nextBtn}
                         onClick={goNext}
@@ -784,8 +920,7 @@ export default function TerminalPage() {
                         aria-label={canProceed ? 'Continue to attribution' : 'Add products to proceed'}
                         whileTap={canProceed ? { scale: 0.98 } : {}}
                       >
-                        Continue — Attribution
-                        <ArrowRight size={14} aria-hidden="true" />
+                        {isBundleMode ? `Purchase Bundle (${visorItems.length}) →` : 'Continue — Attribution'}
                       </m.button>
                     </div>
                   </>
@@ -795,64 +930,101 @@ export default function TerminalPage() {
                 {st.isStudio && (
                   <>
                     <div className={styles.deckHeader}>
-                      <span className={styles.deckTitle}>Packages</span>
+                      <span className={styles.deckTitle}>Select Path</span>
                     </div>
-                    <div
-                      className={styles.studioPackageList}
-                      role="list"
-                      aria-label="Studio packages"
-                    >
-                      {FIXTURE_STUDIO_PRODUCTS
-                        .filter((p) => p.status === 'live')
-                        .map((pkg) => (
-                          <m.div
-                            key={pkg.id}
-                            role="listitem"
-                            className={styles.studioPackageRow}
-                            whileTap={{ scale: 0.985 }}
-                            onClick={() => handleStudioPackageTap(pkg)}
-                            tabIndex={0}
-                            aria-label={`${pkg.name}, ${pkg.price_type === 'custom' ? 'Custom price' : formatCurrencyFull(pkg.price)}`}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleStudioPackageTap(pkg); }}
+                    
+                    {!studioEntryPath ? (
+                      <div className={styles.studioEntry}>
+                        <m.div 
+                          className={styles.entryCard}
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() => setStudioEntryPath('package')}
+                        >
+                          <ShoppingBag size={20} color="var(--color-accent)" />
+                          <span className={styles.entryCardTitle}>Issue Package Seal</span>
+                          <p className={styles.entryCardDesc}>Select from your published packages</p>
+                          <div className={styles.entryCardBtn}>Choose Package <ArrowRight size={10} /></div>
+                        </m.div>
+                        
+                        <m.div 
+                          className={styles.entryCard}
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() => setStudioEntryPath('custom')}
+                        >
+                          <FileText size={20} color="var(--color-fg-ghost)" />
+                          <span className={styles.entryCardTitle}>Create Custom Line</span>
+                          <p className={styles.entryCardDesc}>Ad-hoc scope for one-off or custom projects</p>
+                          <div className={styles.entryCardBtn}>Create Custom <ArrowRight size={10} /></div>
+                        </m.div>
+                      </div>
+                    ) : studioEntryPath === 'package' ? (
+                      <>
+                        <div className={styles.deckHeader} style={{ borderBottom: 'none' }}>
+                          <button onClick={() => setStudioEntryPath(null)} className={styles.hostBackBtn}>
+                            <ArrowLeft size={14} />
+                          </button>
+                          <span className={styles.deckTitle}>Choose Package</span>
+                        </div>
+                        <div
+                          className={styles.studioPackageList}
+                          role="list"
+                          aria-label="Studio packages"
+                        >
+                          {FIXTURE_STUDIO_PRODUCTS
+                            .filter((p) => p.status === 'live')
+                            .map((pkg) => (
+                              <m.div
+                                key={pkg.id}
+                                role="listitem"
+                                className={styles.studioPackageRow}
+                                whileTap={{ scale: 0.985 }}
+                                onClick={() => handleStudioPackageTap(pkg)}
+                                tabIndex={0}
+                                aria-label={`${pkg.name}, ${pkg.price_type === 'custom' ? 'Custom price' : formatCurrencyFull(pkg.price)}`}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleStudioPackageTap(pkg); }}
+                              >
+                                <div className={styles.studioPackageInfo}>
+                                  <span className={styles.studioPackageName}>{pkg.name}</span>
+                                  {pkg.scope_description && (
+                                    <span className={styles.studioPackageScope}>{pkg.scope_description}</span>
+                                  )}
+                                  {pkg.timeline_estimate && (
+                                    <span className={styles.studioPackageTimeline}>
+                                      {pkg.timeline_estimate}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className={styles.studioPackagePriceCol}>
+                                  {pkg.price_type === 'custom' ? (
+                                    <span className={styles.studioPackageCustomPrice}>Quote</span>
+                                  ) : (
+                                    <span className={styles.studioPackagePrice}>{formatCurrencyFull(pkg.price)}</span>
+                                  )}
+                                  <span className={styles.studioPackageTypeBadge}>
+                                    {pkg.price_type === 'custom' ? 'Custom' : 'Fixed'}
+                                  </span>
+                                </div>
+                              </m.div>
+                            ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ padding: 'var(--space-10) var(--space-5)' }}>
+                         <button onClick={() => setStudioEntryPath(null)} className={styles.hostBackBtn} style={{ marginBottom: 'var(--space-5)' }}>
+                            <ArrowLeft size={14} />
+                          </button>
+                          <h2 className={styles.attrSectionTitle}>Custom Project</h2>
+                          <p className={styles.attrHint} style={{ marginBottom: 'var(--space-5)' }}>Define a custom scope and price for this client.</p>
+                          <m.button
+                            className={styles.nextBtn}
+                            onClick={openQuickItem}
                           >
-                            <div className={styles.studioPackageInfo}>
-                              <span className={styles.studioPackageName}>{pkg.name}</span>
-                              {pkg.scope_description && (
-                                <span className={styles.studioPackageScope}>{pkg.scope_description}</span>
-                              )}
-                              {pkg.timeline_estimate && (
-                                <span className={styles.studioPackageTimeline}>
-                                  {pkg.timeline_estimate}
-                                </span>
-                              )}
-                            </div>
-                            <div className={styles.studioPackagePriceCol}>
-                              {pkg.price_type === 'custom' ? (
-                                <span className={styles.studioPackageCustomPrice}>Quote</span>
-                              ) : (
-                                <span className={styles.studioPackagePrice}>{formatCurrencyFull(pkg.price)}</span>
-                              )}
-                              <span className={styles.studioPackageTypeBadge}>
-                                {pkg.price_type === 'custom' ? 'Custom' : 'Fixed'}
-                              </span>
-                            </div>
-                          </m.div>
-                        ))}
-                    </div>
+                            <Plus size={14} style={{ marginRight: 8 }} /> Set Scope & Price
+                          </m.button>
+                      </div>
+                    )}
 
                     <div className={styles.nextBtnWrap} style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-                      <div style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-                        <m.button
-                          className={styles.quickItemBtn}
-                          onClick={openQuickItem}
-                          aria-label="Add custom line item"
-                          whileTap={{ scale: 0.95 }}
-                          style={{ flex: 1, justifyContent: 'center' }}
-                        >
-                          <Plus size={12} aria-hidden="true" />
-                          Custom Line
-                        </m.button>
-                      </div>
                       <m.button
                         className={styles.nextBtn}
                         onClick={goNext}
@@ -886,6 +1058,47 @@ export default function TerminalPage() {
                 <div className={styles.attributionForm}>
                   <h2 className={styles.attrSectionTitle}>Who's buying?</h2>
 
+                  {/* Vendor Stage 2 Selectors */}
+                  {st.isVendor && (
+                    <>
+                      <div className={styles.attrFieldGroup}>
+                        <label className={styles.attrLabel}>Order Type</label>
+                        <div className={styles.selectorGrid}>
+                          <button 
+                            className={`${styles.selectorBtn} ${orderType === 'preorder' ? styles.active : ''}`}
+                            onClick={() => setOrderType('preorder')}
+                          >
+                            Pre-order
+                          </button>
+                          <button 
+                            className={`${styles.selectorBtn} ${orderType === 'walkin' ? styles.active : ''}`}
+                            onClick={() => setOrderType('walkin')}
+                          >
+                            Walk-in
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className={styles.attrFieldGroup} style={{ marginBottom: 'var(--space-4)' }}>
+                        <label className={styles.attrLabel}>Fulfilment</label>
+                        <div className={styles.selectorGrid}>
+                          <button 
+                            className={`${styles.selectorBtn} ${fulfilmentType === 'pickup' ? styles.active : ''}`}
+                            onClick={() => setFulfilmentType('pickup')}
+                          >
+                            Pickup
+                          </button>
+                          <button 
+                            className={`${styles.selectorBtn} ${fulfilmentType === 'delivery' ? styles.active : ''}`}
+                            onClick={() => setFulfilmentType('delivery')}
+                          >
+                            Delivery
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                   {/* Buyer Name */}
                   <div className={styles.attrFieldGroup}>
                     <label className={styles.attrLabel} htmlFor="buyer-name">
@@ -914,21 +1127,21 @@ export default function TerminalPage() {
                     {st.isDigital ? (
                       <>
                         <label className={styles.attrLabel} htmlFor="buyer-email">
-                          Email Address{' '}
-                          <span className={styles.attrLabelOptional}>(for delivery)</span>
+                          Email Address *
                         </label>
                         <input
                           id="buyer-email"
-                          className={styles.attrInput}
+                          className={`${styles.attrInput} ${buyerEmail && !isEmailValid(buyerEmail) ? styles.error : ''}`}
                           type="email"
                           placeholder="femi@example.com"
                           value={buyerEmail}
                           onChange={(e) => setBuyerEmail(e.target.value)}
                           autoComplete="email"
                           aria-label="Buyer's email address for delivery"
+                          required
                         />
                         <span className={styles.attrHint}>
-                          Used to deliver the download link.
+                          Delivery link will be sent to this address.
                         </span>
                       </>
                     ) : (
@@ -947,10 +1160,71 @@ export default function TerminalPage() {
                           autoComplete="tel"
                           aria-label="Buyer's WhatsApp number (optional)"
                         />
+                        {returningClientBookings > 0 && (
+                          <div className={styles.returningBadge}>
+                            <ArrowLeft size={10} style={{ transform: 'rotate(180deg)' }} />
+                            ↩ Returning client — {returningClientBookings} prior bookings
+                          </div>
+                        )}
                         <span className={styles.attrHint}>Used for WhatsApp receipt delivery.</span>
                       </>
                     )}
                   </div>
+
+                  {/* Digital Stage 2 Manual Delivery */}
+                  {st.isDigital && (
+                    <div className={styles.attrFieldGroup}>
+                       <label className={styles.attrLabel}>Delivery Method</label>
+                       <div className={styles.deliveryFeeRow} onClick={() => setManualDelivery(!manualDelivery)}>
+                          <span className={styles.deliveryFeeRowLabel}>
+                            {manualDelivery ? 'Manual — I will send files' : 'Automatic — Sent by Trove\'a'}
+                          </span>
+                          <div className={`${styles.selectorBtn} ${manualDelivery ? styles.active : ''}`} style={{ width: 32, height: 32, minHeight: 32 }}>
+                            {manualDelivery ? <Check size={14} /> : <Zap size={14} />}
+                          </div>
+                       </div>
+                    </div>
+                  )}
+
+                  {/* Sale Note (Collector) */}
+                  {st.isCollector && (
+                    <div className={styles.attrFieldGroup}>
+                      <label className={styles.attrLabel} htmlFor="sale-note">
+                        Sale Note <span className={styles.attrLabelOptional}>(private)</span>
+                      </label>
+                      <textarea
+                        id="sale-note"
+                        className={styles.attrInput}
+                        placeholder="Only you can see this — not shown on receipt"
+                        value={saleNote}
+                        onChange={(e) => setSaleNote(e.target.value.slice(0, 120))}
+                        rows={2}
+                        maxLength={120}
+                        style={{ height: 'auto', minHeight: 80, padding: 'var(--space-3)' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Studio Stage 2 Deposit Split */}
+                  {st.isStudio && depositSplit && (
+                    <div className={styles.attrFieldGroup}>
+                      <label className={styles.attrLabel}>Payment Terms</label>
+                      <div className={styles.depositCard}>
+                        <div className={styles.depositRow}>
+                           <span className={styles.depositRowMuted}>Total value:</span>
+                           <span className={styles.depositRowBold}>{formatCurrencyFull(depositSplit.totalAmount)}</span>
+                        </div>
+                        <div className={styles.depositRow}>
+                           <span className={styles.depositRowBold}>Deposit due now:</span>
+                           <span className={styles.depositRowAccent}>{formatCurrencyFull(depositSplit.depositDue)}</span>
+                        </div>
+                        <div className={styles.depositRow} style={{ borderTop: '1px solid rgba(0,0,0,0.06)', marginTop: 'var(--space-2)', paddingTop: 'var(--space-2)' }}>
+                           <span className={styles.depositRowMuted}>Balance on completion:</span>
+                           <span className={styles.depositRowBold}>{formatCurrencyFull(depositSplit.balanceDue)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Delivery Fee — Collector, Vendor, Studio only */}
                   {showDeliveryFee && (
@@ -1063,28 +1337,26 @@ export default function TerminalPage() {
                     aria-label="Slide to issue seal"
                     aria-disabled={!canIssue}
                   >
-                    <div
+                    <m.div
                       className={styles.sliderFill}
-                      style={{ width: `${sliderX + 48}px` }}
+                      style={{ width: sliderFillWidth }}
                       aria-hidden="true"
                     />
-                    <span className={styles.sliderLabel} aria-hidden="true">
-                      {canIssue ? 'Slide to Issue Seal →' : 'Enter buyer name first'}
-                    </span>
+                    <m.span 
+                      className={styles.sliderLabel} 
+                      aria-hidden="true"
+                      style={{ opacity: sliderOpacity }}
+                    >
+                      {canIssue ? `Slide to Issue ${st.isHost ? 'Booking' : st.isStudio ? 'Project' : 'Seal'} →` : st.isDigital ? 'Enter valid email' : 'Enter buyer name'}
+                    </m.span>
                     <m.div
                       className={styles.sliderThumb}
                       drag={canIssue ? 'x' : false}
-                      dragControls={dragControls}
-                      dragConstraints={sliderTrackRef}
+                      dragConstraints={{ left: 0, right: Math.max(0, trackWidth - 56) }}
                       dragElastic={0}
                       dragMomentum={false}
-                      animate={{ x: sliderX }}
-                      onDrag={(_, info) => {
-                        const trackWidth = sliderTrackRef.current?.offsetWidth ?? 300;
-                        setSliderX(Math.max(0, Math.min(info.point.x - 24, trackWidth - 52)));
-                      }}
+                      style={{ x: sliderX, opacity: canIssue ? 1 : 0.3 }}
                       onDragEnd={handleSliderDragEnd}
-                      style={{ opacity: canIssue ? 1 : 0.3 }}
                       aria-hidden="true"
                     >
                       <ArrowRight size={20} aria-hidden="true" />
@@ -1114,7 +1386,26 @@ export default function TerminalPage() {
             <div className={styles.ceremonyLogo} aria-hidden="true">
               Trove<span className={styles.ceremonyApostrophe}>'</span>a
             </div>
-            <p className={styles.ceremonyText}>Issuing Seal…</p>
+            <p className={styles.ceremonyText}>Issuing {st.isHost ? 'Booking' : st.isStudio ? 'Project Brief' : 'Seal'}…</p>
+            {st.isCollector && (
+               <button 
+                className={styles.whatsappShareBtn} 
+                style={{ position: 'fixed', bottom: 40, width: 'calc(100% - 40px)', zIndex: 100 }}
+                onClick={() => {
+                  if (!issuedReceipt || !merchant) return;
+                  const url = buildOrderConfirmedLink({
+                    phone: issuedReceipt.buyer_phone ?? '',
+                    buyerName: issuedReceipt.buyer_name,
+                    sealId: issuedReceipt.seal_id,
+                    storeName: merchant.store_name,
+                    total: issuedReceipt.total,
+                  });
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                }}
+               >
+                  <MessageSquare size={16} /> Share Receipt on WhatsApp →
+               </button>
+            )}
           </m.div>
         )}
       </AnimatePresence>

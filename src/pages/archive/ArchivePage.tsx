@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { m, AnimatePresence } from '@/lib/motion';
-import { Plus, Package, Edit2, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Plus, Package, Edit2, Eye, EyeOff, Sparkles, X, Check } from 'lucide-react';
 import { useArchiveStore } from '@/lib/store/archive.store';
+import { useMerchantStore } from '@/lib/store/merchant.store';
 import { FIXTURE_COLLECTIONS } from '@/lib/fixtures';
 import { parseSmartPaste } from '@/lib/utils/smart-paste';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import { useUIStore } from '@/lib/store/ui.store';
 import BaseDrawer from '@/components/primitives/BaseDrawer/BaseDrawer';
-import type { ProductStatus } from '@/lib/types';
+import type { ProductStatus, Collection } from '@/lib/types';
 import styles from './ArchivePage.module.css';
 
 type StatusFilter = ProductStatus | 'all';
@@ -20,11 +21,13 @@ const STATUS_TABS: { value: StatusFilter; label: string }[] = [
 ];
 
 export default function ArchivePage() {
+  const merchant = useMerchantStore((s) => s.merchant);
   const {
     statusFilter, setStatusFilter,
     collectionFilter, setCollectionFilter,
     filteredProducts, ghostCards, setGhostCards,
     mintProducts, toggleProductStatus,
+    updateProduct, products: allProducts,
   } = useArchiveStore();
   const { addToast } = useUIStore();
 
@@ -32,8 +35,22 @@ export default function ArchivePage() {
   const [pasteText, setPasteText] = useState('');
   const [editTarget, setEditTarget] = useState<string | null>(null);
 
-  const products = filteredProducts();
+  // Bug 3 Fix: Collections CRUD State
+  const [collections, setCollections] = useState<Collection[]>(
+    FIXTURE_COLLECTIONS.filter(c => c.merchant_id === merchant?.id)
+  );
+  const [creatingCollection, setCreatingCollection] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState('');
 
+  // Use local collections state for filtering logic
+  const products = useMemo(() => {
+    return filteredProducts().filter(p => {
+      if (collectionFilter === null) return true;
+      return p.collection_id === collectionFilter;
+    });
+  }, [filteredProducts, collectionFilter]);
+
+  // Handlers
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const text = e.clipboardData.getData('text');
     setPasteText(text);
@@ -93,6 +110,40 @@ export default function ArchivePage() {
     addToast('Status updated.', 'info');
   };
 
+  // Bug 3 Fix: Collection Handlers
+  const createCollection = () => {
+    if (!newCollectionName.trim() || !merchant) return;
+    const name = newCollectionName.trim();
+    const newCol: Collection = {
+      id: `col-new-${Date.now()}`,
+      merchant_id: merchant.id,
+      name,
+      color_accent: 'var(--color-bg)',
+      display_order: collections.length,
+      slug: name.toLowerCase().replace(/\s+/g, '-'),
+      description: null,
+    };
+    setCollections(prev => [...prev, newCol]);
+    setCreatingCollection(false);
+    setNewCollectionName('');
+    addToast(`Collection "${name}" created`, 'success');
+  };
+
+  const deleteCollection = (id: string) => {
+    const colName = collections.find(c => c.id === id)?.name;
+    setCollections(prev => prev.filter(c => c.id !== id));
+    if (collectionFilter === id) setCollectionFilter(null);
+    
+    // Reset collection_id for all products in this collection
+    allProducts.forEach(p => {
+      if (p.collection_id === id) {
+        updateProduct(p.id, { collection_id: null });
+      }
+    });
+    
+    addToast(`Collection "${colName}" deleted — items moved to Uncollected`, 'info');
+  };
+
   return (
     <div className={styles.root}>
       {/* Header */}
@@ -132,26 +183,63 @@ export default function ArchivePage() {
         >
           All
         </button>
-        {FIXTURE_COLLECTIONS.map(col => (
-          <button
-            key={col.id}
-            className={`${styles.collectionChip} ${collectionFilter === col.id ? styles.active : ''}`}
-            onClick={() => setCollectionFilter(col.id)}
-            aria-label={col.name}
-            aria-pressed={collectionFilter === col.id}
-          >
-            <span
-              className={styles.collectionChipDot}
-              style={{ background: col.color_accent }}
-              aria-hidden="true"
-            />
-            {col.name}
-          </button>
+        {collections.map(col => (
+          <div key={col.id} className={styles.chipWrapper}>
+            <button
+              className={`${styles.collectionChip} ${collectionFilter === col.id ? styles.active : ''}`}
+              onClick={() => setCollectionFilter(col.id)}
+              aria-label={col.name}
+              aria-pressed={collectionFilter === col.id}
+            >
+              <span
+                className={styles.collectionChipDot}
+                style={{ background: col.color_accent }}
+                aria-hidden="true"
+              />
+              {col.name}
+              {collectionFilter === col.id && (
+                <span 
+                  className={styles.chipDelete}
+                  onClick={(e) => { e.stopPropagation(); deleteCollection(col.id); }}
+                  aria-label={`Delete ${col.name}`}
+                >
+                  <X size={10} />
+                </span>
+              )}
+            </button>
+          </div>
         ))}
-        <button className={styles.newCollectionChip} aria-label="Add new collection">
-          <Plus size={10} aria-hidden="true" />
-          New Collection
-        </button>
+        
+        {creatingCollection ? (
+          <div className={styles.inlineCreate}>
+            <input
+              autoFocus
+              className={styles.inlineInput}
+              placeholder="Collection name..."
+              value={newCollectionName}
+              onChange={(e) => setNewCollectionName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') createCollection();
+                if (e.key === 'Escape') setCreatingCollection(false);
+              }}
+            />
+            <button className={styles.inlineConfirm} onClick={createCollection}>
+              <Check size={12} />
+            </button>
+            <button className={styles.inlineCancel} onClick={() => setCreatingCollection(false)}>
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button 
+            className={styles.newCollectionChip} 
+            aria-label="Add new collection"
+            onClick={() => setCreatingCollection(true)}
+          >
+            <Plus size={10} aria-hidden="true" />
+            New
+          </button>
+        )}
       </div>
 
       {/* Product List */}
@@ -193,7 +281,7 @@ export default function ArchivePage() {
                       <Package size={20} />
                     </div>
                   )}
-                  {product.stock_level <= 2 && product.stock_level > 0 && (
+                  {product.stock_level !== null && product.stock_level <= 2 && product.stock_level > 0 && (
                     <span className={`${styles.stockBadge} ${styles.low}`} aria-label={`${product.stock_level} left`}>
                       {product.stock_level}
                     </span>
@@ -209,7 +297,7 @@ export default function ArchivePage() {
                   <div className={styles.rowMeta}>
                     {product.collection_id && (
                       <span className={styles.rowCollection}>
-                        {FIXTURE_COLLECTIONS.find(c => c.id === product.collection_id)?.name ?? ''}
+                        {collections.find(c => c.id === product.collection_id)?.name ?? ''}
                       </span>
                     )}
                     <span className={`${styles.rowStatusPill} ${styles[product.status]}`}>
@@ -332,8 +420,7 @@ export default function ArchivePage() {
             <>
               {/* Edit form — abbreviated for readability, full fields wired */}
               {(() => {
-                const { products } = useArchiveStore.getState();
-                const p = products.find(x => x.id === editTarget);
+                const p = allProducts.find(x => x.id === editTarget);
                 if (!p) return null;
                 return (
                   <>
@@ -348,7 +435,7 @@ export default function ArchivePage() {
                       </div>
                       <div className={styles.drawerSection}>
                         <label className={styles.drawerLabel} htmlFor="edit-stock">Stock</label>
-                        <input id="edit-stock" className={styles.drawerInput} type="number" defaultValue={p.stock_level} min={0} aria-label="Stock level" />
+                        <input id="edit-stock" className={styles.drawerInput} type="number" defaultValue={p.stock_level ?? 0} min={0} aria-label="Stock level" />
                       </div>
                     </div>
                     <button

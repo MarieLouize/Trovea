@@ -43,6 +43,7 @@ export interface Product {
   deliverables: string | null;
   timeline_estimate: string | null;
   deposit_pct: number | null;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 }

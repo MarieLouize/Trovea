@@ -8,11 +8,37 @@ export interface SocialLinks {
   tiktok: string | null;
 }
 
-export type StorePalette   = 'maroon' | 'velvet' | 'parchment' | 'slate' | 'onyx';
+// Five feel-first palettes (replaces old 6-palette set)
+export type StorePalette   = 'velvet' | 'slate' | 'bloom' | 'obsidian' | 'chalk';
 export type StoreLayout    = 'grid-dense' | 'grid-airy' | 'editorial' | 'masonry' | 'minimal';
 export type StoreTypography = 'editorial' | 'modern' | 'mono' | 'warm' | 'bold';
 export type CardStyle      = 'clean-square' | 'rounded-float' | 'polaroid' | 'film-strip' | 'minimal-line';
+// Kept for backward compat with call sites — no longer surfaced in Architect UI
 export type StoreSignature = 'the-bale' | 'the-vault' | 'the-atelier' | 'the-archive' | 'the-gallery';
+
+// ─── New feel-first types ────────────────────────────────────────────────────
+
+export type StoreTheme =
+  // Collector
+  | 'the-bale' | 'the-vault' | 'the-drop'
+  // Vendor
+  | 'the-package' | 'the-window' | 'the-counter'
+  // Host
+  | 'the-studio' | 'the-clinic' | 'the-space'
+  // Digital Creator
+  | 'the-lab' | 'the-feed' | 'the-archive-d'
+  // Studio
+  | 'the-portfolio' | 'the-agency' | 'the-practice';
+
+export type StoreShape  = 'edge' | 'form' | 'float' | 'bubble';
+export type StoreMotion = 'still' | 'precise' | 'fluid' | 'cinematic';
+
+// Per-palette font colour variants
+export type StoreFontColor =
+  | 'cream' | 'gold' | 'white'   // dark palettes: velvet, slate, obsidian
+  | 'fog' | 'silver'              // slate / obsidian variants
+  | 'ink' | 'charcoal'            // light palettes: bloom, chalk
+  | 'wine' | 'maroon';            // light palette accent-tinted options
 
 export interface SectionStates {
   'section-hero': boolean;
@@ -58,6 +84,12 @@ export interface StoreTypeConfig {
 }
 
 export interface StoreConfig {
+  // Feel-first fields (new)
+  theme: StoreTheme;
+  shape: StoreShape;
+  motion: StoreMotion;
+  font_color: StoreFontColor;
+  // Kept for backward compat — signature is derived from theme, card_style auto-set by theme
   signature: StoreSignature;
   layout: StoreLayout;
   palette: StorePalette;
@@ -86,10 +118,13 @@ export interface Merchant {
   initialized_at: string;
   last_active_at: string;
   store_open: boolean;
+  has_gone_live: boolean;
+  first_seal_issued: boolean;
   whatsapp_template: string | null;
   store_config: StoreConfig;
   verification_tier: 'unverified' | 'verified' | 'trusted';
   is_paused: boolean;
+  is_suspended: boolean;
   pause_message: string | null;
   pause_return_date: string | null;
   checkout_enabled: boolean;
@@ -134,8 +169,8 @@ export interface AdminLogEntry {
   id: string;
   action: string;
   target_merchant_id: string | null;
-  actor: 'admin';
-  timestamp: string;
+  admin_id: string;
+  created_at: string;
   note: string | null;
 }
 

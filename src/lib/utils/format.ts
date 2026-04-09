@@ -46,9 +46,10 @@ export function formatDate(date: string | Date, style: 'short' | 'long' | 'relat
   });
 }
 
-export function formatRelativeDate(date: Date): string {
+export function formatRelativeDate(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
   const now = Date.now();
-  const diff = now - date.getTime();
+  const diff = now - d.getTime();
 
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);

@@ -36,7 +36,7 @@
   height: 36px;
   border-radius: var(--r-sm);
   background: var(--sf-surface-raised, var(--color-surface-raised));
-  box-shadow: var(--sf-card-shadow, var(--shadow-raise-sm));
+  box-shadow: var(--shadow-raise-sm);
   border: none;
   cursor: pointer;
   display: flex;
@@ -117,7 +117,7 @@
   height: 8px;
   border-radius: var(--r-full);
   flex-shrink: 0;
-  box-shadow: 0 0 8px currentColor;
+  box-shadow: var(--shadow-raise-sm);
 }
 
 .heroTitle {
@@ -245,14 +245,14 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--r-md);
   background: var(--sf-surface-raised, var(--color-surface-raised));
-  box-shadow: var(--sf-card-shadow, var(--shadow-raise-sm));
+  box-shadow: var(--shadow-raise-sm);
   text-decoration: none;
   transition: all var(--duration-fast);
   border: 1px solid transparent;
 }
 
 .otherCard:hover {
-  box-shadow: var(--sf-card-shadow, var(--shadow-raise));
+  box-shadow: var(--shadow-raise-sm);
   transform: translateY(-1px);
 }
 

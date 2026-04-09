@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { m, AnimatePresence } from '@/lib/motion';
 import { Store, ShoppingBag, ArrowRight } from 'lucide-react';
+import { useOnboardingStore } from '@/lib/store/onboarding.store';
 import styles from './SelectRolePage.module.css';
 
 type Role = 'curator' | 'buyer' | null;
@@ -18,10 +19,12 @@ const cardVariants = {
 
 export default function SelectRolePage() {
   const navigate = useNavigate();
+  const { setRole } = useOnboardingStore();
   const [selected, setSelected] = useState<Role>(null);
 
   const handleContinue = () => {
     if (!selected) return;
+    setRole(selected);
     if (selected === 'curator') {
       navigate('/onboarding/identity');
     } else {

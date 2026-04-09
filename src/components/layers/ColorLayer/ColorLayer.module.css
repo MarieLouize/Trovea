@@ -1,0 +1,141 @@
+/* ColorLayer.module.css */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.subSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sectionTitle    { color: var(--color-fg); font-size: 20px; margin: 0; }
+.subSectionTitle { color: var(--color-fg-muted); font-size: 9px; letter-spacing: 1.5px; margin: 0; }
+.sectionDesc     { color: var(--color-fg-muted); margin: 0; font-size: 13px; }
+
+/* ── Part A: Palette Grid ── */
+
+.paletteGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-2);
+}
+
+.paletteCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.paletteCardActive .swatch {
+  box-shadow: 0 0 0 2.5px var(--color-accent);
+}
+
+.swatch {
+  width: 100%;
+  aspect-ratio: 1 / 1.1;
+  border-radius: var(--r-md);
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow var(--duration-fast);
+}
+
+.swatchSurface {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+}
+
+.accentDot {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.paletteName {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.activeDot {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* ── Part B: Font Color ── */
+
+.fontColorList {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.fontColorCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-2);
+  border-radius: var(--r-md);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.fontColorCardActive {
+  border-color: rgba(255,255,255,0.35);
+}
+
+.fontColorSample {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.fontColorName {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.activeBadge {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+  opacity: 0.9;
+}

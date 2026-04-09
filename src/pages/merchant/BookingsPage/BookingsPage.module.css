@@ -1,511 +1,371 @@
-/* ============================================================
-   BOOKINGS — /bookings  (Host: full | Studio: placeholder)
-   ============================================================ */
+/* BookingsPage.module.css */
 
 .page {
-  padding: var(--space-6);
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) var(--space-12);
 }
 
-@media (min-width: 768px) {
-  .page { padding: var(--space-8) var(--space-10); }
-}
-
-/* ── HEADER ── */
 .header {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: var(--space-6);
-  flex-wrap: wrap;
 }
 
 .pageTitle {
   font-family: var(--font-serif);
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 400;
   color: var(--color-fg);
-  letter-spacing: -0.5px;
 }
 
-.bookingCount {
+.avgResponse {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--color-fg-ghost);
-  text-shadow: -1px -1px 1px rgba(14,14,14,0.25), 1px 1px 1px rgba(255,255,255,0.4);
+  margin-top: var(--space-2);
 }
 
-/* ── TABS ── */
 .tabs {
   display: flex;
   gap: var(--space-2);
+  margin-bottom: var(--space-6);
   overflow-x: auto;
-  -ms-overflow-style: none;
+  padding-bottom: 4px;
   scrollbar-width: none;
-  margin-bottom: var(--space-5);
-  padding-bottom: 2px;
 }
-
 .tabs::-webkit-scrollbar { display: none; }
 
 .tab {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--r-full);
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 2px;
+  font-size: 10px;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--color-fg-muted);
+  background: var(--color-surface-raised);
+  color: var(--color-fg-ghost);
+  border: 1px solid rgba(0,0,0,0.05);
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-spring);
   white-space: nowrap;
-  border: none;
-  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
-  box-shadow: var(--shadow-raise-sm);
-  min-height: 36px;
+  transition: all var(--duration-fast);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-
-.tab:hover { box-shadow: var(--shadow-raise); color: var(--color-fg); }
 
 .tabActive {
-  background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
-  color: #F0EDE8;
-  box-shadow: 3px 3px 8px var(--color-accent-glow);
+  background: var(--color-fg);
+  color: var(--color-bg);
+  border-color: var(--color-fg);
 }
-
-.tabActive:hover { box-shadow: 4px 4px 12px var(--color-accent-glow); color: #F0EDE8; }
 
 .tabBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.25);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0;
-  line-height: 1;
-}
-
-.tabActive .tabBadge {
-  background: rgba(255,255,255,0.3);
-}
-
-.tab:not(.tabActive) .tabBadge {
   background: var(--color-accent);
-  color: #F0EDE8;
+  color: var(--color-fg);
+  padding: 1px 5px;
+  border-radius: var(--r-full);
+  font-size: 9px;
 }
 
-/* ── EMPTY STATE ── */
-.emptyState {
-  padding: var(--space-12) var(--space-6);
-  text-align: center;
-  background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-inset);
-}
+/* ── HOST CARDS ── */
 
-.emptyText {
-  font-size: 13px;
-  color: var(--color-fg-ghost);
-}
-
-/* ── STUDIO PLACEHOLDER ── */
-.studioPlaceholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-16) var(--space-6);
-  background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-inset);
-  border: 1px solid rgba(0,0,0,0.04);
-  text-align: center;
-  color: var(--color-fg-ghost);
-}
-
-.studioPlaceholderText {
-  font-size: 13px;
-  color: var(--color-fg-ghost);
-  line-height: 1.6;
-  max-width: 320px;
-}
-
-/* ── BOOKING LIST ── */
 .bookingList {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
-/* ── BOOKING CARD ── */
 .bookingCard {
-  padding: var(--space-4) var(--space-5);
-  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  background: var(--color-surface);
   border-radius: var(--r-lg);
+  padding: var(--space-5);
+  border: 1px solid rgba(0,0,0,0.06);
   box-shadow: var(--shadow-raise-sm);
-  border: 1px solid rgba(255,255,255,0.14);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-standard);
   position: relative;
   overflow: hidden;
+}
+
+.waitingTime {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-fg-ghost);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.waitingTimeLong {
+  border-left: 3px solid var(--color-gold);
+}
+
+.depositStatus {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--color-fg-muted);
+  margin-top: var(--space-2);
+}
+
+.depositPaid {
+  color: var(--color-success-text);
+  font-weight: 600;
+}
+
+.noShowPrompt {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px dashed rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.noShowLabel {
+  font-size: 12px;
+  color: var(--color-fg-muted);
+}
+
+.noShowActions {
+  display: flex;
   gap: var(--space-2);
 }
 
-.bookingCard::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--noise);
-  background-size: 200px;
-  opacity: 0.3;
-  pointer-events: none;
+.noShowBtn {
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: transparent;
+  cursor: pointer;
 }
 
-.bookingCard:hover {
-  box-shadow: var(--shadow-raise);
-  transform: translateX(2px);
+.noShowRecorded {
+  color: var(--color-error);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-/* ── CARD TOP ROW ── */
+.rebookBtn {
+  margin-top: var(--space-3);
+  width: 100%;
+  padding: var(--space-2);
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.05);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* ── STUDIO CARDS ── */
+
+.enquiryCard {
+  background: var(--color-surface);
+  border-radius: var(--r-xl);
+  padding: var(--space-6);
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-raise-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.enquiryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.clientInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.clientName {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--color-fg);
+}
+
+.companyName {
+  font-size: 12px;
+  color: var(--color-fg-ghost);
+}
+
+.timeAgo {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-fg-ghost);
+}
+
+.enquiryMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--color-accent);
+  background: rgba(var(--color-accent-rgb), 0.05);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-sm);
+}
+
+.enquiryMessage {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-fg-muted);
+  position: relative;
+}
+
+.readMoreBtn {
+  color: var(--color-accent);
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.packageLink {
+  font-size: 11px;
+  color: var(--color-fg-ghost);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.packageValue {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-fg);
+  font-weight: 600;
+  margin-top: var(--space-2);
+}
+
+.enquiryActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.actionBtn {
+  flex: 1;
+  padding: var(--space-3);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: var(--color-fg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.actionBtnPrimary {
+  background: var(--color-fg);
+  color: var(--color-bg);
+  border-color: var(--color-fg);
+}
+
+.actionBtnWhatsApp {
+  background: var(--color-whatsapp);
+  color: var(--color-fg);
+  border-color: var(--color-whatsapp);
+}
+
+/* ── COMMON ── */
+
+.emptyState {
+  padding: var(--space-12) var(--space-6);
+  text-align: center;
+  color: var(--color-fg-ghost);
+  font-family: var(--font-serif-alt);
+  font-style: italic;
+}
+
 .cardTopRow {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  position: relative;
-  z-index: 1;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
 }
 
 .statusDot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  flex-shrink: 0;
 }
 
-.statusDotConfirmed { background: #1aab5e; }
-.statusDotPending   { background: var(--color-gold); }
+.statusDotPending { background: var(--color-gold); }
+.statusDotConfirmed { background: var(--color-success); }
 .statusDotCompleted { background: var(--color-fg-ghost); }
-.statusDotCancelled { background: rgba(57,0,7,0.3); }
+.statusDotCancelled { background: var(--color-error); }
 
 .cardService {
-  flex: 1;
-  font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 14px;
   color: var(--color-fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .bookingAmount {
-  font-family: var(--font-serif);
-  font-size: 17px;
-  color: var(--color-accent);
-  white-space: nowrap;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-fg-muted);
 }
 
-/* ── BOOKING META ── */
 .bookingMeta {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  position: relative;
-  z-index: 1;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
 }
 
 .buyerName {
-  font-size: 13px;
-  color: var(--color-fg-muted);
-  font-weight: 500;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  color: var(--color-fg);
 }
 
 .buyerPhone {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--color-fg-ghost);
-  letter-spacing: 0.5px;
-  text-shadow: -1px -1px 1px rgba(14,14,14,0.25), 1px 1px 1px rgba(255,255,255,0.4);
 }
 
-/* ── BOOKING TIME ── */
 .bookingTime {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.5px;
+  font-size: 13px;
   color: var(--color-fg-muted);
-  position: relative;
-  z-index: 1;
-  text-shadow: -1px -1px 1px rgba(14,14,14,0.25), 1px 1px 1px rgba(255,255,255,0.4);
+  margin-bottom: var(--space-2);
 }
 
-/* ── DEPOSIT NOTE ── */
-.depositNote {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  color: var(--color-fg-ghost);
-  position: relative;
-  z-index: 1;
-}
-
-.balanceDue {
-  color: var(--color-gold);
-}
-
-/* ── BOOKING NOTES ── */
 .bookingNotes {
   font-size: 12px;
   font-style: italic;
   color: var(--color-fg-ghost);
-  line-height: 1.6;
-  position: relative;
-  z-index: 1;
-}
-
-/* ── BOOKING ACTIONS ── */
-.bookingActions {
-  display: flex;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-top: var(--space-1);
-  position: relative;
-  z-index: 1;
-}
-
-.actionBtnPrimary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4);
-  background: linear-gradient(145deg, var(--color-accent-mid), var(--color-accent));
-  color: #F0EDE8;
-  border: none;
-  border-radius: var(--r-full);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  min-height: 36px;
-  box-shadow: 2px 2px 8px var(--color-accent-glow);
-  transition: all var(--duration-fast) var(--ease-spring);
-}
-
-.actionBtnPrimary:hover { box-shadow: 4px 4px 12px var(--color-accent-glow); }
-
-.actionBtnSecondary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4);
-  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
-  color: var(--color-fg-muted);
-  border: none;
-  border-radius: var(--r-full);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  min-height: 36px;
-  box-shadow: var(--shadow-raise-sm);
-  transition: all var(--duration-fast) var(--ease-standard);
-}
-
-.actionBtnSecondary:hover { box-shadow: var(--shadow-raise); color: var(--color-fg); }
-
-.actionBtnWhatsApp {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4);
-  background: rgba(37, 211, 102, 0.1);
-  color: #1a9b57;
-  border: 1px solid rgba(37, 211, 102, 0.2);
-  border-radius: var(--r-full);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  min-height: 36px;
-  transition: all var(--duration-fast);
-}
-
-.actionBtnWhatsApp:hover {
-  background: rgba(37, 211, 102, 0.16);
-}
-
-/* ── DETAIL DRAWER ── */
-.drawerDetail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.drawerMeta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.drawerMetaTime {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  color: var(--color-fg-muted);
-  text-shadow: -1px -1px 1px rgba(14,14,14,0.25), 1px 1px 1px rgba(255,255,255,0.4);
-}
-
-.drawerMetaDuration {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--color-fg-ghost);
-  padding: 3px 10px;
-  background: rgba(0,0,0,0.05);
-  border-radius: var(--r-full);
-}
-
-.drawerBuyer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-4);
-  background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-raise-sm);
-  border: 1px solid rgba(255,255,255,0.14);
-}
-
-.drawerBuyerName {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--color-fg);
-}
-
-.drawerBuyerPhone {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--color-accent);
-  letter-spacing: 0.5px;
-  text-decoration: none;
-}
-
-.drawerBuyerPhone:hover { text-decoration: underline; }
-
-.drawerBalance {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-inset-sm);
-}
-
-.drawerBalanceRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.drawerBalanceRowDue {
-  border-top: 1px solid rgba(0,0,0,0.06);
-  padding-top: var(--space-2);
-  margin-top: var(--space-1);
-}
-
-.drawerBalanceLabel {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--color-fg-ghost);
-  text-shadow: -1px -1px 1px rgba(14,14,14,0.25), 1px 1px 1px rgba(255,255,255,0.4);
-}
-
-.drawerBalanceAmount {
-  font-family: var(--font-serif);
-  font-size: 18px;
-  color: var(--color-fg);
-}
-
-.drawerBalanceDeposit {
-  font-family: var(--font-serif);
-  font-size: 16px;
-  color: #1aab5e;
-}
-
-.drawerBalanceDue {
-  font-family: var(--font-serif);
-  font-size: 17px;
-  color: var(--color-accent);
-}
-
-.drawerNotesBox {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.drawerNotesLabel {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--color-fg-ghost);
-  text-shadow: -1px -1px 1px rgba(14,14,14,0.25), 1px 1px 1px rgba(255,255,255,0.4);
-}
-
-.drawerNotesText {
-  font-size: 13px;
-  font-style: italic;
-  color: var(--color-fg-muted);
-  line-height: 1.65;
-  padding: var(--space-3) var(--space-4);
-  background: linear-gradient(145deg, var(--color-surface-inset), var(--color-surface));
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-inset-sm);
-}
-
-.drawerActions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-/* ── MOBILE RESPONSIVE ── */
-
-@media (max-width: 639px) {
-  .pageTitle { font-size: 24px; }
-
-  /* Stack service name and amount on very small screens */
-  .cardTopRow { flex-wrap: wrap; }
-
-  .bookingAmount {
-    font-size: 15px;
-  }
-
-  .tab {
-    padding: var(--space-2) var(--space-3);
-    font-size: 8px;
-  }
+  background: rgba(0,0,0,0.02);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-sm);
+  margin-top: var(--space-2);
 }

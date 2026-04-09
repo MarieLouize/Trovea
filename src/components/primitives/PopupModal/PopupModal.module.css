@@ -1,9 +1,8 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   z-index: var(--z-modal);
-  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -14,7 +13,7 @@
   position: relative;
   background: linear-gradient(145deg, var(--color-surface-raised) 0%, var(--color-surface) 100%);
   border-radius: var(--r-xl);
-  box-shadow: var(--shadow-raise-lg);
+  box-shadow: var(--shadow-raise-sm);
   border: 1px solid rgba(255, 255, 255, 0.2);
   width: 100%;
   max-width: 480px;
@@ -66,7 +65,7 @@
 }
 
 .closeButton:active {
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: var(--shadow-raise-sm);
 }
 
 .body {

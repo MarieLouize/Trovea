@@ -1,8 +1,21 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LazyMotion, motionFeatures } from '@/lib/motion';
 import ToastContainer from '@/components/primitives/Toast/Toast';
 import ErrorBoundary from '@/components/primitives/ErrorBoundary/ErrorBoundary';
 import MerchantShell from '@/components/merchant/MerchantShell/MerchantShell';
+import RequireAuth from '@/components/auth/RequireAuth';
+import RequireAdmin from '@/components/auth/RequireAdmin';
+import ScrollToTop from '@/components/primitives/ScrollToTop/ScrollToTop';
+
+import { useAuthStore } from '@/lib/store/auth.store';
+import { useMerchantStore } from '@/lib/store/merchant.store';
+import { useArchiveStore } from '@/lib/store/archive.store';
+import { useLedgerStore } from '@/lib/store/ledger.store';
+import { useUIStore } from '@/lib/store/ui.store';
+import { getMerchantByOwnerId } from '@/lib/db/queries';
+import { supabase } from '@/lib/supabase';
+import type { Receipt } from '@/lib/types';
 
 // ── Phase 1B ──
 import AuthPage from '@/pages/auth/AuthPage';
@@ -21,6 +34,7 @@ import ArchivePage from '@/pages/merchant/ArchivePage';
 // ── Phase 1C (cont.) ──
 import TerminalPage from '@/pages/merchant/TerminalPage';
 import LedgerPage from '@/pages/merchant/LedgerPage';
+import ReceiptsPage from '@/pages/merchant/ReceiptsPage';
 
 // ── Phase 2D ──
 import CataloguePage from '@/pages/merchant/CataloguePage';
@@ -41,6 +55,7 @@ import SubmitReceiptPage from '@/pages/public/SubmitReceiptPage';
 import StorefrontPage from '@/pages/public/StorefrontPage';
 import ItemDetailPage from '@/pages/public/ItemDetailPage';
 import CollectionPage from '@/pages/public/CollectionPage';
+import NotFoundPage from '@/pages/public/NotFoundPage/NotFoundPage';
 
 import CustomizePage from '@/pages/public/CustomizePage';
 
@@ -65,9 +80,89 @@ function Placeholder({ name }: { name: string }) {
 }
 
 export default function App() {
+  const { initSession, isAuthenticated, user, isLoading: authLoading } = useAuthStore();
+
+  // ─── Auth Initialization ──────────────────────────────────────────────────
+  useEffect(() => {
+    initSession();
+  }, [initSession]);
+
+  // ─── Post-Auth Data Hydration ─────────────────────────────────────────────
+  useEffect(() => {
+    const loadMerchantData = async () => {
+      // If Supabase not configured, fallback to fixture mode
+      const hasEnv = !!import.meta.env.VITE_SUPABASE_URL && !!import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!hasEnv) {
+        // Dev fallback: fixtures are already loaded by default in stores.
+        return;
+      }
+
+      if (!isAuthenticated || !user) return;
+
+      try {
+        const merchant = await getMerchantByOwnerId(user.id);
+        if (merchant) {
+          useMerchantStore.getState().setMerchant(merchant);
+          useArchiveStore.getState().initFromDB(merchant.id);
+          useLedgerStore.getState().initFromDB(merchant.id);
+
+          // Phase 3G: Realtime subscription for receipts
+          const channel = supabase
+            .channel(`merchant-receipts-${merchant.id}`)
+            .on('postgres_changes', {
+              event: 'INSERT',
+              schema: 'trovea',
+              table: 'receipts',
+              filter: `merchant_id=eq.${merchant.id}`
+            }, (payload) => {
+              const newReceipt = payload.new as Receipt;
+              const { receipts, setReceipts } = useLedgerStore.getState();
+              setReceipts([newReceipt, ...receipts]);
+              useUIStore.getState().addToast(`New order from ${newReceipt.buyer_name}`, 'success');
+            })
+            .subscribe();
+
+          return () => {
+            supabase.removeChannel(channel);
+          };
+        }
+      } catch (err) {
+        useUIStore.getState().addToast('Failed to load store data', 'error');
+      }
+    };
+
+    if (!authLoading) {
+      loadMerchantData();
+    }
+  }, [isAuthenticated, user, authLoading]);
+
+  // Global loading state while checking auth session:
+  if (authLoading) {
+    return (
+      <div style={{ 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'var(--color-bg)'
+      }}>
+        <div style={{ 
+          fontFamily: 'var(--font-serif)', 
+          fontSize: '24px', 
+          color: 'var(--color-fg)',
+          letterSpacing: '-0.02em'
+        }}>
+          Trove<span style={{ color: 'var(--color-accent)' }}>'</span>a
+        </div>
+      </div>
+    );
+  }
+
   return (
     <LazyMotion features={motionFeatures} strict>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
 
           {/* ── Auth ── */}
@@ -80,74 +175,32 @@ export default function App() {
             }
           />
 
-          {/* ── Onboarding ── */}
-          <Route
-            path="/onboarding/select-role"
-            element={
-              <ErrorBoundary pageName="onboarding/select-role">
-                <SelectRolePage />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/onboarding/identity"
-            element={
-              <ErrorBoundary pageName="onboarding/identity">
-                <IdentityPage />
-              </ErrorBoundary>
-            }
-          />
-          {/* Phase 2B — Store type selection step */}
-          <Route
-            path="/onboarding/store-type"
-            element={
-              <ErrorBoundary pageName="onboarding/store-type">
-                <StoreTypePage />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/onboarding/setup-store"
-            element={
-              <ErrorBoundary pageName="onboarding/setup-store">
-                <SetupStorePage />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/onboarding/first-item"
-            element={
-              <ErrorBoundary pageName="onboarding/first-item">
-                <FirstItemPage />
-              </ErrorBoundary>
-            }
-          />
+          {/* ── Protected Merchant Routes ── */}
+          <Route element={<RequireAuth><MerchantShell /></RequireAuth>}>
+            <Route path="/dashboard" element={<ErrorBoundary pageName="dashboard"><DashboardPage /></ErrorBoundary>} />
+            <Route path="/archive"   element={<ErrorBoundary pageName="archive"><ArchivePage /></ErrorBoundary>} />
+            <Route path="/terminal"  element={<ErrorBoundary pageName="terminal"><TerminalPage /></ErrorBoundary>} />
+            <Route path="/ledger"    element={<ErrorBoundary pageName="ledger"><LedgerPage /></ErrorBoundary>} />
+            <Route path="/receipts"  element={<ErrorBoundary pageName="receipts"><ReceiptsPage /></ErrorBoundary>} />
 
-          {/* ── Merchant — nested under MerchantShell (uses <Outlet />) ── */}
-          <Route element={<MerchantShell />}>
-            {/* Phase 1C — Updated */}
-            <Route path="/dashboard"     element={<DashboardPage />} />
+            <Route path="/insights"      element={<ErrorBoundary pageName="insights"><InsightsPage /></ErrorBoundary>} />
+            <Route path="/dispatch"      element={<ErrorBoundary pageName="dispatch"><DispatchPage /></ErrorBoundary>} />
+            <Route path="/settings"      element={<ErrorBoundary pageName="settings"><SettingsPage /></ErrorBoundary>} />
+            <Route path="/notifications" element={<ErrorBoundary pageName="notifications"><NotificationsPage /></ErrorBoundary>} />
 
-            {/* Phase 1C + 2D + 2F */}
-            <Route path="/archive"       element={<ArchivePage />} />
-            <Route path="/terminal"      element={<TerminalPage />} />
-            <Route path="/ledger"        element={<LedgerPage />} />
-
-            {/* Phase 2G */}
-            <Route path="/insights"      element={<InsightsPage />} />
-            {/* <Route path="/dispatch"      element={<DispatchPage />} /> */}
-            <Route path="/settings"      element={<SettingsPage />} />
-            {/* <Route path="/notifications" element={<NotificationsPage />} /> */}
-
-            {/* Phase 2D — Digital Creator only */}
-            <Route path="/catalogue" element={<CataloguePage />} />
-
-            {/* Phase 2E — Vendor + Host */}
-            <Route path="/schedule"  element={<SchedulePage />} />
-            <Route path="/bookings"  element={<BookingsPage />} />
+            <Route path="/catalogue" element={<ErrorBoundary pageName="catalogue"><CataloguePage /></ErrorBoundary>} />
+            <Route path="/schedule"  element={<ErrorBoundary pageName="schedule"><SchedulePage /></ErrorBoundary>} />
+            <Route path="/bookings"  element={<ErrorBoundary pageName="bookings"><BookingsPage /></ErrorBoundary>} />
+            
+            {/* Onboarding steps that require session */}
+            <Route path="/onboarding/select-role" element={<ErrorBoundary pageName="onboarding/select-role"><SelectRolePage /></ErrorBoundary>} />
+            <Route path="/onboarding/identity"    element={<ErrorBoundary pageName="onboarding/identity"><IdentityPage /></ErrorBoundary>} />
+            <Route path="/onboarding/store-type"  element={<ErrorBoundary pageName="onboarding/store-type"><StoreTypePage /></ErrorBoundary>} />
+            <Route path="/onboarding/setup-store" element={<ErrorBoundary pageName="onboarding/setup-store"><SetupStorePage /></ErrorBoundary>} />
+            <Route path="/onboarding/first-item"  element={<ErrorBoundary pageName="onboarding/first-item"><FirstItemPage /></ErrorBoundary>} />
           </Route>
 
-          {/* ── Public — Phase 1E (Pending Updates) ── */}
+          {/* ── Public Routes ── */}
           <Route
             path="/receipt/:receipt_id"
             element={
@@ -165,7 +218,6 @@ export default function App() {
             }
           />
 
-          {/* ── Phase 1F: The Architect — must be before /store/:handle ── */}
           <Route
             path="/store/:handle/customize"
             element={
@@ -200,25 +252,24 @@ export default function App() {
             }
           />
 
-          {/* Phase 2I — Host booking flow (public) */}
           <Route
             path="/store/:handle/book"
-            element={<Placeholder name="Booking Flow" />}
+            element={<ErrorBoundary pageName="booking-flow"><Placeholder name="Booking Flow" /></ErrorBoundary>}
           />
 
           {/* ── Admin — Phase 2P (nested under AdminShell) ── */}
-          <Route path="/admin" element={<AdminShell />}>
-            <Route index                    element={<AdminOverviewPage />} />
-            <Route path="stores"            element={<AdminStoresPage />} />
-            <Route path="reports"           element={<AdminReportsPage />} />
-            <Route path="verification"      element={<AdminVerificationPage />} />
-            <Route path="suspensions"       element={<AdminSuspensionsPage />} />
-            <Route path="receipts"          element={<AdminReceiptsPage />} />
+          <Route path="/admin" element={<RequireAdmin><AdminShell /></RequireAdmin>}>
+            <Route index                    element={<ErrorBoundary pageName="admin/overview"><AdminOverviewPage /></ErrorBoundary>} />
+            <Route path="stores"            element={<ErrorBoundary pageName="admin/stores"><AdminStoresPage /></ErrorBoundary>} />
+            <Route path="reports"           element={<ErrorBoundary pageName="admin/reports"><AdminReportsPage /></ErrorBoundary>} />
+            <Route path="verification"      element={<ErrorBoundary pageName="admin/verification"><AdminVerificationPage /></ErrorBoundary>} />
+            <Route path="suspensions"       element={<ErrorBoundary pageName="admin/suspensions"><AdminSuspensionsPage /></ErrorBoundary>} />
+            <Route path="receipts"          element={<ErrorBoundary pageName="admin/receipts"><AdminReceiptsPage /></ErrorBoundary>} />
           </Route>
 
-          {/* ── Default ── */}
+          {/* ── Default & 404 ── */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
 
         </Routes>
 

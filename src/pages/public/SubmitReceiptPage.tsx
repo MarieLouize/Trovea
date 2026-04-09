@@ -7,7 +7,10 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle, MessageCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
-import { FIXTURE_PRODUCTS, FIXTURE_MERCHANT } from '@/lib/fixtures';
+import {
+  FIXTURE_PRODUCTS, FIXTURE_MERCHANT,
+  FIXTURE_VENDOR_MERCHANT, FIXTURE_VENDOR_PRODUCTS,
+} from '@/lib/fixtures';
 import { formatCurrencyFull } from '@/lib/utils/format';
 import { buildClaimConfirmLink } from '@/lib/utils/whatsapp';
 import { m, AnimatePresence, scalePop, slideUp } from '@/lib/motion';
@@ -22,9 +25,16 @@ export default function SubmitReceiptPage() {
   const [buyerNote,  setBuyerNote]  = useState('');
   const [submitted,  setSubmitted]  = useState(false);
 
-  const product = FIXTURE_PRODUCTS.find(
-    (p) => p.id === intent_id || intent_id?.startsWith(p.id)
-  );
+  // Find product and merchant across fixtures
+  const { product, merchant } = (() => {
+    const p = FIXTURE_PRODUCTS.find(x => x.id === intent_id || intent_id?.startsWith(x.id));
+    if (p) return { product: p, merchant: FIXTURE_MERCHANT };
+    
+    const vp = FIXTURE_VENDOR_PRODUCTS.find(x => x.id === intent_id || intent_id?.startsWith(x.id));
+    if (vp) return { product: vp, merchant: FIXTURE_VENDOR_MERCHANT };
+
+    return { product: null, merchant: FIXTURE_MERCHANT };
+  })();
 
   const handleSubmit = () => {
     if (!buyerName.trim()) return;
@@ -32,25 +42,26 @@ export default function SubmitReceiptPage() {
   };
 
   const whatsappLink = buildClaimConfirmLink({
-    phone:     FIXTURE_MERCHANT.whatsapp,
+    phone:     merchant.whatsapp,
     itemName:  product?.name ?? 'Item',
     price:     product?.price ?? 0,
-    storeName: FIXTURE_MERCHANT.store_name,
+    storeName: merchant.store_name,
+    buyerName: buyerName,
   });
 
-  const { paletteId, isDark } = usePaletteTheme(FIXTURE_MERCHANT.store_config?.palette);
+  const { paletteId, isDark } = usePaletteTheme(merchant.store_config?.palette);
 
   return (
     <div className={`sf-themed ${styles.page}`} data-palette={paletteId} data-dark={isDark}>
       {/* Brand nav */}
       <div className={styles.brandBar}>
         <Link
-          to={`/store/${FIXTURE_MERCHANT.handle}`}
+          to={`/store/${merchant.handle}`}
           className={styles.backBtn}
           aria-label="Back to store"
         >
           <ArrowLeft size={15} />
-          {FIXTURE_MERCHANT.store_name}
+          {merchant.store_name}
         </Link>
       </div>
 
@@ -78,8 +89,8 @@ export default function SubmitReceiptPage() {
               >
                 <p className={styles.successTitle}>Claim submitted</p>
                 <p className={styles.successSub}>
-                  {FIXTURE_MERCHANT.store_name} has received your request
-                  {product ? ` for "${product.name}"` : ''}. They'll confirm via WhatsApp shortly.
+                  {merchant.store_name} has received your request.
+                  Wait for the seller to confirm availability and send payment details via WhatsApp.
                 </p>
               </m.div>
 
@@ -98,7 +109,7 @@ export default function SubmitReceiptPage() {
                   Follow up on WhatsApp
                 </a>
                 <Link
-                  to={`/store/${FIXTURE_MERCHANT.handle}`}
+                  to={`/store/${merchant.handle}`}
                   className={styles.backToStore}
                 >
                   ← Back to store
@@ -112,7 +123,7 @@ export default function SubmitReceiptPage() {
                 animate={{ opacity: 1, transition: { delay: 0.55 } }}
               >
                 <ShieldCheck size={12} />
-                Your details are only shared with {FIXTURE_MERCHANT.store_name}.
+                Your details are only shared with {merchant.store_name}.
               </m.div>
             </div>
           </m.div>

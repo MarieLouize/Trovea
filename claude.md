@@ -4,6 +4,7 @@ You are implementing Trove'a, a mobile-first Merchant OS for Gen-Z curators in N
 
 Before touching any code, read the supporting docs in this directory:
 - `ARCHITECTURE.md` — full file structure, type shapes, store APIs, all constants
+- `DESIGN.md` — canonical visual rules, tokens, and neumorphic material system
 - `CONVENTIONS.md` — every rule you must follow without exception
 - `PHASES.md` — what's built, what each upcoming phase covers
 - `PERSONAS.md` — the five Curator types and their exact commerce models
@@ -14,7 +15,7 @@ Before touching any code, read the supporting docs in this directory:
 
 ```
 src/
-├── styles/          tokens.css + global.css (import order matters: tokens first)
+├── styles/          tokens.css + global.css + cards.css (import order: tokens, global, components)
 ├── lib/             types, fixtures, utils, constants, stores
 ├── components/      primitives + merchant shell
 ├── pages/           auth, onboarding, merchant, public
@@ -46,6 +47,7 @@ This is a Phase 1 static mockup. **No real API calls. No Supabase. No fetch().**
 
 ## When You Are Unsure
 
+- Check `DESIGN.md` for the canonical visual tokens, neumorphic patterns, and theme presets.
 - Check `ARCHITECTURE.md` for exact type shapes and constant field names before writing code that accesses them.
 - Check `CONVENTIONS.md` for the styling rule before hardcoding any value.
 - The fixture data in `ARCHITECTURE.md` is the source of truth for what fields exist on merchants, products, receipts.

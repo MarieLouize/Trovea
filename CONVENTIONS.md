@@ -29,11 +29,11 @@ export { default } from './PageName';
 ### All type-only imports use `import type`
 ```typescript
 // CORRECT
-import type { StoreConfig, CardStyle } from '@/lib/types/store-config.types';
+import type { StoreConfig, CardStyle } from '@/lib/types';
 import type { Product, ProductVariant } from '@/lib/types';
 
 // WRONG — will cause Vite isolatedModules errors at runtime
-import { StoreConfig, CardStyle } from '@/lib/types/store-config.types';
+import { StoreConfig, CardStyle } from '@/lib/types';
 ```
 
 This applies to: all interfaces, all type aliases, all enums from type files.
