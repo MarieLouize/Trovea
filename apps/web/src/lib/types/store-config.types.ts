@@ -1,0 +1,76 @@
+import type { StoreSignature, StoreLayout, StorePalette, StoreTypography, CardStyle, SectionKey } from './merchant.types';
+
+export interface PaletteDefinition {
+  id: StorePalette;
+  name: string;
+  bg: string;
+  surface: string;
+  accent: string;
+  fg: string;
+}
+
+export interface LayoutDefinition {
+  id: StoreLayout;
+  name: string;
+  description: string;
+  cssClass: string;
+}
+
+export interface TypographyDefinition {
+  id: StoreTypography;
+  name: string;
+  heading: string;
+  body: string;
+  cssVars: Record<string, string>;
+}
+
+export interface CardStyleDefinition {
+  id: CardStyle;
+  name: string;
+  description: string;
+  componentName: string;
+}
+
+export interface SignatureDefinition {
+  id: StoreSignature;
+  name: string;
+  tagline: string;
+  defaultPalette: StorePalette;
+  defaultLayout: StoreLayout;
+  defaultTypography: StoreTypography;
+  defaultCardStyle: CardStyle;
+  defaultSectionOrder: SectionKey[];
+}
+
+export interface ClaimRequest {
+  id: string;
+  product_id: string;
+  merchant_id: string;
+  buyer_name: string;
+  buyer_phone: string;
+  buyer_email: string | null;
+  buyer_note: string | null;
+  proof_submitted: boolean;
+  proof_note: string | null;
+  proof_url: string | null;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  idempotency_key: string | null;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+}
+
+export interface HoldRequest {
+  id: string;
+  product_id: string;
+  merchant_id: string;
+  buyer_name: string;
+  buyer_phone: string;
+  buyer_note: string | null;
+  status: 'active' | 'expired' | 'released';
+  duration_hours: number;      // copy of merchant.hold_duration_hours at time of hold
+  idempotency_key: string | null;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;          // created_at + duration_hours
+}

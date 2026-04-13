@@ -8,7 +8,7 @@ BEGIN;
 -- Function to convert fixture IDs to UUIDs for consistency
 CREATE OR REPLACE FUNCTION trovea.seed_uuid(p_id TEXT) RETURNS UUID AS $$
 BEGIN
-  RETURN ('00000000-0000-0000-0000-' || LPAD(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p_id, 'user-', 'A'), 'merchant-', 'B'), 'product-', 'C'), 'col-', 'D'), 'receipt-', 'E'), 'claim-', 'F'), 'hold-', '1'), 'drop-', '2'), 'window-', '3'), 'booking-', '4'), 'enquiry-', '5'), 'report-', '6'), 12, '0'))::UUID;
+  RETURN ('00000000-0000-0000-0000-' || LPAD(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p_id, 'user-', 'A'), 'merchant-', 'B'), 'product-', 'C'), 'col-', 'D'), 'receipt-', 'E'), 'claim-', 'F'), 'hold-', '1'), 'drop-', '2'), 'window-', '3'), 'booking-', '4'), 'enquiry-', '5'), 'report-', '6'), 'menu-', '7'), 'svc-', '8'), 'dig-', '9'), 'pkg-', '0'), 12, '0'))::UUID;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -23,7 +23,7 @@ VALUES
   (trovea.seed_uuid('user-003'), 'chisom@example.com', '{"display_name":"Chisom Eze"}'::jsonb),
   (trovea.seed_uuid('user-004'), 'femi@example.com', '{"display_name":"Femi Ogundimu"}'::jsonb),
   (trovea.seed_uuid('user-005'), 'ngozi@example.com', '{"display_name":"Ngozi Abubakar"}'::jsonb),
-  (trovea.seed_uuid('user-admin'), 'admin@trovea.com', '{"display_name":"Trovéa Admin"}'::jsonb)
+  (trovea.seed_uuid('user-999'), 'admin@trovea.com', '{"display_name":"Trovéa Admin"}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─── 2. PROFILES ──────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ VALUES
   (trovea.seed_uuid('user-003'), 'Chisom Eze', 'curator', '+2348034567890'),
   (trovea.seed_uuid('user-004'), 'Femi Ogundimu', 'curator', '+2348045678901'),
   (trovea.seed_uuid('user-005'), 'Ngozi Abubakar', 'curator', '+2348056789012'),
-  (trovea.seed_uuid('user-admin'), 'Trovéa Admin', 'admin', NULL)
+  (trovea.seed_uuid('user-999'), 'Trovéa Admin', 'admin', NULL)
 ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
 -- ─── 3. MERCHANTS ─────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ VALUES
 -- ─── 14. ADMIN LOG ────────────────────────────────────────────────────────
 INSERT INTO trovea.admin_log (id, admin_id, action, target_merchant_id, note)
 VALUES
-  (gen_random_uuid(), trovea.seed_uuid('user-admin'), 'Verification tier upgraded', trovea.seed_uuid('merchant-003'), 'Upgraded Chisom Beauty to Trusted based on 90-day review.');
+  (gen_random_uuid(), trovea.seed_uuid('user-999'), 'Verification tier upgraded', trovea.seed_uuid('merchant-003'), 'Upgraded Chisom Beauty to Trusted based on 90-day review.');
 
 COMMIT;
 

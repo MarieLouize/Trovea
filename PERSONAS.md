@@ -1,4 +1,4 @@
-# Trove'a — Curator Personas
+# Trovéa — Curator Personas
 
 Every product decision is evaluated against these five fictional Curators.
 When building a feature, ask: does this serve the right persona? Does it frustrate another?

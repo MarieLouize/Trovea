@@ -1,4 +1,4 @@
-# Trove'a — System Invariants
+# Trovéa — System Invariants
 
 These rules are absolute. No feature, persona need, or edge case overrides them.
 Read this before implementing anything that touches receipts, transactions, or user data.

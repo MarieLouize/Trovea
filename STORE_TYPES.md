@@ -1,4 +1,4 @@
-# Trove'a — Store Type Adaptive Guide
+# Trovéa — Store Type Adaptive Guide
 
 This doc specifies exactly how every adaptive surface branches per store type.
 Use this as the implementation reference for Phases 2C–2J.

@@ -1,4 +1,4 @@
-# Trove'a — Coding Conventions
+# Trovéa — Coding Conventions
 
 These rules apply to every file, every phase, without exception. When in doubt, check this doc.
 

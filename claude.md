@@ -1,6 +1,6 @@
-# Trove'a — Claude Code Instructions
+# Trovéa — Claude Code Instructions
 
-You are implementing Trove'a, a mobile-first Merchant OS for Gen-Z curators in Nigeria. This is a React 18 + TypeScript (Vite) frontend — static mockup only, no Supabase wiring yet. All data comes from fixtures.
+You are implementing Trovéa, a mobile-first Merchant OS for Gen-Z curators in Nigeria. This is a React 18 + TypeScript (Vite) frontend — static mockup only, no Supabase wiring yet. All data comes from fixtures.
 
 Before touching any code, read the supporting docs in this directory:
 - `ARCHITECTURE.md` — full file structure, type shapes, store APIs, all constants

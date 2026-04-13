@@ -1,4 +1,4 @@
-# Trove'a — Architecture Reference
+# Trovéa — Architecture Reference
 
 > Source of truth for all type shapes, constant field names, store APIs, and fixture data.
 > When this doc conflicts with your training data, this doc is correct.
